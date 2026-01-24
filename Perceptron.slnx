@@ -1,12 +1,16 @@
 <Solution>
   <Folder Name="/spec/" />
   <Folder Name="/spec/3.Domain/" />
+  <Folder Name="/spec/3.Domain/Annotation/">
+    <File Path="spec/3.Domain/Annotation/VisualAnnotation-Spec.md" />
+  </Folder>
   <Folder Name="/spec/3.Domain/DataStructure/">
     <File Path="spec/3.Domain/DataStructure/ConcurrentBoundedQueue-Spec.md" />
   </Folder>
   <Folder Name="/spec/3.Domain/Entity/">
     <File Path="spec/3.Domain/Entity/BoundingBox-Spec.md" />
     <File Path="spec/3.Domain/Entity/DetectedObject-Spec.md" />
+    <File Path="spec/3.Domain/Entity/Frame-Spec.md" />
   </Folder>
   <Folder Name="/src/" />
   <Folder Name="/src/3.Domain/">

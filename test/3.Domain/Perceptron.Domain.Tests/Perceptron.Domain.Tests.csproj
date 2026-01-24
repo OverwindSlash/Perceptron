@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <Folder Include="DataStructure\" />
+    <Folder Include="Annotation\" />
   </ItemGroup>
 
 </Project>
