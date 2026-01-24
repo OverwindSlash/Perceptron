@@ -109,6 +109,40 @@ public class ConcurrentBoundedQueueTests
     #region 10.3 覆盖语义
 
     [Test]
+    public void Enqueue_FullCapacity_CallbackCalledBeforeDispose()
+    {
+        var callOrder = new List<string>();
+        var queue = new ConcurrentBoundedQueue<MockDisposable>(1, item => callOrder.Add("Callback"));
+        
+        var disposableItem = new MockDisposableWithAction(1, () => callOrder.Add("Dispose"));
+        queue.Enqueue(disposableItem);
+        
+        // Trigger overwrite
+        queue.Enqueue(new MockDisposable(2));
+        
+        Assert.That(callOrder, Is.EqualTo(new[] { "Callback", "Dispose" }));
+    }
+
+    private class MockDisposableWithAction : MockDisposable
+    {
+        private readonly Action _onDispose;
+
+        public MockDisposableWithAction(int id, Action onDispose) : base(id)
+        {
+            _onDispose = onDispose;
+        }
+
+        public override void Dispose()
+        {
+            if (!IsDisposed)
+            {
+                _onDispose();
+                base.Dispose();
+            }
+        }
+    }
+
+    [Test]
     public void Enqueue_FullCapacity_OverwritesOldestAndDisposes()
     {
         // Capacity is 5
@@ -185,6 +219,21 @@ public class ConcurrentBoundedQueueTests
         
         // Accessing methods should throw
         Assert.Throws<ObjectDisposedException>(() => _queue.Enqueue(new MockDisposable(2)));
+    }
+
+    [Test]
+    public void Dispose_MethodsThrowObjectDisposedException()
+    {
+        _queue.Dispose();
+
+        Assert.Multiple(() =>
+        {
+            Assert.Throws<ObjectDisposedException>(() => _queue.Enqueue(new MockDisposable(1)));
+            Assert.Throws<ObjectDisposedException>(() => _queue.TryDequeue(out _));
+            Assert.Throws<ObjectDisposedException>(() => _queue.TryPeek(out _));
+            Assert.Throws<ObjectDisposedException>(() => _queue.Clear());
+            Assert.Throws<ObjectDisposedException>(() => _queue.GetEnumerator());
+        });
     }
 
     [Test]
@@ -478,6 +527,15 @@ public class ConcurrentBoundedQueueTests
 
         Assert.That(d1!.Id, Is.EqualTo(1));
         Assert.That(d2!.Id, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void EnqueueRange_NullOrEmpty_DoesNothing()
+    {
+        Assert.DoesNotThrow(() => _queue.EnqueueRange(null!));
+        Assert.DoesNotThrow(() => _queue.EnqueueRange(Enumerable.Empty<MockDisposable>()));
+        
+        Assert.That(_queue.Count, Is.EqualTo(0));
     }
 
     #endregion
