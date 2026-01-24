@@ -20,8 +20,15 @@
   <Folder Name="/src/3.Domain/">
     <Project Path="src/3.Domain/Perceptron.Domain/Perceptron.Domain.csproj" />
   </Folder>
+  <Folder Name="/src/5.Component/" />
+  <Folder Name="/src/5.Component/FrameBuffer/">
+    <Project Path="src/5.Component/FrameBuffer.TwoModes/FrameBuffer.TwoModes.csproj" Id="41be8e52-5230-4582-820f-8b564e4c68a8" />
+  </Folder>
   <Folder Name="/test/" />
   <Folder Name="/test/3.Domain/">
     <Project Path="test/3.Domain/Perceptron.Domain.Tests/Perceptron.Domain.Tests.csproj" />
+  </Folder>
+  <Folder Name="/test/5.Component/">
+    <Project Path="test/5.Component/FrameBuffer.Tests/FrameBuffer.Tests.csproj" Id="2cd7f620-5af8-4996-8432-aa7e76fe9eeb" />
   </Folder>
 </Solution>

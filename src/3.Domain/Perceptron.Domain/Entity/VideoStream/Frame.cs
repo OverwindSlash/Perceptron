@@ -18,6 +18,12 @@ public class Frame : PropertiesBag, IDisposable
 
     public VisualAnnotation Annotation { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether this frame is a generated blank/default frame
+    /// returned when the buffer is empty in BlankFrameMode.
+    /// </summary>
+    public bool IsBlankFrame { get; set; }
+
     public bool IsDisposed { get; private set; }
 
     private int _refCount = 1;
