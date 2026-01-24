@@ -6,6 +6,7 @@
   </Folder>
   <Folder Name="/spec/3.Domain/Entity/">
     <File Path="spec/3.Domain/Entity/BoundingBox-Spec.md" />
+    <File Path="spec/3.Domain/Entity/DetectedObject-Spec.md" />
   </Folder>
   <Folder Name="/src/" />
   <Folder Name="/src/3.Domain/">
