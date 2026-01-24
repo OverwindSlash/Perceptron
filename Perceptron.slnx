@@ -1,6 +1,9 @@
 <Solution>
   <Folder Name="/spec/" />
   <Folder Name="/spec/3.Domain/" />
+  <Folder Name="/spec/3.Domain/Abstraction/">
+    <File Path="spec/3.Domain/Abstraction/IVideoLoader-Spec.md" />
+  </Folder>
   <Folder Name="/spec/3.Domain/Annotation/">
     <File Path="spec/3.Domain/Annotation/VisualAnnotation-Spec.md" />
   </Folder>
