@@ -4,6 +4,9 @@
   <Folder Name="/spec/3.Domain/DataStructure/">
     <File Path="spec/3.Domain/DataStructure/ConcurrentBoundedQueue-Spec.md" />
   </Folder>
+  <Folder Name="/spec/3.Domain/Entity/">
+    <File Path="spec/3.Domain/Entity/BoundingBox-Spec.md" />
+  </Folder>
   <Folder Name="/src/" />
   <Folder Name="/src/3.Domain/">
     <Project Path="src/3.Domain/Perceptron.Domain/Perceptron.Domain.csproj" />
