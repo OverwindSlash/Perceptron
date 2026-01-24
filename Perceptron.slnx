@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/spec/" />
+  <Folder Name="/spec/3.Domain/" />
+  <Folder Name="/spec/3.Domain/DataStructure/">
+    <File Path="spec/3.Domain/DataStructure/ConcurrentBoundedQueue-Spec.md" />
+  </Folder>
+  <Folder Name="/src/" />
+  <Folder Name="/src/3.Domain/">
+    <Project Path="src/3.Domain/Perceptron.Domain/Perceptron.Domain.csproj" />
+  </Folder>
+  <Folder Name="/test/" />
+  <Folder Name="/test/3.Domain/">
+    <Project Path="test/3.Domain/Perceptron.Domain.Tests/Perceptron.Domain.Tests.csproj" />
+  </Folder>
+</Solution>
