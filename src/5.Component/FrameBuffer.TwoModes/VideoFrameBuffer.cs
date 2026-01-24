@@ -1,12 +1,14 @@
-﻿using OpenCvSharp;
+﻿using ComponentCommon;
+using OpenCvSharp;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.DataStructure;
 using Perceptron.Domain.Entity.VideoStream;
 using System.Collections;
+using Perceptron.Domain.Setting;
 
 namespace FrameBuffer.TwoModes;
 
-public class VideoFrameBuffer : IVideoFrameBuffer
+public class VideoFrameBuffer : ComponentBase, IVideoFrameBuffer
 {
     private readonly ConcurrentBoundedQueue<Frame> _queue;
     private readonly object _lock = new(); // Coordination lock
@@ -19,32 +21,15 @@ public class VideoFrameBuffer : IVideoFrameBuffer
     public int BufferSize { get; }
     public FrameBufferMode Mode { get; }
 
-    public VideoFrameBuffer(Dictionary<string, string>? preferences)
+    public VideoFrameBuffer(Dictionary<string, string>? preferences) 
+        : base(preferences)
     {
-        int bufferSize = 100; // Default buffer size
-        FrameBufferMode mode = FrameBufferMode.BlockingWait; // Default mode
+        BufferSize = FrameBufferSettings.ParseBufferSize(preferences);
+        Mode = FrameBufferSettings.ParseFrameBufferMode(preferences);
 
-        if (preferences != null)
-        {
-            if (preferences.TryGetValue("BufferSize", out var bufferSizeStr) && int.TryParse(bufferSizeStr, out var parsedBufferSize))
-            {
-                bufferSize = parsedBufferSize;
-            }
-
-            if (preferences.TryGetValue("Mode", out var modeStr) && Enum.TryParse<FrameBufferMode>(modeStr, true, out var parsedMode))
-            {
-                mode = parsedMode;
-            }
-        }
-
-        if (bufferSize <= 0) throw new ArgumentOutOfRangeException(nameof(bufferSize), "BufferSize must be greater than 0.");
-        
-        BufferSize = bufferSize;
-        Mode = mode;
-        
         // Initialize the inner queue
         // We pass our internal handler to manage disposal and event firing
-        _queue = new ConcurrentBoundedQueue<Frame>(bufferSize, OnInternalFrameDropped);
+        _queue = new ConcurrentBoundedQueue<Frame>(BufferSize, OnInternalFrameDropped);
     }
 
     private void OnInternalFrameDropped(Frame frame)

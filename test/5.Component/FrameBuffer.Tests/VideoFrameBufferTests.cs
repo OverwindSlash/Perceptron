@@ -2,7 +2,6 @@ using FrameBuffer.TwoModes;
 using OpenCvSharp;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.Entity.VideoStream;
-using NUnit.Framework;
 
 namespace FrameBuffer.Tests;
 
@@ -30,7 +29,7 @@ public class VideoFrameBufferTests
     {
         _buffer = new VideoFrameBuffer(null);
 
-        Assert.That(_buffer.BufferSize, Is.EqualTo(100));
+        Assert.That(_buffer.BufferSize, Is.EqualTo(300));
         Assert.That(_buffer.Mode, Is.EqualTo(FrameBufferMode.BlockingWait));
     }
 

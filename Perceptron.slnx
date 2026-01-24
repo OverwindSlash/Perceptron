@@ -21,8 +21,14 @@
     <Project Path="src/3.Domain/Perceptron.Domain/Perceptron.Domain.csproj" />
   </Folder>
   <Folder Name="/src/5.Component/" />
+  <Folder Name="/src/5.Component/Common/">
+    <Project Path="src/5.Component/ComponentCommon/ComponentCommon.csproj" Id="107135d8-077b-48f9-8bdd-d89a2bfd5295" />
+  </Folder>
   <Folder Name="/src/5.Component/FrameBuffer/">
     <Project Path="src/5.Component/FrameBuffer.TwoModes/FrameBuffer.TwoModes.csproj" Id="41be8e52-5230-4582-820f-8b564e4c68a8" />
+  </Folder>
+  <Folder Name="/src/5.Component/MediaLoader/">
+    <Project Path="src/5.Component/MediaLoader.OpenCV/MediaLoader.OpenCV.csproj" Id="fe7832a6-29b2-4b44-ab12-5772bd5a4d6e" />
   </Folder>
   <Folder Name="/test/" />
   <Folder Name="/test/3.Domain/">
@@ -30,5 +36,6 @@
   </Folder>
   <Folder Name="/test/5.Component/">
     <Project Path="test/5.Component/FrameBuffer.Tests/FrameBuffer.Tests.csproj" Id="2cd7f620-5af8-4996-8432-aa7e76fe9eeb" />
+    <Project Path="test/5.Component/MediaLoader.Tests/MediaLoader.Tests.csproj" Id="1879e277-f109-475e-b470-bed59089e75d" />
   </Folder>
 </Solution>
