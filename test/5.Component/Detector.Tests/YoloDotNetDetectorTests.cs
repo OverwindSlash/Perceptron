@@ -88,7 +88,7 @@ public class YoloDotNetDetectorTests
 
         //ShowResultImage(items, mat);
 
-        Assert.That(items.Count, Is.EqualTo(20));
+        Assert.That(items.Count, Is.EqualTo(19));
     }
 
     [Test]
@@ -184,7 +184,7 @@ public class YoloDotNetDetectorTests
         stopwatch.Stop();
         Console.WriteLine($"4 frames iteration detection elapse: {stopwatch.ElapsedMilliseconds}ms");
 
-        _detector.DetectBatch(frames);
+        //_detector.DetectBatch(frames);
 
         var stopwatchBatch = Stopwatch.StartNew();
         var results = _detector.DetectBatch(frames);
@@ -215,7 +215,7 @@ public class YoloDotNetDetectorTests
 
         //ShowResultImage(results, mat);
 
-        Assert.That(results.Count, Is.EqualTo(28));
+        Assert.That(results.Count, Is.EqualTo(23));
     }
 
     [Test]

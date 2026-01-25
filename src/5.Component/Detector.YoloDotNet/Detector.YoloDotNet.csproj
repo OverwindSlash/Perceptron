@@ -7,9 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="YoloDotNet" Version="4.1.0" />
-    <PackageReference Include="YoloDotNet.ExecutionProvider.Cpu" Version="1.1.0" />
-    <PackageReference Include="YoloDotNet.ExecutionProvider.Cuda" Version="1.1.0" />
+    <PackageReference Include="YoloDotNet" Version="3.1.1" />
   </ItemGroup>
 
   <ItemGroup>

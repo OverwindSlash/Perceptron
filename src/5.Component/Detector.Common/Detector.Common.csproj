@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.23.2" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\3.Domain\Perceptron.Domain\Perceptron.Domain.csproj" />
   </ItemGroup>
 

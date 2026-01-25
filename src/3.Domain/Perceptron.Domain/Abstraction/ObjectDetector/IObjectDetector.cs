@@ -7,11 +7,11 @@ public interface IObjectDetector : IDisposable
 {
     void Init();
 
-    IReadOnlyList<DetectedObject> Detect(Frame frame, float confThresh);
+    IReadOnlyList<DetectedObject> Detect(Frame frame, float confThresh, float iouThresh);
 
-    IReadOnlyList<IReadOnlyList<DetectedObject>> DetectBatch(List<Frame> frames, float confThresh);
+    IReadOnlyList<IReadOnlyList<DetectedObject>> DetectBatch(List<Frame> frames, float confThresh, float iouThresh);
 
-    IReadOnlyList<DetectedObject> DetectByTile(Frame frame, Tuple<int, int> tileSettings, float confThresh);
+    IReadOnlyList<DetectedObject> DetectByTile(Frame frame, Tuple<int, int> tileSettings, float confThresh, float iouThresh);
 
     void Close();
 }

@@ -1,4 +1,4 @@
-using OpenCvSharp;
+﻿using OpenCvSharp;
 using Perceptron.Domain.Entity.ObjectDetection;
 using System.Collections.Concurrent;
 using SkiaSharp;
@@ -213,59 +213,83 @@ public static class MatExtensions
     // 零拷贝：要求 mat.Channels() == 4 且数据为 BGRA 顺序（OpenCV 默认 BGRA）
     public static SKBitmap ToSKBitmap(this Mat mat)
     {
-        if (mat == null || mat.Empty()) throw new ArgumentNullException(nameof(mat));
+       if (mat == null || mat.Empty()) throw new ArgumentNullException(nameof(mat));
 
-        if (mat.Channels() == 3)
-        {
-            // 创建一个 BGRA Mat（会分配新的内存并由 OpenCV 高效填充）
-            var bgra = new Mat();
-            Cv2.CvtColor(mat, bgra, ColorConversionCodes.BGR2BGRA);
-            // 此时 bgra.Data 指向 BGRA 数据，alpha 通常被设为 255
+       if (mat.Channels() == 3)
+       {
+           // 创建一个 BGRA Mat（会分配新的内存并由 OpenCV 高效填充）
+           var bgra = new Mat();
+           Cv2.CvtColor(mat, bgra, ColorConversionCodes.BGR2BGRA);
+           // 此时 bgra.Data 指向 BGRA 数据，alpha 通常被设为 255
 
-            var info = new SKImageInfo(bgra.Width, bgra.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
-            var bmp = new SKBitmap();
+           var info = new SKImageInfo(bgra.Width, bgra.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+           var bmp = new SKBitmap();
 
-            // 使用 ReleaseDelegate 确保 SKBitmap 释放时释放临时的 bgra Mat
-            // 注意：这里只释放转换后的临时 Mat (bgra)，绝不会影响传入的原始 Mat (mat)
-            SKBitmapReleaseDelegate releaseProc = (addr, context) =>
-            {
-                if (context is Mat tempMat)
-                {
-                    tempMat.Dispose();
-                }
-            };
+           // 使用 ReleaseDelegate 确保 SKBitmap 释放时释放临时的 bgra Mat
+           // 注意：这里只释放转换后的临时 Mat (bgra)，绝不会影响传入的原始 Mat (mat)
+           SKBitmapReleaseDelegate releaseProc = (addr, context) =>
+           {
+               if (context is Mat tempMat)
+               {
+                   tempMat.Dispose();
+               }
+           };
 
-            if (!bmp.InstallPixels(info, bgra.Data, (int)bgra.Step(), releaseProc, bgra))
-            {
-                bmp.Dispose();
-                bgra.Dispose();
-                throw new InvalidOperationException("InstallPixels 失败。");
-            }
+           if (!bmp.InstallPixels(info, bgra.Data, (int)bgra.Step(), releaseProc, bgra))
+           {
+               bmp.Dispose();
+               bgra.Dispose();
+               throw new InvalidOperationException("InstallPixels 失败。");
+           }
 
-            // 返回包装，确保调用者 Dispose 时同时释放 bmp 与 bgra 内存
-            return bmp;
-        }
-        else if (mat.Channels() == 4)
-        {
-            // 4通道 BGRA 直接包装 (Zero-Copy)
-            var info = new SKImageInfo(mat.Width, mat.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
-            var bmp = new SKBitmap();
+           // 返回包装，确保调用者 Dispose 时同时释放 bmp 与 bgra 内存
+           return bmp;
+       }
+       else if (mat.Channels() == 4)
+       {
+           // 4通道 BGRA 直接包装 (Zero-Copy)
+           var info = new SKImageInfo(mat.Width, mat.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+           var bmp = new SKBitmap();
 
-            // 直接使用原始 Mat 的数据，不进行拷贝。
-            // 注意：因为是直接引用 mat.Data，SKBitmap 不持有所有权，
-            // 释放 SKBitmap 时 *不会* 释放 Mat。
-            // 调用者必须确保 Mat 在 SKBitmap 使用期间保持有效。
-            if (!bmp.InstallPixels(info, mat.Data, (int)mat.Step()))
-            {
-                bmp.Dispose();
-                throw new InvalidOperationException("InstallPixels 失败。");
-            }
+           // 直接使用原始 Mat 的数据，不进行拷贝。
+           // 注意：因为是直接引用 mat.Data，SKBitmap 不持有所有权，
+           // 释放 SKBitmap 时 *不会* 释放 Mat。
+           // 调用者必须确保 Mat 在 SKBitmap 使用期间保持有效。
+           if (!bmp.InstallPixels(info, mat.Data, (int)mat.Step()))
+           {
+               bmp.Dispose();
+               throw new InvalidOperationException("InstallPixels 失败。");
+           }
 
-            return bmp;
-        }
-        else
-        {
-             throw new ArgumentException("输入必须为 3 通道 (BGR) 或 4 通道 (BGRA) Mat。");
-        }
+           return bmp;
+       }
+       else
+       {
+           throw new ArgumentException("输入必须为 3 通道 (BGR) 或 4 通道 (BGRA) Mat。");
+       }
     }
+
+    // public static SKBitmap ToSKBitmap(this Mat mat)
+    // {
+    //     if (mat == null || mat.Empty()) throw new ArgumentNullException(nameof(mat));
+
+    //     if (mat.Channels() != 3) throw new ArgumentException("输入必须为 3 通道 BGR Mat。");
+
+    //     // 创建一个 BGRA Mat（会分配新的内存并由 OpenCV 高效填充）
+    //     var bgra = new Mat();
+    //     Cv2.CvtColor(mat, bgra, ColorConversionCodes.BGR2BGRA);
+    //     // 此时 bgra.Data 指向 BGRA 数据，alpha 通常被设为 255
+
+    //     var info = new SKImageInfo(bgra.Width, bgra.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+    //     var bmp = new SKBitmap();
+    //     if (!bmp.InstallPixels(info, bgra.Data, (int)bgra.Step()))
+    //     {
+    //         bmp.Dispose();
+    //         bgra.Dispose();
+    //         throw new InvalidOperationException("InstallPixels 失败。");
+    //     }
+
+    //     // 返回包装，确保调用者 Dispose 时同时释放 bmp 与 bgra 内存
+    //     return bmp;
+    // }
 }

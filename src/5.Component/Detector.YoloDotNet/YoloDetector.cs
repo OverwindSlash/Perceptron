@@ -10,9 +10,8 @@ using Serilog;
 using SkiaSharp;
 using System.Diagnostics;
 using YoloDotNet;
+using YoloDotNet.Core;
 using YoloDotNet.Enums;
-using YoloDotNet.ExecutionProvider.Cpu;
-using YoloDotNet.ExecutionProvider.Cuda;
 using YoloDotNet.Models;
 
 namespace Detector.YoloDotNet;
@@ -163,6 +162,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
     {
         var yoloOptions = new YoloOptions()
         {
+            OnnxModel = _modelPath,
             ImageResize = ImageResize.Proportional,
             SamplingOptions = new(SKFilterMode.Nearest, SKMipmapMode.None)
         };
@@ -170,13 +170,13 @@ public class YoloDetector : ComponentBase, IObjectDetector
         switch (_execProvider.ToLower())
         {
             case "cpu":
-                yoloOptions.ExecutionProvider = new CpuExecutionProvider(_modelPath);
+                yoloOptions.ExecutionProvider = new CpuExecutionProvider();
                 break;
             case "cuda":
-                yoloOptions.ExecutionProvider = new CudaExecutionProvider(_modelPath, _deviceId);
+                yoloOptions.ExecutionProvider = new CudaExecutionProvider(_deviceId);
                 break;
             default:
-                yoloOptions.ExecutionProvider = new CpuExecutionProvider(_modelPath);
+                yoloOptions.ExecutionProvider = new CpuExecutionProvider();
                 break;
         }
 
@@ -193,7 +193,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
         using SKBitmap whiteBitmap = new SKBitmap(640, 640);
 
         Log.Information($"Warm up single image predictor...");
-        _predictor.RunObjectDetection(whiteBitmap, 0.3f);
+        _predictor.RunObjectDetection(whiteBitmap);
 
         Log.Information($"Warm up complete.");
     }
@@ -214,7 +214,9 @@ public class YoloDetector : ComponentBase, IObjectDetector
         Log.Information($"ModelTypesCount: {_typeNames.Count}");
     }
 
-    public IReadOnlyList<DetectedObject> Detect(Frame frame, float confThresh = YoloDefaults.DefaultConfidenceThreshold)
+    public IReadOnlyList<DetectedObject> Detect(Frame frame, 
+        float confThresh = YoloDefaults.DefaultConfidenceThreshold,
+        float iouThresh = YoloDefaults.DefaultIouThreshold)
     {
         if (_detectedCount++ % _detectionStride != 0)
         {
@@ -224,8 +226,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
         Mat inputImage = GenerateRegionImage(frame.Scene);
 
         using SKBitmap bitmap = inputImage.ToSKBitmap();
-
-        var objectDetections = _predictor.RunObjectDetection(bitmap, confThresh);
+        
+        var objectDetections = _predictor.RunObjectDetection(bitmap, confThresh, iouThresh);
 
         List<DetectedObject> detectedObjects = GenerateDetectedObjects(frame, ConvertToYoloPrediction(objectDetections));
 
@@ -296,8 +298,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
         {
             var yoloPrediction = new YoloPrediction
             {
-                TypeId = objectDetection.Id ?? 0,
-                Type = _typeNames[objectDetection.Id ?? 0],
+                TypeId = objectDetection.Label.Index,
+                Type = objectDetection.Label.Name,
                 Confidence = (float)objectDetection.Confidence,
                 BBox = new Rect()
                 {
@@ -346,7 +348,9 @@ public class YoloDetector : ComponentBase, IObjectDetector
         return detectedObjects;
     }
 
-    public IReadOnlyList<IReadOnlyList<DetectedObject>> DetectBatch(List<Frame> frames, float confThresh = YoloDefaults.DefaultConfidenceThreshold)
+    public IReadOnlyList<IReadOnlyList<DetectedObject>> DetectBatch(List<Frame> frames, 
+        float confThresh = YoloDefaults.DefaultConfidenceThreshold,
+        float iouThresh = YoloDefaults.DefaultIouThreshold)
     {
         var batchPredictions = new List<List<ObjectDetection>>();
 
@@ -356,7 +360,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
             using var img = frame.Scene.ToSKBitmap();
 
             // Run object detection inference
-            var results = _predictor.RunObjectDetection(img, confThresh);
+            var results = _predictor.RunObjectDetection(img, confThresh, iouThresh);
 
             batchPredictions.Add(new List<ObjectDetection>(results));
         }
@@ -375,7 +379,9 @@ public class YoloDetector : ComponentBase, IObjectDetector
         return batchResult;
     }
 
-    public IReadOnlyList<DetectedObject> DetectByTile(Frame frame, Tuple<int, int> tileSettings, float confThresh = YoloDefaults.DefaultConfidenceThreshold)
+    public IReadOnlyList<DetectedObject> DetectByTile(Frame frame, Tuple<int, int> tileSettings, 
+        float confThresh = YoloDefaults.DefaultConfidenceThreshold,
+        float iouThresh = YoloDefaults.DefaultIouThreshold)
     {
         int rows = tileSettings.Item1;
         int cols = tileSettings.Item2;
@@ -413,7 +419,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
             using var img = subImage.ToSKBitmap();
 
             // Run object detection inference
-            var results = _predictor.RunObjectDetection(img, confThresh);
+            var results = _predictor.RunObjectDetection(img, confThresh, iouThresh);
 
             predictBatch.Add(results);
         }
