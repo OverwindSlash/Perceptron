@@ -10,8 +10,9 @@ using Serilog;
 using SkiaSharp;
 using System.Diagnostics;
 using YoloDotNet;
-using YoloDotNet.Core;
 using YoloDotNet.Enums;
+using YoloDotNet.ExecutionProvider.Cpu;
+using YoloDotNet.ExecutionProvider.Cuda;
 using YoloDotNet.Models;
 
 namespace Detector.YoloDotNet;
@@ -162,7 +163,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
     {
         var yoloOptions = new YoloOptions()
         {
-            OnnxModel = _modelPath,
+            //OnnxModel = _modelPath,
             ImageResize = ImageResize.Proportional,
             SamplingOptions = new(SKFilterMode.Nearest, SKMipmapMode.None)
         };
@@ -170,13 +171,13 @@ public class YoloDetector : ComponentBase, IObjectDetector
         switch (_execProvider.ToLower())
         {
             case "cpu":
-                yoloOptions.ExecutionProvider = new CpuExecutionProvider();
+                yoloOptions.ExecutionProvider = new CpuExecutionProvider(_modelPath);
                 break;
             case "cuda":
-                yoloOptions.ExecutionProvider = new CudaExecutionProvider(_deviceId);
+                yoloOptions.ExecutionProvider = new CudaExecutionProvider(_modelPath, _deviceId);
                 break;
             default:
-                yoloOptions.ExecutionProvider = new CpuExecutionProvider();
+                yoloOptions.ExecutionProvider = new CpuExecutionProvider(_modelPath);
                 break;
         }
 
@@ -395,7 +396,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
         int subImageWidth = frame.Scene.Width / cols;
         int subImageHeight = frame.Scene.Height / rows;
 
-        var subImages = new List<Mat>();
+        var tileSpecs = new List<ImageTile>(rows * cols);
+
         for (int i = 0; i < rows; i++)
         {
             for (int j = 0; j < cols; j++)
@@ -406,38 +408,13 @@ public class YoloDetector : ComponentBase, IObjectDetector
                 int width = (j == cols - 1) ? frame.Scene.Width - x : subImageWidth;
                 int height = (i == rows - 1) ? frame.Scene.Height - y : subImageHeight;
                 Rect roi = new Rect(x, y, width, height);
-                Mat subImage = new Mat(frame.Scene, roi);
-                subImages.Add(subImage);
-            }
-        }
+                using Mat subImage = new Mat(frame.Scene, roi);
 
-        var predictBatch = new List<List<ObjectDetection>>();
+                // Load input image as SKBitmap (or SKImage)
+                using var img = subImage.ToSKBitmap();
 
-        foreach (var subImage in subImages)
-        {
-            // Load input image as SKBitmap (or SKImage)
-            using var img = subImage.ToSKBitmap();
-
-            // Run object detection inference
-            var results = _predictor.RunObjectDetection(img, confThresh, iouThresh);
-
-            predictBatch.Add(results);
-        }
-
-
-        foreach (var subImage in subImages)
-        {
-            subImage.Dispose(); // Dispose each sub-image to free resources
-        }
-
-        List<ImageTile> tileSpecs = new List<ImageTile>(rows * cols);
-        for (int i = 0; i < rows; i++)
-        {
-            for (int j = 0; j < cols; j++)
-            {
-                int index = i * cols + j;
-
-                var predictions = predictBatch[index];
+                // Run object detection inference
+                var results = _predictor.RunObjectDetection(img, confThresh, iouThresh);
 
                 var tileSpec = new ImageTile()
                 {
@@ -445,7 +422,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
                     ColIndex = j,
                     TileWidth = subImageWidth,
                     TileHeight = subImageHeight,
-                    Predictions = ConvertToYoloPrediction(predictions)
+                    Predictions = ConvertToYoloPrediction(results)
                 };
 
                 tileSpecs.Add(tileSpec);
