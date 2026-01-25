@@ -361,4 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/src/5.Component/Detector.YoloDotNet/Models/yolo11m.onnx
+
+# Onnx model
+*.onnx
