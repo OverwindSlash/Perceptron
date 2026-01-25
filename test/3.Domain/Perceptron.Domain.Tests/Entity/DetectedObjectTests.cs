@@ -1,4 +1,4 @@
-using OpenCvSharp;
+﻿using OpenCvSharp;
 using Perceptron.Domain.Entity.ObjectDetection;
 using System.Collections.Concurrent;
 

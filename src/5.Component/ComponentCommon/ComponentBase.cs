@@ -1,4 +1,4 @@
-namespace ComponentCommon;
+﻿namespace ComponentCommon;
 
 public abstract class ComponentBase
 {
@@ -8,4 +8,6 @@ public abstract class ComponentBase
     {
         _preferences = preferences ?? new Dictionary<string, string>();
     }
+
+    protected abstract void LoadPreferences(Dictionary<string, string>? preferences);
 }

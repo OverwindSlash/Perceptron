@@ -1,4 +1,4 @@
-using OpenCvSharp;
+﻿using OpenCvSharp;
 using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.VideoStream;
 
@@ -52,7 +52,7 @@ public class FrameTests
         Assert.That(frame.DetectedObjects, Is.Not.Null);
         Assert.That(frame.DetectedObjects, Is.Empty);
         Assert.That(frame.Annotation, Is.Not.Null);
-        Assert.That(frame.UtcTimeStamp.Offset, Is.EqualTo(TimeSpan.Zero));
+        Assert.That(frame.UtcTimeStamp.Date, Is.EqualTo(DateTime.UtcNow.Date));
         Assert.That(frame.IsDisposed, Is.False);
     }
 

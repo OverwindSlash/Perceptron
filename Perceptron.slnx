@@ -24,6 +24,10 @@
   <Folder Name="/src/5.Component/Common/">
     <Project Path="src/5.Component/ComponentCommon/ComponentCommon.csproj" Id="107135d8-077b-48f9-8bdd-d89a2bfd5295" />
   </Folder>
+  <Folder Name="/src/5.Component/Detector/">
+    <Project Path="src/5.Component/Detector.Common/Detector.Common.csproj" Id="d9b723f8-b6d9-4d49-ba97-9ed2489bed75" />
+    <Project Path="src/5.Component/Detector.YoloDotNet/Detector.YoloDotNet.csproj" Id="186d35f6-e967-4572-94aa-140aa951d897" />
+  </Folder>
   <Folder Name="/src/5.Component/FrameBuffer/">
     <Project Path="src/5.Component/FrameBuffer.TwoModes/FrameBuffer.TwoModes.csproj" Id="41be8e52-5230-4582-820f-8b564e4c68a8" />
   </Folder>
@@ -35,6 +39,7 @@
     <Project Path="test/3.Domain/Perceptron.Domain.Tests/Perceptron.Domain.Tests.csproj" />
   </Folder>
   <Folder Name="/test/5.Component/">
+    <Project Path="test/5.Component/Detector.Tests/Detector.Tests.csproj" Id="6c5c791c-79d0-419c-86e7-ad90f91dfeb6" />
     <Project Path="test/5.Component/FrameBuffer.Tests/FrameBuffer.Tests.csproj" Id="2cd7f620-5af8-4996-8432-aa7e76fe9eeb" />
     <Project Path="test/5.Component/MediaLoader.Tests/MediaLoader.Tests.csproj" Id="1879e277-f109-475e-b470-bed59089e75d" />
   </Folder>

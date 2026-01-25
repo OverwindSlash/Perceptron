@@ -1,4 +1,4 @@
-using OpenCvSharp;
+﻿using OpenCvSharp;
 using Perceptron.Domain.Annotation;
 using Perceptron.Domain.Entity.Common;
 using Perceptron.Domain.Entity.ObjectDetection;
@@ -11,7 +11,7 @@ public class Frame : PropertiesBag, IDisposable
     public string SourceId { get; }
     public long FrameId { get; }
     public long OffsetMilliSec { get; }
-    public DateTimeOffset UtcTimeStamp { get; }
+    public DateTime UtcTimeStamp { get; }
 
     public Mat Scene { get; }
     public IReadOnlyList<DetectedObject> DetectedObjects { get; set; }

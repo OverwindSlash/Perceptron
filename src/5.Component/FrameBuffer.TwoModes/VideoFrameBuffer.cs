@@ -3,8 +3,8 @@ using OpenCvSharp;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.DataStructure;
 using Perceptron.Domain.Entity.VideoStream;
-using System.Collections;
 using Perceptron.Domain.Setting;
+using System.Collections;
 
 namespace FrameBuffer.TwoModes;
 
@@ -18,18 +18,23 @@ public class VideoFrameBuffer : ComponentBase, IVideoFrameBuffer
     // Additional drop handlers managed explicitly to support the interface methods
     private Action<Frame>? _externalDropHandler;
 
-    public int BufferSize { get; }
-    public FrameBufferMode Mode { get; }
+    public int BufferSize { get; private set; }
+    public FrameBufferMode Mode { get; private set; }
 
     public VideoFrameBuffer(Dictionary<string, string>? preferences) 
         : base(preferences)
     {
-        BufferSize = FrameBufferSettings.ParseBufferSize(preferences);
-        Mode = FrameBufferSettings.ParseFrameBufferMode(preferences);
+        LoadPreferences(preferences);
 
         // Initialize the inner queue
         // We pass our internal handler to manage disposal and event firing
         _queue = new ConcurrentBoundedQueue<Frame>(BufferSize, OnInternalFrameDropped);
+    }
+
+    protected sealed override void LoadPreferences(Dictionary<string, string>? preferences)
+    {
+        BufferSize = FrameBufferSettings.ParseBufferSize(preferences);
+        Mode = FrameBufferSettings.ParseFrameBufferMode(preferences);
     }
 
     private void OnInternalFrameDropped(Frame frame)

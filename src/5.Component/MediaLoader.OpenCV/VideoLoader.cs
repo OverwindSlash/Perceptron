@@ -1,4 +1,4 @@
-using ComponentCommon;
+﻿using ComponentCommon;
 using OpenCvSharp;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.Abstraction.MediaLoader;
@@ -46,21 +46,26 @@ public class VideoLoader : ComponentBase, IVideoLoader
     {
         Log.Information("Initialize OpenCV video capture...");
 
+        LoadPreferences(preferences);
+
+        _param = new VideoCapturePara(Options.AccelerationType, Options.VideoAccelerationDeviceId);
+    }
+
+    protected sealed override void LoadPreferences(Dictionary<string, string>? preferences)
+    {
         SourceId = VideoLoaderSettings.ParseSourceId(preferences);
 
         Options = new VideoLoaderOptions()
         {
             VideoCaptureApi = VideoLoaderSettings.ParseVideoCaptureApi(preferences),
             AccelerationType = VideoLoaderSettings.ParseVideoAccelerationType(preferences),
-            VideoAccelerationDeviceId = VideoLoaderSettings.ParseVideoAccelerationDeviceId(preferences)            
+            VideoAccelerationDeviceId = VideoLoaderSettings.ParseVideoAccelerationDeviceId(preferences)
         };
 
         VideoStride = VideoLoaderSettings.ParseVideoStride(preferences);
         MaxRetries = VideoLoaderSettings.ParseMaxRetries(preferences);
         RetryDelayMs = VideoLoaderSettings.ParseRetryDelayMs(preferences);
         Loop = VideoLoaderSettings.ParseLoop(preferences);
-
-        _param = new VideoCapturePara(Options.AccelerationType, Options.VideoAccelerationDeviceId);
     }
 
     public void AttachBuffer(IVideoFrameBuffer buffer)
@@ -467,4 +472,6 @@ public class VideoLoader : ComponentBase, IVideoLoader
         _matPool.Dispose();
         _cancellationTokenSource.Dispose();
     }
+
+    
 }
