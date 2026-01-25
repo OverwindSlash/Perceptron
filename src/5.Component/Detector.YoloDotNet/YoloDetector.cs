@@ -200,6 +200,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
 
     private void GenerateClassNames()
     {
+        _typeNames.Clear();
         var model = _predictor.OnnxModel;
 
         if (model.Labels != null)

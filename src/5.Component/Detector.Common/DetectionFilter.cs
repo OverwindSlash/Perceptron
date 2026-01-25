@@ -1,4 +1,4 @@
-﻿using Perceptron.Domain.Entity.ObjectDetection;
+using Perceptron.Domain.Entity.ObjectDetection;
 
 namespace Detector.Common;
 
@@ -87,7 +87,10 @@ public class DetectionFilter
         {
             if (sourceTypeNames.Contains(detectedObject.Label))
             {
-                detectedObject.LabelId = mappedId;
+                if (mappedId >= 0)
+                {
+                    detectedObject.LabelId = mappedId;
+                }
                 detectedObject.Label = destinationTypeName;
             }
         }

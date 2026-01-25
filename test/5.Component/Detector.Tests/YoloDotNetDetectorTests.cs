@@ -1,4 +1,4 @@
-using Detector.Common;
+﻿using Detector.Common;
 using Detector.YoloDotNet;
 using OpenCvSharp;
 using Perceptron.Domain.Entity.ObjectDetection;
@@ -26,12 +26,20 @@ public class YoloDotNetDetectorTests
         _pref.Add("FilterSmallObject", "false");
         _pref.Add("MinBboxWidth", "0");
         _pref.Add("MinBboxHeight", "0");
+        _pref.Add("FilterLargeObject", "false");
+        _pref.Add("MaxBboxWidth", "10000");
+        _pref.Add("MaxBboxHeight", "10000");
         _pref.Add("RegionDetectionEnabled", "false");
         _pref.Add("DetectionRegion", "0,0,0,0");
         _pref.Add("TileDetectionEnabled", "false");
         _pref.Add("TileDetectionSize", "(1,2)");
         _pref.Add("MaxStitchGapPixel", "2");
         _pref.Add("MinVerticalOverlapRatio", "0.9");
+        _pref.Add("WillSuppressInnerSameObject", "false");
+        _pref.Add("InnerObjectOverlapRatio", "0.0");
+        _pref.Add("WillMapObjectTypes", "false");
+        _pref.Add("SourceObjectTypeNames", "");
+        _pref.Add("DestinationObjectTypeName", "");
 
         _detector = new YoloDetector(_pref);
         _detector.Init();
@@ -315,5 +323,113 @@ public class YoloDotNetDetectorTests
         Assert.That(resultsWithSuppression.Count, Is.LessThanOrEqualTo(resultsWithoutSuppression.Count));
 
         detectorWithSuppression.Dispose();
+    }
+
+    [Test]
+    public void TestTargetTypesFiltering()
+    {
+        // Arrange
+        var testPref = new Dictionary<string, string>(_pref);
+        // Traffic_001.jpg contains persons.
+        testPref["TargetTypes"] = "person";
+        
+        using var detector = new YoloDetector(testPref);
+        detector.Init();
+        
+        using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
+        using var frame = new Frame("test", 0, 0, mat);
+
+        // Act
+        var results = detector.Detect(frame);
+
+        // Assert
+        Assert.That(results, Is.Not.Empty);
+        Assert.That(results.All(x => x.Label == "person"), Is.True, "All detected objects should be 'person'");
+    }
+
+    [Test]
+    public void TestSizeFiltering_SmallObject()
+    {
+        // Arrange
+        using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
+        using var frame = new Frame("test", 0, 0, mat);
+        
+        // Use the default detector to find all objects first
+        var allResults = _detector.Detect(frame);
+        
+        Assert.That(allResults, Is.Not.Empty);
+        
+        var minWidth = (int)allResults.Min(x => x.Bbox.Width);
+        
+        // Set filter to filter out the smallest object(s)
+        var testPref = new Dictionary<string, string>(_pref);
+        testPref["FilterSmallObject"] = "true";
+        testPref["MinBboxWidth"] = (minWidth + 1).ToString();
+
+        using var detectorFiltered = new YoloDetector(testPref);
+        detectorFiltered.Init();
+
+        // Act
+        var filteredResults = detectorFiltered.Detect(frame);
+
+        // Assert
+        Assert.That(filteredResults.Count, Is.LessThan(allResults.Count));
+        Assert.That(filteredResults.All(x => x.Bbox.Width > minWidth), Is.True);
+    }
+
+    [Test]
+    public void TestRegionDetection()
+    {
+        // Arrange
+        using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
+        // Define a region (e.g., center of image)
+        var roi = new Rect(mat.Width / 4, mat.Height / 4, mat.Width / 2, mat.Height / 2);
+        
+        var testPref = new Dictionary<string, string>(_pref);
+        testPref["RegionDetectionEnabled"] = "true";
+        testPref["DetectionRegion"] = $"{roi.X},{roi.Y},{roi.Width},{roi.Height}";
+
+        using var detector = new YoloDetector(testPref);
+        detector.Init();
+        using var frame = new Frame("test", 0, 0, mat);
+
+        // Act
+        var results = detector.Detect(frame);
+
+        // Assert
+        Assert.That(results, Is.Not.Empty);
+        foreach (var item in results)
+        {
+            // Bbox coordinates should be within the ROI
+            Assert.That(item.Bbox.Left, Is.GreaterThanOrEqualTo(roi.X));
+            Assert.That(item.Bbox.Top, Is.GreaterThanOrEqualTo(roi.Y));
+            Assert.That(item.Bbox.Left + item.Bbox.Width, Is.LessThanOrEqualTo(roi.X + roi.Width));
+            Assert.That(item.Bbox.Top + item.Bbox.Height, Is.LessThanOrEqualTo(roi.Y + roi.Height));
+        }
+    }
+
+    [Test]
+    public void TestObjectTypeMapping()
+    {
+        // Arrange
+        var testPref = new Dictionary<string, string>(_pref);
+        testPref["WillMapObjectTypes"] = "true";
+        // 'person' is in Traffic_001.jpg
+        testPref["SourceObjectTypeNames"] = "person";
+        testPref["DestinationObjectTypeName"] = "human";
+
+        using var detector = new YoloDetector(testPref);
+        detector.Init();
+        using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
+        using var frame = new Frame("test", 0, 0, mat);
+
+        // Act
+        var results = detector.Detect(frame);
+
+        // Assert
+        Assert.That(results, Is.Not.Empty);
+        var humans = results.Where(x => x.Label == "human").ToList();
+        Assert.That(humans, Is.Not.Empty, "Should have mapped 'person' to 'human'");
+        Assert.That(results.Any(x => x.Label == "person"), Is.False, "Should not have 'person' anymore");
     }
 }
