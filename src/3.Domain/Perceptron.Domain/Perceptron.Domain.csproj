@@ -9,6 +9,7 @@
   <ItemGroup>
     <Folder Include="DataStructure\" />
     <Folder Include="Entity\Common\" />
+    <Folder Include="AnalysisEngine\" />
   </ItemGroup>
 
   <ItemGroup>
