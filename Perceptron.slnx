@@ -17,6 +17,9 @@
     <File Path="spec/3.Domain/Entity/Frame-Spec.md" />
   </Folder>
   <Folder Name="/src/" />
+  <Folder Name="/src/2.Service/">
+    <Project Path="src/2.Service/Perceptron.Service/Perceptron.Service.csproj" Id="bf441be6-e854-4bc5-a9a8-73e492a9b810" />
+  </Folder>
   <Folder Name="/src/3.Domain/">
     <Project Path="src/3.Domain/Perceptron.Domain/Perceptron.Domain.csproj" />
   </Folder>

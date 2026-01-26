@@ -9,10 +9,11 @@
   <ItemGroup>
     <Folder Include="DataStructure\" />
     <Folder Include="Entity\Common\" />
-    <Folder Include="AnalysisEngine\" />
+    <Folder Include="Event\Pipeline\" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="MessagePipe" Version="1.8.1" />
     <PackageReference Include="OpenCvSharp4" Version="4.11.0.20250507" />
     <PackageReference Include="OpenCvSharp4.official.runtime.linux-x64" Version="4.11.0.20250507" />
     <PackageReference Include="OpenCvSharp4.runtime.linux-arm" Version="4.11.0.20250506" />
