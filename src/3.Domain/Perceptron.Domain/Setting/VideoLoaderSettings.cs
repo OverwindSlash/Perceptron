@@ -1,4 +1,4 @@
-using OpenCvSharp;
+﻿using OpenCvSharp;
 using Serilog;
 
 namespace Perceptron.Domain.Setting;
@@ -16,6 +16,7 @@ public class VideoLoaderSettings : ComponentSettings
 
     
     public string SourceId { get; private set; } = DefaultSourceId;
+    public string VideoUri { get; private set; }
     public VideoCaptureAPIs VideoCaptureApi { get; private set; } = DefaultVideoCaptureApi;
     public VideoAccelerationType VideoAccelerationType { get; private set; } = DefaultVideoAccelerationType;
     public int VideoAccelerationDeviceId { get; private set; } = DefaultVideoAccelerationDeviceId;
@@ -27,6 +28,7 @@ public class VideoLoaderSettings : ComponentSettings
     public override void ParsePreferences()
     {
         SourceId = ParseSourceId(Preferences);
+        VideoUri = ParseVideoUri(Preferences);
         VideoCaptureApi = ParseVideoCaptureApi(Preferences);
         VideoAccelerationType = ParseVideoAccelerationType(Preferences);
         VideoAccelerationDeviceId = ParseVideoAccelerationDeviceId(Preferences);
@@ -45,6 +47,17 @@ public class VideoLoaderSettings : ComponentSettings
         
         Log.Warning("Source Id is empty, reset to default: {SourceId}", DefaultSourceId);
         return DefaultSourceId;
+    }
+
+    public static string ParseVideoUri(Dictionary<string, string>? preferences)
+    {
+        var value = PreferenceParser.ParseStringValue(preferences, "VideoUri", DefaultSourceId);
+
+        if (!string.IsNullOrEmpty(value))
+            return value;
+
+        Log.Error("VideoUri is empty");
+        return string.Empty;
     }
 
     public static VideoCaptureAPIs ParseVideoCaptureApi(Dictionary<string, string>? preferences)
