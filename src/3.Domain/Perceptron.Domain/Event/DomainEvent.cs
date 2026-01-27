@@ -69,6 +69,13 @@ public abstract class DomainEvent : EventBase
         EventName = eventName;
         AlgorithmName = algorithmName;
         Message = string.Empty;
+        BucketName = DateTime.Now.ToString("yyyyMMdd").ToLower();
+        ImageId = string.Empty;
+        VideoId = string.Empty;
+        ImageLocalPath = string.Empty;
+        ImageJsonLocalPath = string.Empty;
+        VideoLocalPath = string.Empty;
+        VideoJsonLocalPath = string.Empty;
     }
 
     public virtual string GetEventKey()

@@ -1,12 +1,12 @@
 ﻿using MessagePipe;
 using Perceptron.Domain.Abstraction.EventHandler;
 
-namespace Perceptron.Domain.Pipeline;
+namespace Perceptron.Domain.Event.Pipeline;
 
 public abstract class ObjectExpiredSubscriber : IEventSubscriber<ObjectExpiredEvent>
 {
-    private ISubscriber<ObjectExpiredEvent> _oeSubscriber;
-    private IDisposable _disposableOeSubscriber;
+    private ISubscriber<ObjectExpiredEvent>? _oeSubscriber;
+    private IDisposable? _disposableOeSubscriber;
 
     public void SetSubscriber(ISubscriber<ObjectExpiredEvent> subscriber)
     {
@@ -18,6 +18,6 @@ public abstract class ObjectExpiredSubscriber : IEventSubscriber<ObjectExpiredEv
 
     public virtual void Dispose()
     {
-        _disposableOeSubscriber.Dispose();
+        _disposableOeSubscriber?.Dispose();
     }
 }

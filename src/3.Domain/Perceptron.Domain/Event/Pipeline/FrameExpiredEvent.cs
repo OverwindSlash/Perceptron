@@ -1,7 +1,6 @@
 ﻿using Perceptron.Domain.Entity.VideoStream;
-using Perceptron.Domain.Event;
 
-namespace Perceptron.Domain.Pipeline;
+namespace Perceptron.Domain.Event.Pipeline;
 
 public class FrameExpiredEvent : EventBase
 {

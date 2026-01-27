@@ -1,7 +1,6 @@
 ﻿using Perceptron.Domain.Entity.ObjectDetection;
-using Perceptron.Domain.Event;
 
-namespace Perceptron.Domain.Pipeline;
+namespace Perceptron.Domain.Event.Pipeline;
 
 public class ObjectExpiredEvent : EventBase
 {

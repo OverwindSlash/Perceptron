@@ -32,9 +32,9 @@ public class DetectorSettings : ComponentSettings
     public const string DefaultTargetObjectTypeName = "";
     public static readonly List<string> DefaultNames = [];
 
-    public string ModelPath { get; private set; }
-    public string ModelConfig { get; private set; }
-    public string ExecutionProvider { get; private set; }
+    public string ModelPath { get; private set; } = DefaultModelPath;
+    public string ModelConfig { get; private set; } = DefaultModelConfig;
+    public string ExecutionProvider { get; private set; } = DefaultExecutionProvider;
     public int DeviceId { get; private set; }
     public int ClassNum { get; private set; }
     public float ConfThresh { get; private set; }

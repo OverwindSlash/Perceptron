@@ -16,7 +16,7 @@ public class VideoLoaderSettings : ComponentSettings
 
     
     public string SourceId { get; private set; } = DefaultSourceId;
-    public string VideoUri { get; private set; }
+    public string VideoUri { get; private set; } = string.Empty;
     public VideoCaptureAPIs VideoCaptureApi { get; private set; } = DefaultVideoCaptureApi;
     public VideoAccelerationType VideoAccelerationType { get; private set; } = DefaultVideoAccelerationType;
     public int VideoAccelerationDeviceId { get; private set; } = DefaultVideoAccelerationDeviceId;

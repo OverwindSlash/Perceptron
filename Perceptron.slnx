@@ -38,6 +38,9 @@
     <Project Path="src/5.Component/MediaLoader.OpenCV/MediaLoader.OpenCV.csproj" Id="fe7832a6-29b2-4b44-ab12-5772bd5a4d6e" />
   </Folder>
   <Folder Name="/test/" />
+  <Folder Name="/test/2.Service/">
+    <Project Path="test/2.Service/Perceptron.Service.Tests/Perceptron.Service.Tests.csproj" Id="f7fc414a-4194-49f2-9ff5-b845574068c4" />
+  </Folder>
   <Folder Name="/test/3.Domain/">
     <Project Path="test/3.Domain/Perceptron.Domain.Tests/Perceptron.Domain.Tests.csproj" />
   </Folder>
