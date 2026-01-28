@@ -29,7 +29,7 @@ public class DetectorSettings : ComponentSettings
     public const float DefaultInnerObjectOverlapRatio = 0.8f;
     public const bool DefaultWillMapObjectTypes = false;
     public static readonly List<string> DefaultSourceObjectTypeNames = [];
-    public const string DefaultTargetObjectTypeName = "";
+    public const string DefaultDestinationObjectTypeName = "";
     public static readonly List<string> DefaultNames = [];
 
     public string ModelPath { get; private set; } = DefaultModelPath;
@@ -56,7 +56,7 @@ public class DetectorSettings : ComponentSettings
     public float InnerObjectOverlapRatio { get; private set; }
     public bool WillMapObjectTypes { get; private set; }
     public List<string> SourceObjectTypeNames { get; private set; } = DefaultSourceObjectTypeNames;
-    public string TargetObjectTypeName { get; private set; } = DefaultTargetObjectTypeName;
+    public string DestinationObjectTypeName { get; private set; } = DefaultDestinationObjectTypeName;
     public List<string> Names { get; private set; } = DefaultNames;
 
 
@@ -86,7 +86,7 @@ public class DetectorSettings : ComponentSettings
         InnerObjectOverlapRatio = ParseInnerObjectOverlapRatio(Preferences);
         WillMapObjectTypes = ParseWillMapObjectTypes(Preferences);
         SourceObjectTypeNames = ParseSourceObjectTypeNames(Preferences);
-        TargetObjectTypeName = ParseDestinationObjectTypeName(Preferences);
+        DestinationObjectTypeName = ParseDestinationObjectTypeName(Preferences);
         Names = ParseNames(Preferences);
     }
 
@@ -320,7 +320,7 @@ public class DetectorSettings : ComponentSettings
     public static string ParseDestinationObjectTypeName(Dictionary<string, string> preferences)
     {
         var targetTypeName =
-            PreferenceParser.ParseStringValue(preferences, "DestinationObjectTypeName", DefaultTargetObjectTypeName);
+            PreferenceParser.ParseStringValue(preferences, "DestinationObjectTypeName", DefaultDestinationObjectTypeName);
 
         return targetTypeName;
     }

@@ -1,0 +1,84 @@
+{
+  "Pipeline": {
+    "FrameLifetime": 200,
+    "EnableDebugDisplay": true,
+    "EnableDetectionRegionDisplay": true,
+    "EnableAnnotationServer": true,
+    "AnnotationServerPrefix": "/perceptron",
+    "EnableAnnotationUdp": true,
+    "AnnotationUdpHost": "192.168.1.100",
+    "AnnotationUdpPort": 9090
+  },
+  "VideoLoaders": [
+    {
+      "AssemblyFile": "MediaLoader.OpenCV.dll",
+      "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
+      "Preferences": {
+        "SourceId": "Test-Cam-001",
+        "VideoUri": "D:\\Video\\Ship\\suzhou.ts",
+        "VideoCaptureAPI": "ANY",
+        "VideoAccelerationType": "None",
+        "VideoAccelerationDeviceId": 0,
+        "VideoStride": 2,
+        "MaxRetries": 5,
+        "RetryDelayMs": 500,
+        "Loop": true
+      }
+    },
+    {
+      "AssemblyFile": "MediaLoader.OpenCV.dll",
+      "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
+      "Preferences": {
+        "SourceId": "Test-Cam-002",
+        "VideoUri": "rtsp://admin:CS%40202304@192.168.1.151:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1",
+        "VideoCaptureAPI": "FFMPEG",
+        "VideoAccelerationType": "D3D11",
+        "VideoAccelerationDeviceId": 0,
+        "VideoStride": 1,
+        "MaxRetries": 3,
+        "RetryDelayMs": 1000,
+        "Loop": false
+      }
+    }
+  ],
+  "InputFrameBuffer": {
+    "AssemblyFile": "FrameBuffer.TwoModes.dll",
+    "FullQualifiedClassName": "FrameBuffer.TwoModes.VideoFrameBuffer",
+    "Preferences": {
+      "BufferSize": 100,
+      "Mode": "BlockingWait"
+    }
+  },
+  "Detector": {
+    "AssemblyFile": "Detector.YoloDotNet.dll",
+    "FullQualifiedClassName": "Detector.YoloDotNet.YoloDetector",
+    "Preferences": {
+      "ModelPath": "Models/yolo11m.onnx",
+      "ModelConfig": "Models/yolo11.json",
+      "ExecutionProvider": "cuda",
+      "DeviceId": 0,
+      "ClassNum": 80,
+      "ConfThresh": 0.5,
+      "TargetTypes": "person,boat",
+      "DetectionStride": 2,
+      "FilterSmallObject": true,
+      "MinBboxWidth": 80,
+      "MinBboxHeight": 50,
+      "FilterLargeObject": true,
+      "MaxBboxWidth": 500,
+      "MaxBboxHeight": 400,
+      "RegionDetectionEnabled": true,
+      "DetectionRegion": "1452, 656, 1009, 331",
+      "TileDetectionEnabled": true,
+      "TileDetectionSize": "1, 2",
+      "MaxStitchGapPixel": 3,
+      "MinVerticalOverlapRatio": 0.8,
+      "WillSuppressInnerSameObject": true,
+      "InnerObjectOverlapRatio": 0.7,
+      "WillMapObjectTypes": true,
+      "SourceObjectTypeNames": "truck,bus",
+      "DestinationObjectTypeName": "car",
+      "Names": "Alice,Bob,Charlie,David,Eve"
+    }
+  }
+}

@@ -10,6 +10,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 {
     // Settings
     private PipelineSettings _pipeLineSettings;
+    private List<VideoLoaderSettings> _videoLoaderSettings;
+    private FrameBufferSettings _inputFrameBufferSettings;
+    private DetectorSettings _detectorSettings;
 
     // dependency injection
     private ServiceCollection _services;
@@ -32,6 +35,21 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     {
         _pipeLineSettings = config.GetSection("Pipeline").Get<PipelineSettings>()
                             ?? throw new InvalidDataException("Pipeline settings corrupted.");
+
+        _videoLoaderSettings = config.GetSection("VideoLoaders").Get<List<VideoLoaderSettings>>()
+                               ?? throw new InvalidDataException("VideoLoader settings corrupted.");
+        foreach (var setting in _videoLoaderSettings)
+        {
+            setting.ParsePreferences();
+        }
+
+        _inputFrameBufferSettings = config.GetSection("InputFrameBuffer").Get<FrameBufferSettings>()
+                                    ?? throw new InvalidDataException("InputFrameBuffer settings corrupted.");
+        _inputFrameBufferSettings.ParsePreferences();
+
+        _detectorSettings = config.GetSection("Detector").Get<DetectorSettings>()
+                            ?? throw new InvalidDataException("Detector settings corrupted.");
+        _detectorSettings.ParsePreferences();
     }
 
     private void RegisterComponents()
