@@ -1,5 +1,5 @@
 ﻿using OpenCvSharp;
-using Perceptron.Domain.Annotation;
+using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.Common;
 using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Extensions;

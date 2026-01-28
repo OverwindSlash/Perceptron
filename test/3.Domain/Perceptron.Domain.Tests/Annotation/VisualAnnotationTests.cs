@@ -1,4 +1,4 @@
-using Perceptron.Domain.Annotation;
+using Perceptron.Domain.Entity.Annotation;
 using System.Text.Json;
 
 namespace Perceptron.Domain.Tests.Annotation;

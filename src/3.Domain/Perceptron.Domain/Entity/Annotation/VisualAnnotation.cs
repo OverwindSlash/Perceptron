@@ -1,4 +1,4 @@
-﻿namespace Perceptron.Domain.Annotation;
+﻿namespace Perceptron.Domain.Entity.Annotation;
 
 public class VisualAnnotation
 {
