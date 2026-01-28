@@ -3,7 +3,7 @@ using Perceptron.Domain.Entity.VideoStream;
 
 namespace Perceptron.Domain.Abstraction.Annotation;
 
-public interface IResultAnnotationGenerator
+public interface ILabelAnnotationGenerator
 {
-    VisualAnnotation GenerateResultAnnotation(Frame frame);
+    VisualAnnotation GenerateLabelAnnotation(Frame frame);
 }

@@ -1,4 +1,4 @@
-using Perceptron.Domain.Abstraction.FrameBuffer;
+﻿using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.Entity.VideoStream;
 
 namespace Perceptron.Domain.Abstraction.MediaLoader;
@@ -8,7 +8,8 @@ public interface IVideoLoader : IDisposable
     public string SourceId { get; }
     public string VideoUri { get; }
     public VideoSpecs Specs { get; }
-    
+    public int VideoStride { get; }
+
     public VideoLoaderOptions Options { get; }
     public VideoLoaderState State { get; }
     
