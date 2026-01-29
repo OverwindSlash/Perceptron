@@ -246,6 +246,7 @@ public class VideoLoader : ComponentBase, IVideoLoader
                             if (_capture.Set(VideoCaptureProperties.PosFrames, 0))
                             {
                                 _frameIndex = 1;
+                                stopwatch.Restart();
                                 // Compensate for the loop iteration in debug mode
                                 if (debugMode) debugFrameCount++;
                                 continue;

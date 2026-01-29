@@ -11,4 +11,10 @@
     <ProjectReference Include="..\ComponentCommon\ComponentCommon.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Assets\no-video.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

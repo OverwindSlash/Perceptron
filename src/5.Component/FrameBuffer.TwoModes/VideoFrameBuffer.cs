@@ -1,5 +1,6 @@
 ﻿using ComponentCommon;
 using OpenCvSharp;
+using System.IO;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.DataStructure;
 using Perceptron.Domain.Entity.VideoStream;
@@ -14,6 +15,10 @@ public class VideoFrameBuffer : ComponentBase, IVideoFrameBuffer
     private readonly object _lock = new(); // Coordination lock
     private Frame? _blankFrame;
     private bool _isDisposed;
+
+    // Static cache for the no-video image to avoid repeated file reads
+    private static Mat? _cachedNoVideoImage;
+    private static readonly object _cacheLock = new();
 
     // Additional drop handlers managed explicitly to support the interface methods
     private Action<Frame>? _externalDropHandler;
@@ -261,8 +266,42 @@ public class VideoFrameBuffer : ComponentBase, IVideoFrameBuffer
     {
         try 
         {
-            // Create a black image with same size and type
-            var scene = new Mat(template.Scene.Size(), template.Scene.Type(), Scalar.Black);
+            // Try to load no-video image using cached source if available
+            var scene = new Mat();
+            bool loaded = false;
+
+            // Double-check locking pattern or just simple lock
+            if (_cachedNoVideoImage == null)
+            {
+                lock (_cacheLock)
+                {
+                    if (_cachedNoVideoImage == null)
+                    {
+                        string imagePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "no-video.jpg");
+                        if (File.Exists(imagePath))
+                        {
+                            var img = Cv2.ImRead(imagePath);
+                            if (!img.Empty())
+                            {
+                                _cachedNoVideoImage = img;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Use cached image if available
+            if (_cachedNoVideoImage != null && !_cachedNoVideoImage.Empty())
+            {
+                // Resize cached image to target size
+                Cv2.Resize(_cachedNoVideoImage, scene, template.Scene.Size());
+                loaded = true;
+            }
+
+            if (!loaded)
+            {
+                scene = new Mat(template.Scene.Size(), template.Scene.Type(), Scalar.Black);
+            }
             
             _blankFrame = new Frame(
                 sourceId: "BlankFrame",
