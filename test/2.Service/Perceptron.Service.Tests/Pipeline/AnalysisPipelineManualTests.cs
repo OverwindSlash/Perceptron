@@ -16,6 +16,6 @@ public class AnalysisPipelineManualTests
 
         // Act
         var pipeline = new AnalysisPipeline(config);
-        //pipeline.Run();
+        pipeline.Run();
     }
 }

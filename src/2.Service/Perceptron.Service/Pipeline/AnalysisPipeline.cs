@@ -1,8 +1,11 @@
 ﻿using MessagePipe;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OpenCvSharp;
+using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.Abstraction.MediaLoader;
 using Perceptron.Domain.Abstraction.ObjectDetector;
+using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event.Pipeline;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline.Extension;
@@ -16,8 +19,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     private PipelineSettings _pipeLineSettings;
     private List<VideoLoaderSettings> _videoLoaderSettings;
     private FrameBufferSettings _inputFrameBufferSettings;
+    private FrameBufferSettings _outputFrameBufferSettings;
     private DetectorSettings _detectorSettings;
-
+    
     // dependency injection
     private ServiceCollection _services;
     public ServiceProvider Provider { get; private set; }
@@ -26,8 +30,11 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     private VideoFrameSlideWindow _slideWindow;
 
     // components
+    public IVideoFrameBuffer InputFrameBuffer { get; private set; }
+    public IVideoFrameBuffer OutputFrameBuffer { get; private set; }
     public List<IVideoLoader> VideoLoaders { get; private set; }
     public IObjectDetector? ObjectDetector { get; private set; }
+    
 
     public AnalysisPipeline(IConfiguration config)
     {
@@ -58,9 +65,15 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                                     ?? throw new InvalidDataException("InputFrameBuffer settings corrupted.");
         _inputFrameBufferSettings.ParsePreferences();
 
+        _outputFrameBufferSettings = config.GetSection("OutputFrameBuffer").Get<FrameBufferSettings>()
+                                     ?? throw new InvalidDataException("OutputFrameBuffer settings corrupted.");
+        _outputFrameBufferSettings.ParsePreferences();
+
         _detectorSettings = config.GetSection("Detector").Get<DetectorSettings>()
                             ?? throw new InvalidDataException("Detector settings corrupted.");
         _detectorSettings.ParsePreferences();
+
+        // TODO: Load other component settings
     }
 
     private void RegisterComponents()
@@ -73,13 +86,16 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         _services.AddPipeline(this);
 
+        _services.AddComponent<IVideoFrameBuffer>(_inputFrameBufferSettings);
+        _services.AddComponent<IVideoFrameBuffer>(_outputFrameBufferSettings);
+
         foreach (var setting in _videoLoaderSettings)
         {
             _services.AddComponent<IVideoLoader>(setting);
         }
 
         _services.AddComponent<IObjectDetector>(_detectorSettings);
-
+        
         // TODO: 添加其他组件
 
         _slideWindow = new VideoFrameSlideWindow(_pipeLineSettings.FrameLifetime);
@@ -101,27 +117,119 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         ObjectDetector = Provider.GetService<IObjectDetector>();
         // ObjectDetector.Init(); // 延后初始化，为了兼容华为 Ascend 推理
 
+        InputFrameBuffer = Provider.GetServices<IVideoFrameBuffer>()
+                               .First(f => f.BufferName == "InputFrameBuffer");
+
+        OutputFrameBuffer = Provider.GetServices<IVideoFrameBuffer>()
+                                .First(f => f.BufferName == "OutputFrameBuffer");
+
+
         VideoLoaders = Provider.GetServices<IVideoLoader>().ToList();
         foreach (var videoLoader in VideoLoaders)
         {
-            videoLoader.Open(videoLoader.VideoUri);
+            var sourceId = videoLoader.SourceId;
+            var settings = _videoLoaderSettings.First(s => s.SourceId == sourceId);
+
+            videoLoader.AttachBuffer(InputFrameBuffer);
+            videoLoader.Open(settings.VideoUri);
         }
 
         // TODO: 初始化其他组件
+
+        this.SetSubscriber(objectExpiredSubscriber);
+        this.SetSubscriber(frameExpiredSubscriber);
+
+        _slideWindow.SetPublisher(Provider.GetRequiredService<IPublisher<FrameExpiredEvent>>());
+        _slideWindow.SetPublisher(Provider.GetRequiredService<IPublisher<ObjectExpiredEvent>>());
 
         Log.Information("Components Initialized successfully.");
     }
 
     public void Run()
     {
-        var videoTask = Task.Run(() =>
+        Log.Information("Start analysis pipeline...");
+
+        List<Task> allTasks = [];
+        List<Task> videoTasks = [];
+        foreach (var videoLoader in VideoLoaders)
         {
-            foreach (var videoLoader in VideoLoaders)
+            var videoTask = Task.Run(() =>
             {
                 Log.Information("Open video source: {VideoUri}", videoLoader.VideoUri);
                 videoLoader.Play();
+            });
+            
+            allTasks.Add(videoTask);
+            videoTasks.Add(videoTask);
+        }
+
+        var analysisTask = Task.Run(() =>
+        {
+            ObjectDetector.Init(); // 延后初始化，为了兼容华为 Ascend 推理
+
+            Log.Information($"Begin analysis process...");
+
+            while (!IsAllVideoCompleted(videoTasks) || InputFrameBuffer.Count != 0)
+            {
+                var frame = InputFrameBuffer.RetrieveFrame();
+                if (frame == null) continue;
+
+                // 1.detection
+                if (!_detectorSettings.TileDetectionEnabled)
+                {
+                    frame.DetectedObjects = ObjectDetector.Detect(frame, _detectorSettings.ConfThresh, _detectorSettings.IouThresh);
+                }
+                else
+                {
+                    frame.DetectedObjects = ObjectDetector.DetectByTile(frame, _detectorSettings.TileDetectionSize,
+                        _detectorSettings.ConfThresh, _detectorSettings.IouThresh);
+                }
+
+
+                _slideWindow.AddNewFrame(frame);
+                OutputFrameBuffer.PushFrame(frame);
             }
         });
+
+        var displayTask = Task.Run(async () =>
+        {
+            while (!analysisTask.IsCompleted || OutputFrameBuffer.Count != 0)
+            {
+                var frame = OutputFrameBuffer.RetrieveFrame();
+                if (frame == null) continue;
+
+                RealtimeDisplay(frame);
+            }
+        });
+
+        Task.WaitAll(allTasks);
+
+        Log.Information($"Analysis complete.");
+    }
+
+    private static bool IsAllVideoCompleted(List<Task> videoTasks)
+    {
+        bool isAllVideosCompleted = true;
+
+        foreach (var videoTask in videoTasks)
+        {
+            isAllVideosCompleted &= videoTask.IsCompleted;
+        }
+
+        return isAllVideosCompleted;
+    }
+
+    private void RealtimeDisplay(Frame frame)
+    {
+        if (_pipeLineSettings.EnableDebugDisplay)
+        {
+            using var image = frame.Scene.Clone();
+
+            // Fix: Resize returns a new Mat, so use the result as the argument
+            using var resizedImage = image.Resize(new OpenCvSharp.Size(1920, image.Height * 1920 / image.Width));
+            Cv2.ImShow("debug", resizedImage);
+            Cv2.WaitKey(1);
+        }
     }
 
     public override void ProcessEvent(FrameExpiredEvent @event)

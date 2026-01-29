@@ -18,6 +18,7 @@ public class VideoFrameBuffer : ComponentBase, IVideoFrameBuffer
     // Additional drop handlers managed explicitly to support the interface methods
     private Action<Frame>? _externalDropHandler;
 
+    public string BufferName { get; private set; }
     public int BufferSize { get; private set; }
     public FrameBufferMode Mode { get; private set; }
 
@@ -33,6 +34,7 @@ public class VideoFrameBuffer : ComponentBase, IVideoFrameBuffer
 
     protected sealed override void LoadPreferences(Dictionary<string, string>? preferences)
     {
+        BufferName = FrameBufferSettings.ParseBufferName(preferences);
         BufferSize = FrameBufferSettings.ParseBufferSize(preferences);
         Mode = FrameBufferSettings.ParseFrameBufferMode(preferences);
     }

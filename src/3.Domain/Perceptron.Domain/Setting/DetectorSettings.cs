@@ -11,6 +11,7 @@ public class DetectorSettings : ComponentSettings
     public const string DefaultExecutionProvider = "cpu";
     public const int DefaultDeviceId = 0;
     public const float DefaultConfThresh = 0.25f;
+    public const float DefaultIouThresh = 0.5f;
     public static readonly List<string> DefaultTargetTypes = [];
     public const int DefaultDetectionStride = 1;
     public const bool DefaultFilterSmallObject = false;
@@ -38,6 +39,7 @@ public class DetectorSettings : ComponentSettings
     public int DeviceId { get; private set; }
     public int ClassNum { get; private set; }
     public float ConfThresh { get; private set; }
+    public float IouThresh { get; private set; }
     public List<string> TargetTypes { get; private set; } = DefaultTargetTypes;
     public int DetectionStride { get; private set; }
     public bool FilterSmallObject { get; private set; }
@@ -68,6 +70,7 @@ public class DetectorSettings : ComponentSettings
         ExecutionProvider = ParseExecutionProvider(Preferences);
         DeviceId = ParseDeviceId(Preferences);
         ConfThresh = ParseConfThresh(Preferences);
+        IouThresh = ParseIouThresh(Preferences);
         TargetTypes = ParseTargetTypes(Preferences);
         DetectionStride = ParseDetectionStride(Preferences);
         FilterSmallObject = ParseFilterSmallObject(Preferences);
@@ -152,6 +155,17 @@ public class DetectorSettings : ComponentSettings
 
         Log.Warning("ConfThresh must between 0 and 1. Reset to default:{ConfThresh}", DefaultConfThresh);
         return DefaultConfThresh;
+    }
+
+    public static float ParseIouThresh(Dictionary<string, string> preferences)
+    {
+        var thresh = PreferenceParser.ParseFloatValue(preferences, "IouThresh", DefaultIouThresh);
+
+        if (thresh is >= 0 and <= 1) 
+            return thresh;
+
+        Log.Warning("IouThresh must between 0 and 1. Reset to default:{IouThresh}", DefaultIouThresh);
+        return DefaultIouThresh;
     }
 
     public static List<string> ParseTargetTypes(Dictionary<string, string> preferences)

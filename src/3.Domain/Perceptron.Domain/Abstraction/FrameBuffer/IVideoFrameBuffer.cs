@@ -5,6 +5,7 @@ namespace Perceptron.Domain.Abstraction.FrameBuffer;
 
 public interface IVideoFrameBuffer : IConcurrentBoundedQueue<Frame>
 {
+    public string BufferName { get; }
     public int BufferSize { get; }
 
     /// <summary>

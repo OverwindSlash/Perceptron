@@ -14,27 +14,27 @@
       "AssemblyFile": "MediaLoader.OpenCV.dll",
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
-        "SourceId": "Test-Cam-001",
-        "VideoUri": "D:\\Video\\Ship\\suzhou.ts",
-        "VideoCaptureAPI": "ANY",
+        "SourceId": "Suzhou-Cam-001",
+        "VideoUri": "D:\\Video\\Ship\\suzhou.mp4",
+        "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
-        "VideoStride": 2,
+        "VideoStride": 5,
         "MaxRetries": 5,
         "RetryDelayMs": 500,
-        "Loop": true
+        "Loop": false
       }
     },
     {
       "AssemblyFile": "MediaLoader.OpenCV.dll",
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
-        "SourceId": "Test-Cam-002",
-        "VideoUri": "rtsp://admin:CS%40202304@192.168.1.151:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1",
+        "SourceId": "Sea-Cam-002",
+        "VideoUri": "D:\\Video\\Ship\\test.mp4",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "D3D11",
         "VideoAccelerationDeviceId": 0,
-        "VideoStride": 1,
+        "VideoStride": 5,
         "MaxRetries": 3,
         "RetryDelayMs": 1000,
         "Loop": false
@@ -45,6 +45,16 @@
     "AssemblyFile": "FrameBuffer.TwoModes.dll",
     "FullQualifiedClassName": "FrameBuffer.TwoModes.VideoFrameBuffer",
     "Preferences": {
+      "BufferName": "InputFrameBuffer",
+      "BufferSize": 100,
+      "Mode": "BlockingWait"
+    }
+  },
+  "OutputFrameBuffer": {
+    "AssemblyFile": "FrameBuffer.TwoModes.dll",
+    "FullQualifiedClassName": "FrameBuffer.TwoModes.VideoFrameBuffer",
+    "Preferences": {
+      "BufferName": "OutputFrameBuffer",
       "BufferSize": 100,
       "Mode": "BlockingWait"
     }
