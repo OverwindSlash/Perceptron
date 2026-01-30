@@ -5,6 +5,7 @@
     <File Path="spec/3.Domain/Abstraction/IVideoLoader-Spec.md" />
   </Folder>
   <Folder Name="/spec/3.Domain/Annotation/">
+    <File Path="spec/3.Domain/Annotation/sample.json" />
     <File Path="spec/3.Domain/Annotation/VisualAnnotation-Spec.md" />
   </Folder>
   <Folder Name="/spec/3.Domain/DataStructure/">
@@ -24,6 +25,9 @@
     <Project Path="src/3.Domain/Perceptron.Domain/Perceptron.Domain.csproj" />
   </Folder>
   <Folder Name="/src/5.Component/" />
+  <Folder Name="/src/5.Component/AnnotationRender/">
+    <Project Path="src/5.Component/AnnotationRender.OpenCV/AnnotationRender.OpenCV.csproj" Id="d7e969ef-9f1c-4905-98d0-05493486a011" />
+  </Folder>
   <Folder Name="/src/5.Component/Common/">
     <Project Path="src/5.Component/ComponentCommon/ComponentCommon.csproj" Id="107135d8-077b-48f9-8bdd-d89a2bfd5295" />
   </Folder>

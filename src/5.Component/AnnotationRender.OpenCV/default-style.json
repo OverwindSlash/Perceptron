@@ -1,0 +1,39 @@
+{
+  "circle": {
+    "strokeColor": "#ea9999",
+    "strokeWidth": 6,
+    "opacity": 1.0,
+    "visible": true,
+    "zIndex": 0
+  },
+  "polyline": {
+    "strokeColor": "#000000",
+    "strokeWidth": 2,
+    "opacity": 1.0,
+    "dash": [5, 5],
+    "visible": true,
+    "zIndex": 0
+  },
+  "polygon": {
+    "strokeColor": "#FFFF00",
+    "strokeWidth": 1,
+    "opacity": 1.0,
+    "visible": true,
+    "zIndex": 0
+  },
+  "rect": {
+    "strokeColor": "#8fce00",
+    "strokeWidth": 1,
+    "opacity": 1.0,
+    "visible": true,
+    "zIndex": 0
+  },
+  "text": {
+    "color": "#FFFF00",
+    "fontSize": 12,
+    "fontFamily": "Microsoft YaHei",
+    "opacity": 1.0,
+    "visible": true,
+    "zIndex": 0
+  }
+}

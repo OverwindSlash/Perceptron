@@ -1,0 +1,125 @@
+{
+  "version": "1.0",
+  "sourceId": "Cam-POC.Profile_101",
+  "timestamp": "2025-11-26T12:00:00Z",
+  "frameId": 12345,
+  "coordinateSpace": {
+    "type": "pixel",
+    "width": 1920,
+    "height": 1080
+  },
+  "shapes": [
+    {
+      "id": "c1",
+      "type": "circle",
+      "center": {
+        "x": 200,
+        "y": 150
+      },
+      "radius": 5,
+      "style": {
+        "strokeColor": "#FFFF00",
+        "fillColor": null,
+        "strokeWidth": 1,
+        "opacity": 1,
+        "dash": [],
+        "zIndex": 0,
+        "visible": true
+      }
+    },
+    {
+      "id": "l1",
+      "type": "polyline",
+      "points": [
+        {
+          "x": 20,
+          "y": 20
+        },
+        {
+          "x": 100,
+          "y": 100
+        }
+      ],
+      "style": {
+        "strokeColor": "#FFFF00",
+        "strokeWidth": 2,
+        "opacity": 1,
+        "dash": [],
+        "zIndex": 0,
+        "visible": true
+      }
+    },
+    {
+      "id": "p1",
+      "type": "polygon",
+      "points": [
+        {
+          "x": 100,
+          "y": 100
+        },
+        {
+          "x": 150,
+          "y": 150
+        },
+        {
+          "x": 200,
+          "y": 200
+        }
+      ],
+      "style": {
+        "strokeColor": "#FFFF00",
+        "fillColor": "rgba(255,255,0,0.2)",
+        "strokeWidth": 1,
+        "opacity": 1,
+        "dash": [],
+        "zIndex": 1,
+        "visible": true
+      }
+    },
+    {
+      "id": "r1",
+      "type": "rect",
+      "origin": {
+        "x": 300,
+        "y": 250
+      },
+      "size": {
+        "width": 80,
+        "height": 60
+      },
+      "rotation": 0,
+      "style": {
+        "strokeColor": "#00FF00",
+        "fillColor": null,
+        "strokeWidth": 1,
+        "opacity": 1,
+        "dash": [],
+        "zIndex": 0,
+        "visible": true
+      }
+    },
+    {
+      "id": "t1",
+      "type": "text",
+      "position": {
+        "x": 200,
+        "y": 150
+      },
+      "content": "告警",
+      "style": {
+        "color": "#FFFF00",
+        "fontSize": 24,
+        "fontFamily": "sans-serif",
+        "fontWeight": "normal",
+        "backgroundColor": null,
+        "opacity": 1,
+        "zIndex": 10,
+        "visible": true
+      },
+      "align": {
+        "horizontal": "left",
+        "vertical": "top"
+      }
+    }
+  ]
+}

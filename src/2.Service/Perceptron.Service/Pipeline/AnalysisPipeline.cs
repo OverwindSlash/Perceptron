@@ -226,7 +226,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
             // Fix: Resize returns a new Mat, so use the result as the argument
             var width = _pipeLineSettings.RealtimeDisplayWidth;
-            using var resizedImage = image.Resize(new OpenCvSharp.Size(width, image.Height * width / image.Width));
+            using var resizedImage = image.Resize(new Size(width, image.Height * width / image.Width));
             Cv2.ImShow(_pipeLineSettings.RealtimeDisplayTitle, resizedImage);
             Cv2.WaitKey(1);
         }
