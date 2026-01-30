@@ -234,11 +234,11 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
     public override void ProcessEvent(FrameExpiredEvent @event)
     {
-        throw new NotImplementedException();
+        // TODO: 实现帧过期事件处理逻辑
     }
 
     public override void ProcessEvent(ObjectExpiredEvent @event)
     {
-        throw new NotImplementedException();
+        // TODO: 实现对象过期事件处理逻辑
     }
 }

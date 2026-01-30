@@ -329,7 +329,7 @@ public class VideoLoader : ComponentBase, IVideoLoader
 
             if (_buffer != null)
             {
-                _buffer.Enqueue(frame);
+                _buffer.PushFrame(frame);
             }
 
             // thread saft event handler

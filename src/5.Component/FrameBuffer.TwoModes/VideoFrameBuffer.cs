@@ -1,6 +1,5 @@
 ﻿using ComponentCommon;
 using OpenCvSharp;
-using System.IO;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.DataStructure;
 using Perceptron.Domain.Entity.VideoStream;
@@ -31,6 +30,9 @@ public class VideoFrameBuffer : ComponentBase, IVideoFrameBuffer
         : base(preferences)
     {
         LoadPreferences(preferences);
+
+        // Dispose frame when dropped
+        OnItemDropped += frame => frame.Dispose();
 
         // Initialize the inner queue
         // We pass our internal handler to manage disposal and event firing

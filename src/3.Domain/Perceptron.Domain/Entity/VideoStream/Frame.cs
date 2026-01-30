@@ -26,7 +26,7 @@ public class Frame : PropertiesBag, IDisposable
 
     public bool IsDisposed { get; private set; }
 
-    private int _refCount = 1;
+    private int _refCount = 0;
     private readonly Action<Mat>? _recycler;
 
     public Frame(string sourceId, long frameId, long offsetMilliSec, Mat scene, Action<Mat>? recycler = null)
