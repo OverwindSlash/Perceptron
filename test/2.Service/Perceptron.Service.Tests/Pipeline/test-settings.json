@@ -7,7 +7,9 @@
     "AnnotationServerPrefix": "/perceptron",
     "EnableAnnotationUdp": true,
     "AnnotationUdpHost": "192.168.1.100",
-    "AnnotationUdpPort": 9090
+    "AnnotationUdpPort": 9090,
+    "RealtimeDisplayWidth": 1280,
+    "RealtimeDisplayTitle": "Perceptron Realtime Display"
   },
   "VideoLoaders": [
     {

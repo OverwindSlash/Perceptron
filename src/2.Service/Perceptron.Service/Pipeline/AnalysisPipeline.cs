@@ -185,7 +185,6 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                         _detectorSettings.ConfThresh, _detectorSettings.IouThresh);
                 }
 
-
                 _slideWindow.AddNewFrame(frame);
                 OutputFrameBuffer.PushFrame(frame);
             }
@@ -226,8 +225,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             using var image = frame.Scene.Clone();
 
             // Fix: Resize returns a new Mat, so use the result as the argument
-            using var resizedImage = image.Resize(new OpenCvSharp.Size(1920, image.Height * 1920 / image.Width));
-            Cv2.ImShow("debug", resizedImage);
+            var width = _pipeLineSettings.RealtimeDisplayWidth;
+            using var resizedImage = image.Resize(new OpenCvSharp.Size(width, image.Height * width / image.Width));
+            Cv2.ImShow(_pipeLineSettings.RealtimeDisplayTitle, resizedImage);
             Cv2.WaitKey(1);
         }
     }

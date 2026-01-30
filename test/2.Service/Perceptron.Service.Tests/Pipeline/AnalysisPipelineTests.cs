@@ -123,25 +123,24 @@ public class AnalysisPipelineTests
     }
 
     [Test]
-    public void ProcessEvent_FrameExpiredEvent_ShouldThrowNotImplementedException()
+    public void Constructor_ShouldThrowInvalidDataException_WhenOutputFrameBufferSectionIsMissing()
     {
         // Arrange
-        _pipeline = new AnalysisPipeline(_configuration);
-        var frameEvent = new FrameExpiredEvent(123); 
+        var configDict = GetValidConfigurationDictionary();
+        // Remove OutputFrameBuffer section
+        var keysToRemove = configDict.Keys.Where(k => k.StartsWith("OutputFrameBuffer")).ToList();
+        foreach (var key in keysToRemove)
+        {
+            configDict.Remove(key);
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
 
         // Act & Assert
-        Assert.Throws<NotImplementedException>(() => _pipeline!.ProcessEvent(frameEvent));
-    }
-
-    [Test]
-    public void ProcessEvent_ObjectExpiredEvent_ShouldThrowNotImplementedException()
-    {
-        // Arrange
-        _pipeline = new AnalysisPipeline(_configuration);
-        var objectEvent = new ObjectExpiredEvent("obj1", 1, "person", 100);
-
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() => _pipeline!.ProcessEvent(objectEvent));
+        var ex = Assert.Throws<InvalidDataException>(() => new AnalysisPipeline(config));
+        Assert.That(ex!.Message, Does.Contain("OutputFrameBuffer settings corrupted"));
     }
 
     private Dictionary<string, string?> GetValidConfigurationDictionary()
@@ -149,46 +148,43 @@ public class AnalysisPipelineTests
         return new Dictionary<string, string?>
         {
             // Pipeline
-            {"Pipeline:FrameLifetime", "500"},
+            {"Pipeline:FrameLifetime", "200"},
             {"Pipeline:EnableDebugDisplay", "true"},
             {"Pipeline:EnableDetectionRegionDisplay", "true"},
-            {"Pipeline:EnableAnnotationServer", "false"},
-            {"Pipeline:AnnotationServerPrefix", "http://+:8080/annotations/"},
-            {"Pipeline:EnableAnnotationUdp", "false"},
-            {"Pipeline:AnnotationUdpHost", "127.0.0.1"},
-            {"Pipeline:AnnotationUdpPort", "9999"},
+            {"Pipeline:EnableAnnotationServer", "true"},
+            {"Pipeline:AnnotationServerPrefix", "/perceptron"},
+            {"Pipeline:EnableAnnotationUdp", "true"},
+            {"Pipeline:AnnotationUdpHost", "192.168.1.100"},
+            {"Pipeline:AnnotationUdpPort", "9090"},
+            {"Pipeline:RealtimeDisplayWidth", "1280"},
+            {"Pipeline:RealtimeDisplayTitle", "Perceptron Realtime Display"},
 
             // VideoLoaders (List) - Item 0
             {"VideoLoaders:0:AssemblyFile", "MediaLoader.OpenCV.dll"},
             {"VideoLoaders:0:FullQualifiedClassName", "MediaLoader.OpenCV.VideoLoader"},
-            {"VideoLoaders:0:Preferences:SourceId", "Test-Cam-001"},
-            {"VideoLoaders:0:Preferences:VideoUri", "D:\\Video\\Ship\\suzhou.ts"},
-            {"VideoLoaders:0:Preferences:VideoCaptureAPI", "ANY"},
+            {"VideoLoaders:0:Preferences:SourceId", "Suzhou-Cam-001"},
+            {"VideoLoaders:0:Preferences:VideoUri", "D:\\Video\\Ship\\suzhou.mp4"},
+            {"VideoLoaders:0:Preferences:VideoCaptureAPI", "FFMPEG"},
             {"VideoLoaders:0:Preferences:VideoAccelerationType", "None"},
             {"VideoLoaders:0:Preferences:VideoAccelerationDeviceId", "0"},
-            {"VideoLoaders:0:Preferences:VideoStride", "2"},
+            {"VideoLoaders:0:Preferences:VideoStride", "1"},
             {"VideoLoaders:0:Preferences:MaxRetries", "5"},
             {"VideoLoaders:0:Preferences:RetryDelayMs", "500"},
-            {"VideoLoaders:0:Preferences:Loop", "true"},
-
-            // VideoLoaders (List) - Item 1
-            {"VideoLoaders:1:AssemblyFile", "MediaLoader.OpenCV.dll"},
-            {"VideoLoaders:1:FullQualifiedClassName", "MediaLoader.OpenCV.VideoLoader"},
-            {"VideoLoaders:1:Preferences:SourceId", "Test-Cam-002"},
-            {"VideoLoaders:1:Preferences:VideoUri", "rtsp://admin:CS%40202304@192.168.1.151:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1"},
-            {"VideoLoaders:1:Preferences:VideoCaptureAPI", "FFMPEG"},
-            {"VideoLoaders:1:Preferences:VideoAccelerationType", "D3D11"},
-            {"VideoLoaders:1:Preferences:VideoAccelerationDeviceId", "0"},
-            {"VideoLoaders:1:Preferences:VideoStride", "1"},
-            {"VideoLoaders:1:Preferences:MaxRetries", "3"},
-            {"VideoLoaders:1:Preferences:RetryDelayMs", "1000"},
-            {"VideoLoaders:1:Preferences:Loop", "false"},
+            {"VideoLoaders:0:Preferences:Loop", "false"},
 
             // InputFrameBuffer
             {"InputFrameBuffer:AssemblyFile", "FrameBuffer.TwoModes.dll"},
             {"InputFrameBuffer:FullQualifiedClassName", "FrameBuffer.TwoModes.VideoFrameBuffer"},
+            {"InputFrameBuffer:Preferences:BufferName", "InputFrameBuffer"},
             {"InputFrameBuffer:Preferences:BufferSize", "100"},
             {"InputFrameBuffer:Preferences:Mode", "BlockingWait"},
+
+            // OutputFrameBuffer
+            {"OutputFrameBuffer:AssemblyFile", "FrameBuffer.TwoModes.dll"},
+            {"OutputFrameBuffer:FullQualifiedClassName", "FrameBuffer.TwoModes.VideoFrameBuffer"},
+            {"OutputFrameBuffer:Preferences:BufferName", "OutputFrameBuffer"},
+            {"OutputFrameBuffer:Preferences:BufferSize", "100"},
+            {"OutputFrameBuffer:Preferences:Mode", "BlockingWait"},
 
             // Detector
             {"Detector:AssemblyFile", "Detector.YoloDotNet.dll"},

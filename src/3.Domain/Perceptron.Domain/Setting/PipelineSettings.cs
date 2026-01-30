@@ -10,6 +10,8 @@ public class PipelineSettings
     public const bool DefaultEnableAnnotationUdp = false;
     public const string DefaultAnnotationUdpHost = "127.0.0.1";
     public const int DefaultAnnotationUdpPort = 9999;
+    public const int DefaultRealtimeDisplayWidth = 1920;
+    public const string DefaultRealtimeDisplayTitle = "debug";
 
     public int FrameLifetime { get; set; } = DefaultFrameLifetime;
     public bool EnableDebugDisplay { get; set; } = DefaultEnableDebugDisplay;
@@ -19,4 +21,6 @@ public class PipelineSettings
     public bool EnableAnnotationUdp { get; set; } = DefaultEnableAnnotationUdp;
     public string? AnnotationUdpHost { get; set; } = DefaultAnnotationUdpHost;
     public int AnnotationUdpPort { get; set; } = DefaultAnnotationUdpPort;
+    public int RealtimeDisplayWidth { get; set; } = DefaultRealtimeDisplayWidth;
+    public string RealtimeDisplayTitle { get; set; } = DefaultRealtimeDisplayTitle;
 }
