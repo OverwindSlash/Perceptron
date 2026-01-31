@@ -91,6 +91,21 @@ public class VideoLoader : ComponentBase, IVideoLoader
 
         _isLocalVideoFile = IsLocalVideoFile(VideoUri);
 
+        if (_isLocalVideoFile)
+        {
+            var path = VideoUri;
+            if (Uri.TryCreate(VideoUri, UriKind.Absolute, out var uriObj) && uriObj.IsFile)
+            {
+                path = uriObj.LocalPath;
+            }
+
+            if (!File.Exists(path))
+            {
+                Log.Error($"Video source file '{VideoUri}' does not exist.");
+                return false;
+            }
+        }
+
         Close();
 
         return CreateVideoCapture(uri);
