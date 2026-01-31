@@ -17,7 +17,7 @@ public class Render : ComponentBase, IAnnotationRender
     public Render(Dictionary<string, string>? preferences) 
         : base(preferences)
     {
-        _defaultStyleFile = AnnotationRenderSettings.ParseDefaultStyleFile(preferences);
+        _defaultStyleFile = AnnotationRenderSettings.ParseDefaultStyleFile(preferences ?? new Dictionary<string, string>());
 
         LoadDefaultStyles(_defaultStyleFile);
     }
@@ -79,7 +79,7 @@ public class Render : ComponentBase, IAnnotationRender
         }
         catch (Exception e)
         {
-            Log.Warning($"Annotation render failed. Skip this annotation.");
+            Log.Warning($"Annotation render failed. Skip this annotation. Error: {e.Message}");
         }
 
         return image.Clone();
@@ -306,6 +306,61 @@ public class Render : ComponentBase, IAnnotationRender
         if (shape.Origin == null || shape.Size == null) return;
 
         var Style = GetMergedStyle("rect", shape.Style);
+
+        if (Math.Abs(shape.Rotation) > 0.1)
+        {
+            var center = new Point2f(shape.Origin.X + shape.Size.Width / 2.0f, shape.Origin.Y + shape.Size.Height / 2.0f);
+            var size = new Size2f(shape.Size.Width, shape.Size.Height);
+            var rotatedRect = new RotatedRect(center, size, shape.Rotation);
+            var pts = rotatedRect.Points().Select(p => new OpenCvSharp.Point((int)Math.Round(p.X), (int)Math.Round(p.Y))).ToArray();
+
+            var minX = pts.Min(p => p.X);
+            var minY = pts.Min(p => p.Y);
+            var maxX = pts.Max(p => p.X);
+            var maxY = pts.Max(p => p.Y);
+
+            if (!string.IsNullOrEmpty(Style.FillColor))
+            {
+                var roiFill = ClipRectToImage(image, new OpenCvSharp.Rect(minX, minY, Math.Max(1, maxX - minX), Math.Max(1, maxY - minY)));
+                if (roiFill.Width > 0 && roiFill.Height > 0)
+                {
+                    using var overlay = image[roiFill].Clone();
+                    var Color = ParseColorToScalar(Style.FillColor);
+                    var oPts = pts.Select(p => new OpenCvSharp.Point(p.X - roiFill.X, p.Y - roiFill.Y)).ToArray();
+                    Cv2.FillPoly(overlay, new[] { oPts }, Color, LineTypes.AntiAlias);
+                    var alpha = ParseAlpha(Style.FillColor, Style.Opacity);
+                    Cv2.AddWeighted(overlay, alpha, image[roiFill], 1.0 - alpha, 0, image[roiFill]);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(Style.StrokeColor))
+            {
+                var Color = ParseColorToScalar(Style.StrokeColor);
+                var thickness = Style.StrokeWidth > 0 ? Style.StrokeWidth : 1;
+                var pad = thickness + 1;
+                var roiStroke = ClipRectToImage(image, new OpenCvSharp.Rect(minX - pad, minY - pad, Math.Max(1, (maxX - minX) + pad * 2), Math.Max(1, (maxY - minY) + pad * 2)));
+                if (roiStroke.Width > 0 && roiStroke.Height > 0)
+                {
+                    using var overlay = image[roiStroke].Clone();
+                    var oPts = pts.Select(p => new OpenCvSharp.Point(p.X - roiStroke.X, p.Y - roiStroke.Y)).ToArray();
+                    if (Style.Dash != null && Style.Dash.Length > 0)
+                    {
+                        for (int i = 0; i < oPts.Length; i++)
+                        {
+                            DrawDashedLine(overlay, oPts[i], oPts[(i + 1) % oPts.Length], Color, thickness, Style.Dash);
+                        }
+                    }
+                    else
+                    {
+                        Cv2.Polylines(overlay, new[] { oPts }, true, Color, thickness, LineTypes.AntiAlias);
+                    }
+                    var alpha = ParseAlpha(Style.StrokeColor, Style.Opacity);
+                    Cv2.AddWeighted(overlay, alpha, image[roiStroke], 1.0 - alpha, 0, image[roiStroke]);
+                }
+            }
+            return;
+        }
+
         var rect = new OpenCvSharp.Rect(shape.Origin.X, shape.Origin.Y, shape.Size.Width, shape.Size.Height);
 
         if (!string.IsNullOrEmpty(Style.FillColor))
@@ -329,10 +384,15 @@ public class Render : ComponentBase, IAnnotationRender
             var roi = ClipRectToImage(image, new OpenCvSharp.Rect(rect.X - pad, rect.Y - pad, rect.Width + pad * 2, rect.Height + pad * 2));
             if (roi.Width <= 0 || roi.Height <= 0) return;
             using var overlay = image[roi].Clone();
-            var p1 = new OpenCvSharp.Point(0, 0);
-            var p2 = new OpenCvSharp.Point(roi.Width, 0);
-            var p3 = new OpenCvSharp.Point(roi.Width, roi.Height);
-            var p4 = new OpenCvSharp.Point(0, roi.Height);
+            
+            var offsetX = rect.X - roi.X;
+            var offsetY = rect.Y - roi.Y;
+
+            var p1 = new OpenCvSharp.Point(offsetX, offsetY);
+            var p2 = new OpenCvSharp.Point(offsetX + rect.Width, offsetY);
+            var p3 = new OpenCvSharp.Point(offsetX + rect.Width, offsetY + rect.Height);
+            var p4 = new OpenCvSharp.Point(offsetX, offsetY + rect.Height);
+
             if (Style.Dash != null && Style.Dash.Length > 0)
             {
                 DrawDashedLine(overlay, p1, p2, Color, thickness, Style.Dash);
@@ -342,7 +402,7 @@ public class Render : ComponentBase, IAnnotationRender
             }
             else
             {
-                Cv2.Rectangle(overlay, new OpenCvSharp.Rect(0, 0, roi.Width, roi.Height), Color, thickness, LineTypes.AntiAlias);
+                Cv2.Rectangle(overlay, new OpenCvSharp.Rect(offsetX, offsetY, rect.Width, rect.Height), Color, thickness, LineTypes.AntiAlias);
             }
             var alpha = ParseAlpha(Style.StrokeColor, Style.Opacity);
             Cv2.AddWeighted(overlay, alpha, image[roi], 1.0 - alpha, 0, image[roi]);
@@ -368,17 +428,64 @@ public class Render : ComponentBase, IAnnotationRender
 
         var x = shape.Position.X;
         var y = shape.Position.Y;
+        
         var hAlign = shape.Align?.Horizontal?.ToLowerInvariant();
-        if (hAlign == "Center") x -= Size.Width / 2;
+        if (hAlign == "center") x -= Size.Width / 2;
         else if (hAlign == "right") x -= Size.Width;
 
-        var roi = new OpenCvSharp.Rect(x, y - Size.Height, Math.Max(1, Size.Width), Math.Max(1, Size.Height + baseline));
+        var vAlign = shape.Align?.Vertical?.ToLowerInvariant();
+        var drawY = y;
+        
+        // Vertical Align Calculation
+        // Position.Y is the anchor.
+        // top: anchor is top -> text below. drawY (baseline) = y + Size.Height
+        // bottom: anchor is bottom -> text above. drawY (baseline) = y
+        // center: anchor is middle -> text centered. drawY (baseline) = y + Size.Height / 2
+        
+        if (string.IsNullOrEmpty(vAlign) || vAlign == "top")
+        {
+            drawY = y + Size.Height;
+        }
+        else if (vAlign == "center" || vAlign == "middle")
+        {
+            drawY = y + Size.Height / 2;
+        }
+        else if (vAlign == "bottom")
+        {
+             drawY = y;
+        }
+
+        var roiY = drawY - Size.Height;
+        var roiH = Size.Height + baseline;
+        // Ensure ROI height is valid
+        if (roiH <= 0) roiH = 1;
+        
+        var roi = new OpenCvSharp.Rect(x, roiY, Math.Max(1, Size.Width), Math.Max(1, roiH));
+        
+        // Draw Background
+        var bgColorObj = Style.BackgroundColor;
+        string? bgColorStr = bgColorObj as string;
+        if (bgColorStr == null && bgColorObj != null) bgColorStr = bgColorObj.ToString();
+
+        if (!string.IsNullOrEmpty(bgColorStr))
+        {
+            var bgRoi = ClipRectToImage(image, roi);
+            if (bgRoi.Width > 0 && bgRoi.Height > 0)
+            {
+                using var overlay = image[bgRoi].Clone();
+                var BgColor = ParseColorToScalar(bgColorStr);
+                Cv2.Rectangle(overlay, new OpenCvSharp.Rect(0, 0, bgRoi.Width, bgRoi.Height), BgColor, -1, LineTypes.AntiAlias);
+                var bgAlpha = ParseAlpha(bgColorStr, Style.Opacity);
+                Cv2.AddWeighted(overlay, bgAlpha, image[bgRoi], 1.0 - bgAlpha, 0, image[bgRoi]);
+            }
+        }
+
         roi = ClipRectToImage(image, roi);
         if (roi.Width > 0 && roi.Height > 0)
         {
             using var overlay = image[roi].Clone();
             var ox = x - roi.X;
-            var oy = y - roi.Y;
+            var oy = drawY - roi.Y;
             Cv2.PutText(overlay, text, new OpenCvSharp.Point(ox, oy), fontFace, fontScale, Color, thickness, LineTypes.AntiAlias);
             Cv2.AddWeighted(overlay, alpha, image[roi], 1.0 - alpha, 0, image[roi]);
         }

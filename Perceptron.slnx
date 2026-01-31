@@ -49,6 +49,7 @@
     <Project Path="test/3.Domain/Perceptron.Domain.Tests/Perceptron.Domain.Tests.csproj" />
   </Folder>
   <Folder Name="/test/5.Component/">
+    <Project Path="test/5.Component/AnnotationRender.Tests/AnnotationRender.Tests.csproj" Id="53e1adb9-b300-484a-bb83-3049a014ef80" />
     <Project Path="test/5.Component/Detector.Tests/Detector.Tests.csproj" Id="6c5c791c-79d0-419c-86e7-ad90f91dfeb6" />
     <Project Path="test/5.Component/FrameBuffer.Tests/FrameBuffer.Tests.csproj" Id="2cd7f620-5af8-4996-8432-aa7e76fe9eeb" />
     <Project Path="test/5.Component/MediaLoader.Tests/MediaLoader.Tests.csproj" Id="1879e277-f109-475e-b470-bed59089e75d" />
