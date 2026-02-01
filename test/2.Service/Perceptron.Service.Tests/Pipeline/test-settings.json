@@ -105,7 +105,15 @@
       "AssemblyFile": "Algorithm.GenerateDebugAnnotations.dll",
       "FullQualifiedClassName": "Algorithm.GenerateDebugAnnotations.Executor",
       "Preferences": {
-
+        "GenerateBBox": true,
+        "BBoxStrokeColor": "#8fce00",
+        "BBoxStrokeWidth": 2,
+        "GenerateObjText": true,
+        "ObjTextColor": "#ffff00",
+        "ObjTextFontSize": 30,
+        "ObjTextShowLabel": true,
+        "ObjTextShowTrackingId": true,
+        "ObjTextShowConfidence": true
       }
     }
   ]
