@@ -97,7 +97,7 @@
     "AssemblyFile": "RegionManager.DefinitionBased.dll",
     "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
     "Preferences": {
-      "RegionDefinitionFile": "test-region.json"
+      "RegionDefinitionFile": "Pipeline/test-region.json"
     }
   },
   "AnnotationRender": {

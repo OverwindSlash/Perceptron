@@ -4,7 +4,7 @@ namespace Perceptron.Domain.Setting;
 
 public class RegionManagerSettings : ComponentSettings
 {
-    public const string DefaultRegionDefinitionFile = "default-settings.json";
+    public const string DefaultRegionDefinitionFile = "default-region.json";
     public const string DefaultCameraServiceUrl = "http://localhost:44311/api/services/app/";
     public const string DefaultCameraId = "CameraId001";
 

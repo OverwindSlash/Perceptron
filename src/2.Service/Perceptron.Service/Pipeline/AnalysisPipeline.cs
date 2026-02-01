@@ -232,6 +232,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                         _detectorSettings.ConfThresh, _detectorSettings.IouThresh);
                 }
 
+                // 2.region
+                RegionManager.CalcRegionProperties(frame);
+
                 // TODO
 
                 // 5.algorithm modules
