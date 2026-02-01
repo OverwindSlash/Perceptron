@@ -1,4 +1,4 @@
-using Perceptron.Domain.Entity.RegionDefinition.Geometric;
+﻿using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using System.Text.Json;
 
 namespace Perceptron.Domain.Entity.RegionDefinition;
@@ -173,7 +173,7 @@ public class ImageRegionDefinition : ImageBasedGeometric
             definition = JsonSerializer.Deserialize<ImageRegionDefinition>(jsonString);
             definition.SetImageSize(imageWidth, imageHeight);
         }
-        catch (Exception e)
+        catch (Exception)
         {
             string jsonString = File.ReadAllText("default-region.json");
             definition = JsonSerializer.Deserialize<ImageRegionDefinition>(jsonString);

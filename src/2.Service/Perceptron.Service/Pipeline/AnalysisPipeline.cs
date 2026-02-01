@@ -166,7 +166,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         // TODO: 考虑当多个 VideoLoader 的视频分辨率不同时的处理方案
         RegionManager = Provider.GetService<IRegionManager>();
-        // RegionManager.InitRegionDefinition(VideoLoader.Specs.Width, VideoLoader.Specs.Height);
+        RegionManager.InitRegionDefinition(VideoLoaders[0].Specs.Width, VideoLoaders[0].Specs.Height);
         RegionManager.SetSubscriber(objectExpiredSubscriber);
 
         AnnotationRender = Provider.GetRequiredService<IAnnotationRender>();

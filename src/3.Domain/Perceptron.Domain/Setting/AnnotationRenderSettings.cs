@@ -6,7 +6,7 @@ public class AnnotationRenderSettings : ComponentSettings
 {
     public const string BaseStyleFile = "default-style.json";
 
-    public string DefaultStyleFile { get; private set; }
+    public string DefaultStyleFile { get; private set; } = BaseStyleFile;
 
     public override void ParsePreferences()
     {

@@ -1,12 +1,12 @@
-using Perceptron.Domain.Entity.RegionDefinition.Geometric;
+﻿using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using System.Text.Json.Serialization;
 
 namespace Perceptron.Domain.Entity.RegionDefinition;
 
 public class EnterLine : NormalizedLine
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = "Enter Line";
 
     [JsonIgnore]
-    public LeaveLine LeaveLine { get; set; }
+    public LeaveLine? LeaveLine { get; set; }
 }
