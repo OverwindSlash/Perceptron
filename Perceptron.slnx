@@ -1,7 +1,11 @@
 <Solution>
   <Folder Name="/spec/" />
+  <Folder Name="/spec/2.Service/">
+    <File Path="spec/2.Service/VideoFrameSlideWindow-Spec.md" />
+  </Folder>
   <Folder Name="/spec/3.Domain/" />
   <Folder Name="/spec/3.Domain/Abstraction/">
+    <File Path="spec/3.Domain/Abstraction/IVideoFrameBuffer-Spec.md" />
     <File Path="spec/3.Domain/Abstraction/IVideoLoader-Spec.md" />
   </Folder>
   <Folder Name="/spec/3.Domain/Annotation/">
@@ -16,6 +20,22 @@
     <File Path="spec/3.Domain/Entity/BoundingBox-Spec.md" />
     <File Path="spec/3.Domain/Entity/DetectedObject-Spec.md" />
     <File Path="spec/3.Domain/Entity/Frame-Spec.md" />
+  </Folder>
+  <Folder Name="/spec/5.Component/" />
+  <Folder Name="/spec/5.Component/Annotation/">
+    <File Path="spec/5.Component/Annotation/AnnotationRender-Spec.md" />
+  </Folder>
+  <Folder Name="/spec/5.Component/Detector/">
+    <File Path="spec/5.Component/Detector/Detector-YoloDotNet-Spec.md" />
+  </Folder>
+  <Folder Name="/spec/5.Component/FrameBuffer/">
+    <File Path="spec/5.Component/FrameBuffer/FrameBuffer-Spec.md" />
+  </Folder>
+  <Folder Name="/spec/5.Component/MediaLoader/">
+    <File Path="spec/5.Component/MediaLoader/MediaLoader-Spec.md" />
+  </Folder>
+  <Folder Name="/spec/6.Algorithm/">
+    <File Path="spec/6.Algorithm/AlgorithmModule-Spec.md" />
   </Folder>
   <Folder Name="/src/" />
   <Folder Name="/src/2.Service/">
