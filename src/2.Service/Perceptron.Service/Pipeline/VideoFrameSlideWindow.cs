@@ -5,6 +5,7 @@ using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.VideoStream;
 using System.Collections.Concurrent;
 using Perceptron.Domain.Event.Pipeline;
+using Perceptron.Domain.Setting;
 
 namespace Perceptron.Service.Pipeline;
 
@@ -20,7 +21,7 @@ public class VideoFrameSlideWindow : IEventPublisher<ObjectExpiredEvent>, IEvent
 
     public ConcurrentBoundedQueue<Frame> Frames => _frames;
 
-    public VideoFrameSlideWindow(int windowSize = 100)
+    public VideoFrameSlideWindow(int windowSize = PipelineSettings.DefaultFrameLifetime)
     {
         _frames = new ConcurrentBoundedQueue<Frame>(windowSize, CleanupExpiredFrame);
 

@@ -24,7 +24,7 @@ public static class ServiceCollectionExtensions
         serviceCollection.AddSingleton<T>(sp => component);
     }
 
-    private static T CreateInstance<T>(string assemblyFile, string fullQualifiedClassName, object?[] preferences = null)
+    private static T CreateInstance<T>(string assemblyFile, string fullQualifiedClassName, object?[] preferences)
     {
         Assembly assembly = Assembly.LoadFrom(assemblyFile);
         Type type = assembly.GetType(fullQualifiedClassName);

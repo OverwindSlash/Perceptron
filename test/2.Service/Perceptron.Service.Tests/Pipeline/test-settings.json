@@ -26,21 +26,21 @@
         "RetryDelayMs": 500,
         "Loop": false
       }
-    }
+    },
     //{
-    //  "AssemblyFile": "MediaLoader.OpenCV.dll",
-    //  "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
-    //  "Preferences": {
-    //    "SourceId": "Sea-Cam-002",
-    //    "VideoUri": "D:\\Video\\Ship\\test.mp4",
-    //    "VideoCaptureAPI": "FFMPEG",
-    //    "VideoAccelerationType": "D3D11",
-    //    "VideoAccelerationDeviceId": 0,
-    //    "VideoStride": 1,
-    //    "MaxRetries": 3,
-    //    "RetryDelayMs": 1000,
-    //    "Loop": false
-    //  }
+    // "AssemblyFile": "MediaLoader.OpenCV.dll",
+    // "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
+    // "Preferences": {
+    //   "SourceId": "Sea-Cam-002",
+    //   "VideoUri": "D:\\Video\\Ship\\test.mp4",
+    //   "VideoCaptureAPI": "FFMPEG",
+    //   "VideoAccelerationType": "D3D11",
+    //   "VideoAccelerationDeviceId": 0,
+    //   "VideoStride": 1,
+    //   "MaxRetries": 3,
+    //   "RetryDelayMs": 1000,
+    //   "Loop": false
+    // }
     //}
   ],
   "InputFrameBuffer": {

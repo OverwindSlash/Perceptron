@@ -143,6 +143,48 @@ public class AnalysisPipelineTests
         Assert.That(ex!.Message, Does.Contain("OutputFrameBuffer settings corrupted"));
     }
 
+    [Test]
+    public void Constructor_ShouldThrowInvalidDataException_WhenAnnotationRenderSectionIsMissing()
+    {
+        // Arrange
+        var configDict = GetValidConfigurationDictionary();
+        // Remove AnnotationRender section
+        var keysToRemove = configDict.Keys.Where(k => k.StartsWith("AnnotationRender")).ToList();
+        foreach (var key in keysToRemove)
+        {
+            configDict.Remove(key);
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidDataException>(() => new AnalysisPipeline(config));
+        Assert.That(ex!.Message, Does.Contain("AnnotationRender settings corrupted"));
+    }
+
+    [Test]
+    public void Constructor_ShouldThrowInvalidDataException_WhenAlgorithmsSectionIsMissing()
+    {
+        // Arrange
+        var configDict = GetValidConfigurationDictionary();
+        // Remove Algorithms section
+        var keysToRemove = configDict.Keys.Where(k => k.StartsWith("Algorithms")).ToList();
+        foreach (var key in keysToRemove)
+        {
+            configDict.Remove(key);
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidDataException>(() => new AnalysisPipeline(config));
+        Assert.That(ex!.Message, Does.Contain("Algorithm settings corrupted"));
+    }
+
     private Dictionary<string, string?> GetValidConfigurationDictionary()
     {
         return new Dictionary<string, string?>
@@ -163,7 +205,7 @@ public class AnalysisPipelineTests
             {"VideoLoaders:0:AssemblyFile", "MediaLoader.OpenCV.dll"},
             {"VideoLoaders:0:FullQualifiedClassName", "MediaLoader.OpenCV.VideoLoader"},
             {"VideoLoaders:0:Preferences:SourceId", "Suzhou-Cam-001"},
-            {"VideoLoaders:0:Preferences:VideoUri", "D:\\Video\\Ship\\suzhou.mp4"},
+            {"VideoLoaders:0:Preferences:VideoUri", "D:\\Video\\Ship\\suzhou.ts"},
             {"VideoLoaders:0:Preferences:VideoCaptureAPI", "FFMPEG"},
             {"VideoLoaders:0:Preferences:VideoAccelerationType", "None"},
             {"VideoLoaders:0:Preferences:VideoAccelerationDeviceId", "0"},
@@ -171,6 +213,19 @@ public class AnalysisPipelineTests
             {"VideoLoaders:0:Preferences:MaxRetries", "5"},
             {"VideoLoaders:0:Preferences:RetryDelayMs", "500"},
             {"VideoLoaders:0:Preferences:Loop", "false"},
+
+            // VideoLoaders (List) - Item 1
+            {"VideoLoaders:1:AssemblyFile", "MediaLoader.OpenCV.dll"},
+            {"VideoLoaders:1:FullQualifiedClassName", "MediaLoader.OpenCV.VideoLoader"},
+            {"VideoLoaders:1:Preferences:SourceId", "Sea-Cam-002"},
+            {"VideoLoaders:1:Preferences:VideoUri", "D:\\Video\\Ship\\test.mp4"},
+            {"VideoLoaders:1:Preferences:VideoCaptureAPI", "FFMPEG"},
+            {"VideoLoaders:1:Preferences:VideoAccelerationType", "D3D11"},
+            {"VideoLoaders:1:Preferences:VideoAccelerationDeviceId", "0"},
+            {"VideoLoaders:1:Preferences:VideoStride", "1"},
+            {"VideoLoaders:1:Preferences:MaxRetries", "3"},
+            {"VideoLoaders:1:Preferences:RetryDelayMs", "1000"},
+            {"VideoLoaders:1:Preferences:Loop", "false"},
 
             // InputFrameBuffer
             {"InputFrameBuffer:AssemblyFile", "FrameBuffer.TwoModes.dll"},
@@ -197,24 +252,47 @@ public class AnalysisPipelineTests
             {"Detector:Preferences:ConfThresh", "0.5"},
             {"Detector:Preferences:TargetTypes", "person,boat"},
             {"Detector:Preferences:DetectionStride", "2"},
-            {"Detector:Preferences:FilterSmallObject", "true"},
+            {"Detector:Preferences:FilterSmallObject", "false"},
             {"Detector:Preferences:MinBboxWidth", "80"},
             {"Detector:Preferences:MinBboxHeight", "50"},
-            {"Detector:Preferences:FilterLargeObject", "true"},
+            {"Detector:Preferences:FilterLargeObject", "false"},
             {"Detector:Preferences:MaxBboxWidth", "500"},
             {"Detector:Preferences:MaxBboxHeight", "400"},
-            {"Detector:Preferences:RegionDetectionEnabled", "true"},
+            {"Detector:Preferences:RegionDetectionEnabled", "false"},
             {"Detector:Preferences:DetectionRegion", "1452, 656, 1009, 331"},
-            {"Detector:Preferences:TileDetectionEnabled", "true"},
+            {"Detector:Preferences:TileDetectionEnabled", "false"},
             {"Detector:Preferences:TileDetectionSize", "1, 2"},
             {"Detector:Preferences:MaxStitchGapPixel", "3"},
             {"Detector:Preferences:MinVerticalOverlapRatio", "0.8"},
             {"Detector:Preferences:WillSuppressInnerSameObject", "true"},
             {"Detector:Preferences:InnerObjectOverlapRatio", "0.7"},
-            {"Detector:Preferences:WillMapObjectTypes", "true"},
+            {"Detector:Preferences:WillMapObjectTypes", "false"},
             {"Detector:Preferences:SourceObjectTypeNames", "truck,bus"},
             {"Detector:Preferences:DestinationObjectTypeName", "car"},
-            {"Detector:Preferences:Names", "Alice,Bob,Charlie,David,Eve"}
+            {"Detector:Preferences:Names", "Alice,Bob,Charlie,David,Eve"},
+
+            // RegionManager
+            {"RegionManager:AssemblyFile", "RegionManager.DefinitionBased.dll"},
+            {"RegionManager:FullQualifiedClassName", "RegionManager.DefinitionBased.RegionManager"},
+            {"RegionManager:Preferences:RegionDefinitionFile", "test-region.json"},
+
+            // AnnotationRender
+            {"AnnotationRender:AssemblyFile", "AnnotationRender.OpenCV.dll"},
+            {"AnnotationRender:FullQualifiedClassName", "AnnotationRender.OpenCV.Render"},
+            {"AnnotationRender:Preferences:DefaultStyleFile", "default-style.json"},
+
+            // Algorithms (List) - Item 0
+            {"Algorithms:0:AssemblyFile", "Algorithm.GenerateDebugAnnotations.dll"},
+            {"Algorithms:0:FullQualifiedClassName", "Algorithm.GenerateDebugAnnotations.Executor"},
+            {"Algorithms:0:Preferences:GenerateBBox", "true"},
+            {"Algorithms:0:Preferences:BBoxStrokeColor", "#8fce00"},
+            {"Algorithms:0:Preferences:BBoxStrokeWidth", "2"},
+            {"Algorithms:0:Preferences:GenerateObjText", "true"},
+            {"Algorithms:0:Preferences:ObjTextColor", "#ffff00"},
+            {"Algorithms:0:Preferences:ObjTextFontSize", "30"},
+            {"Algorithms:0:Preferences:ObjTextShowLabel", "true"},
+            {"Algorithms:0:Preferences:ObjTextShowTrackingId", "true"},
+            {"Algorithms:0:Preferences:ObjTextShowConfidence", "true"}
         };
     }
 }

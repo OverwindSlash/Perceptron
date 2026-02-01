@@ -7,6 +7,7 @@ using Perceptron.Domain.Abstraction.Annotation;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.Abstraction.MediaLoader;
 using Perceptron.Domain.Abstraction.ObjectDetector;
+using Perceptron.Domain.Abstraction.RegionManager;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event.Pipeline;
 using Perceptron.Domain.Setting;
@@ -23,6 +24,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     private FrameBufferSettings _inputFrameBufferSettings;
     private FrameBufferSettings _outputFrameBufferSettings;
     private DetectorSettings _detectorSettings;
+    private RegionManagerSettings _regionManagerSettings;
 
     private AnnotationRenderSettings _annotationRenderSettings;
 
@@ -40,6 +42,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     public IVideoFrameBuffer OutputFrameBuffer { get; private set; }
     public List<IVideoLoader> VideoLoaders { get; private set; }
     public IObjectDetector? ObjectDetector { get; private set; }
+    public IRegionManager? RegionManager { get; private set; }
     public IAnnotationRender AnnotationRender { get; private set; }
     public List<IAlgorithmModule> AlgorithmModules { get; private set; }
 
@@ -81,6 +84,10 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                             ?? throw new InvalidDataException("Detector settings corrupted.");
         _detectorSettings.ParsePreferences();
 
+        _regionManagerSettings = config.GetSection("RegionManager").Get<RegionManagerSettings>()
+                                 ?? throw new InvalidDataException("RegionManager settings corrupted.");
+        _regionManagerSettings.ParsePreferences();
+
         // TODO: Load other component settings
 
         _annotationRenderSettings = config.GetSection("AnnotationRender").Get<AnnotationRenderSettings>()
@@ -110,6 +117,8 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         }
 
         _services.AddComponent<IObjectDetector>(_detectorSettings);
+        _services.AddComponent<IRegionManager>(_regionManagerSettings);
+
         _services.AddComponent<IAnnotationRender>(_annotationRenderSettings);
 
 
@@ -144,8 +153,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         OutputFrameBuffer = Provider.GetServices<IVideoFrameBuffer>()
                                 .First(f => f.BufferName == "OutputFrameBuffer");
-
-
+        
         VideoLoaders = Provider.GetServices<IVideoLoader>().ToList();
         foreach (var videoLoader in VideoLoaders)
         {
@@ -155,6 +163,11 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             videoLoader.AttachBuffer(InputFrameBuffer);
             videoLoader.Open(settings.VideoUri);
         }
+
+        // TODO: 考虑当多个 VideoLoader 的视频分辨率不同时的处理方案
+        RegionManager = Provider.GetService<IRegionManager>();
+        // RegionManager.InitRegionDefinition(VideoLoader.Specs.Width, VideoLoader.Specs.Height);
+        RegionManager.SetSubscriber(objectExpiredSubscriber);
 
         AnnotationRender = Provider.GetRequiredService<IAnnotationRender>();
 
