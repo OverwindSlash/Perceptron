@@ -93,6 +93,13 @@
       "Names": "Alice,Bob,Charlie,David,Eve"
     }
   },
+  "RegionManager": {
+    "AssemblyFile": "RegionManager.DefinitionBased.dll",
+    "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
+    "Preferences": {
+      "RegionDefinitionFile": "test-region.json"
+    }
+  },
   "AnnotationRender": {
     "AssemblyFile": "AnnotationRender.OpenCV.dll",
     "FullQualifiedClassName": "AnnotationRender.OpenCV.Render",

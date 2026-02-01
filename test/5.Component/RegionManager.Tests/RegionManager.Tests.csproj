@@ -18,12 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\2.Service\Perceptron.Service\Perceptron.Service.csproj" />
-    <ProjectReference Include="..\..\..\src\5.Component\AnnotationRender.OpenCV\AnnotationRender.OpenCV.csproj" />
-    <ProjectReference Include="..\..\..\src\5.Component\Detector.YoloDotNet\Detector.YoloDotNet.csproj" />
-    <ProjectReference Include="..\..\..\src\5.Component\FrameBuffer.TwoModes\FrameBuffer.TwoModes.csproj" />
-    <ProjectReference Include="..\..\..\src\5.Component\MediaLoader.OpenCV\MediaLoader.OpenCV.csproj" />
-    <ProjectReference Include="..\..\..\src\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
+    <ProjectReference Include="..\..\..\src\5.Component\RegionManager.DefinitionBased\RegionManager.DefinitionBased.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,10 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Pipeline\test-region.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Pipeline\test-settings.json">
+    <None Update="TestData\test-analysis-definition.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

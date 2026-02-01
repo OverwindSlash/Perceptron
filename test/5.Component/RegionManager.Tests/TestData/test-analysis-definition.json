@@ -1,0 +1,55 @@
+{
+  "Name": "Test Analysis Definition",
+  "IsObjectAnalyzableRetain": true,
+  "IsDoubleLineCounting": false,
+  "AnalysisAreas": [
+    {
+      "Name": "TestArea1",
+      "Points": [
+        { "NormalizedX": 0.1, "NormalizedY": 0.1 },
+        { "NormalizedX": 0.5, "NormalizedY": 0.1 },
+        { "NormalizedX": 0.5, "NormalizedY": 0.5 },
+        { "NormalizedX": 0.1, "NormalizedY": 0.5 }
+      ]
+    }
+  ],
+  "ExcludedAreas": [
+    {
+      "Name": "ExcludedArea1",
+      "Points": [
+        { "NormalizedX": 0.6, "NormalizedY": 0.6 },
+        { "NormalizedX": 0.8, "NormalizedY": 0.6 },
+        { "NormalizedX": 0.8, "NormalizedY": 0.8 },
+        { "NormalizedX": 0.6, "NormalizedY": 0.8 }
+      ]
+    }
+  ],
+  "Lanes": [
+    {
+      "Name": "Lane1",
+      "Index": 1,
+      "Type": "Normal",
+      "ForbiddenTypes": [],
+      "Points": [
+        { "NormalizedX": 0.2, "NormalizedY": 0.2 },
+        { "NormalizedX": 0.4, "NormalizedY": 0.2 },
+        { "NormalizedX": 0.4, "NormalizedY": 0.4 },
+        { "NormalizedX": 0.2, "NormalizedY": 0.4 }
+      ]
+    }
+  ],
+  "InterestAreas": [
+    {
+      "Name": "restricted area",
+      "Type": "alarm",
+      "RelativeTypes": [ "boat" ],
+      "Points": [
+        { "NormalizedX": 0.3, "NormalizedY": 0.3 },
+        { "NormalizedX": 0.7, "NormalizedY": 0.3 },
+        { "NormalizedX": 0.7, "NormalizedY": 0.7 },
+        { "NormalizedX": 0.3, "NormalizedY": 0.7 }
+      ]
+    }
+  ],
+  "CountLines": []
+}

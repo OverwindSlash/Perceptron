@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MediaLoader.OpenCV;
 using Moq;
 using OpenCvSharp;
@@ -140,7 +140,7 @@ public class OpenCVVideoLoaderTests
         _loader.Stop();
         task.Wait(1000);
 
-        _mockBuffer.Verify(b => b.Enqueue(It.IsAny<Frame>()), Times.AtLeastOnce());
+        _mockBuffer.Verify(b => b.PushFrame(It.IsAny<Frame>()), Times.AtLeastOnce());
     }
 
     [Test]
@@ -221,7 +221,7 @@ public class OpenCVVideoLoaderTests
 
         // Capture enqueued frames
         var frames = new List<long>();
-        _mockBuffer.Setup(b => b.Enqueue(It.IsAny<Frame>()))
+        _mockBuffer.Setup(b => b.PushFrame(It.IsAny<Frame>()))
             .Callback<Frame>(f => 
             {
                 frames.Add(f.FrameId);
@@ -289,7 +289,7 @@ public class OpenCVVideoLoaderTests
         
         _loader.Play(debugMode: true, debugFrameCount: 5);
         
-        _mockBuffer.Verify(b => b.Enqueue(It.IsAny<Frame>()), Times.AtLeastOnce());
+        _mockBuffer.Verify(b => b.PushFrame(It.IsAny<Frame>()), Times.AtLeastOnce());
     }
 
     [Test]
@@ -319,7 +319,7 @@ public class OpenCVVideoLoaderTests
         _loader.Open(_testVideoPath);
 
         long lastOffset = -1;
-        _mockBuffer.Setup(b => b.Enqueue(It.IsAny<Frame>()))
+        _mockBuffer.Setup(b => b.PushFrame(It.IsAny<Frame>()))
             .Callback<Frame>(f => 
             {
                 // Verify offset increases (or equal if fast enough, but usually increases)
@@ -453,7 +453,7 @@ public class OpenCVVideoLoaderTests
         _loader.Open(_testVideoPath);
 
         int frameCount = 0;
-        _mockBuffer.Setup(b => b.Enqueue(It.IsAny<Frame>()))
+        _mockBuffer.Setup(b => b.PushFrame(It.IsAny<Frame>()))
             .Callback<Frame>(f => 
             {
                 frameCount++;

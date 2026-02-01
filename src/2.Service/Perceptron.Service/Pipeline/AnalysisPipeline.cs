@@ -85,6 +85,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         _annotationRenderSettings = config.GetSection("AnnotationRender").Get<AnnotationRenderSettings>()
                                     ?? throw new InvalidDataException("AnnotationRender settings corrupted.");
+        _annotationRenderSettings.ParsePreferences();
 
         _algorithmSettings = config.GetSection("Algorithms").Get<List<AlgorithmSettings>>()
                              ?? throw new InvalidDataException("Algorithm settings corrupted.");

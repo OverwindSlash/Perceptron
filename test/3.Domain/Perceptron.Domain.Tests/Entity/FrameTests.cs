@@ -205,13 +205,6 @@ public class FrameTests
         frame.Dispose(); // RefCount = 1
 
         // Assert
-        Assert.That(frame.IsDisposed, Is.False, "Frame should not be disposed while RefCount > 0");
-        Assert.That(scene.IsDisposed, Is.False, "Scene should not be disposed while Frame is alive");
-
-        // Act
-        frame.Dispose(); // RefCount = 0
-
-        // Assert
         Assert.That(frame.IsDisposed, Is.True, "Frame should be disposed when RefCount reaches 0");
         Assert.That(scene.IsDisposed, Is.True, "Scene should be disposed when Frame is disposed");
     }

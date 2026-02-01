@@ -61,6 +61,9 @@
   <Folder Name="/src/5.Component/MediaLoader/">
     <Project Path="src/5.Component/MediaLoader.OpenCV/MediaLoader.OpenCV.csproj" Id="fe7832a6-29b2-4b44-ab12-5772bd5a4d6e" />
   </Folder>
+  <Folder Name="/src/5.Component/RegionManager/">
+    <Project Path="src/5.Component/RegionManager.DefinitionBased/RegionManager.DefinitionBased.csproj" Id="8f35cb50-c57c-4d55-8212-1a51d0b1fea3" />
+  </Folder>
   <Folder Name="/src/6.Algorithm/">
     <Project Path="src/6.Algorithm/Algorithm.Common/Algorithm.Common.csproj" Id="5c770453-4618-400f-816f-b25fabd34a23" />
     <Project Path="src/6.Algorithm/Algorithm.GenerateDebugAnnotations/Algorithm.GenerateDebugAnnotations.csproj" Id="8704d032-4a47-4c8d-89e5-b4b26a449154" />
@@ -77,5 +80,6 @@
     <Project Path="test/5.Component/Detector.Tests/Detector.Tests.csproj" Id="6c5c791c-79d0-419c-86e7-ad90f91dfeb6" />
     <Project Path="test/5.Component/FrameBuffer.Tests/FrameBuffer.Tests.csproj" Id="2cd7f620-5af8-4996-8432-aa7e76fe9eeb" />
     <Project Path="test/5.Component/MediaLoader.Tests/MediaLoader.Tests.csproj" Id="1879e277-f109-475e-b470-bed59089e75d" />
+    <Project Path="test/5.Component/RegionManager.Tests/RegionManager.Tests.csproj" Id="14433db4-7879-4f05-ac89-a64c2585a735" />
   </Folder>
 </Solution>

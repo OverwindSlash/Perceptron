@@ -65,11 +65,11 @@ public class Executor : AlgorithmBase, IDetectedObjectAnnotationGenerator, IRegi
 
     public VisualAnnotation GenerateDetectedObjectAnnotation(Frame frame, DetectedObject detectedObject)
     {
-        //if (!detectedObject.IsUnderAnalysis)
-        //{
-        //    return frame.Annotation;
-        //}
-        
+        if (!detectedObject.IsUnderAnalysis)
+        {
+            return frame.Annotation;
+        }
+
         var bbox = detectedObject.Bbox;
 
         // bbox annotation
