@@ -1,4 +1,4 @@
-{
+﻿{
   "Pipeline": {
     "FrameLifetime": 200,
     "EnableDebugDisplay": true,
@@ -17,7 +17,7 @@
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
         "SourceId": "Suzhou-Cam-001",
-        "VideoUri": "D:\\Video\\Ship\\suzhou.mp4",
+        "VideoUri": "D:\\Video\\Ship\\suzhou.ts",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -26,7 +26,7 @@
         "RetryDelayMs": 500,
         "Loop": false
       }
-    },
+    }
     //{
     //  "AssemblyFile": "MediaLoader.OpenCV.dll",
     //  "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
@@ -73,24 +73,40 @@
       "ConfThresh": 0.5,
       "TargetTypes": "person,boat",
       "DetectionStride": 2,
-      "FilterSmallObject": true,
+      "FilterSmallObject": false,
       "MinBboxWidth": 80,
       "MinBboxHeight": 50,
-      "FilterLargeObject": true,
+      "FilterLargeObject": false,
       "MaxBboxWidth": 500,
       "MaxBboxHeight": 400,
-      "RegionDetectionEnabled": true,
+      "RegionDetectionEnabled": false,
       "DetectionRegion": "1452, 656, 1009, 331",
-      "TileDetectionEnabled": true,
+      "TileDetectionEnabled": false,
       "TileDetectionSize": "1, 2",
       "MaxStitchGapPixel": 3,
       "MinVerticalOverlapRatio": 0.8,
       "WillSuppressInnerSameObject": true,
       "InnerObjectOverlapRatio": 0.7,
-      "WillMapObjectTypes": true,
+      "WillMapObjectTypes": false,
       "SourceObjectTypeNames": "truck,bus",
       "DestinationObjectTypeName": "car",
       "Names": "Alice,Bob,Charlie,David,Eve"
     }
-  }
+  },
+  "AnnotationRender": {
+    "AssemblyFile": "AnnotationRender.OpenCV.dll",
+    "FullQualifiedClassName": "AnnotationRender.OpenCV.Render",
+    "Preferences": {
+      "DefaultStyleFile": "default-style.json"
+    }
+  },
+  "Algorithms": [
+    {
+      "AssemblyFile": "Algorithm.GenerateDebugAnnotations.dll",
+      "FullQualifiedClassName": "Algorithm.GenerateDebugAnnotations.Executor",
+      "Preferences": {
+
+      }
+    }
+  ]
 }

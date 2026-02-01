@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\2.Service\Perceptron.Service\Perceptron.Service.csproj" />
+    <ProjectReference Include="..\..\3.Domain\Perceptron.Domain\Perceptron.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

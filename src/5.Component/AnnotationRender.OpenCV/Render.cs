@@ -82,7 +82,7 @@ public class Render : ComponentBase, IAnnotationRender
             Log.Warning($"Annotation render failed. Skip this annotation. Error: {e.Message}");
         }
 
-        return image.Clone();
+        return image;
     }
 
     private static Style MergeStyle(Style? user, Style? def)
@@ -361,7 +361,7 @@ public class Render : ComponentBase, IAnnotationRender
             return;
         }
 
-        var rect = new OpenCvSharp.Rect(shape.Origin.X, shape.Origin.Y, shape.Size.Width, shape.Size.Height);
+        var rect = new Rect(shape.Origin.X, shape.Origin.Y, shape.Size.Width, shape.Size.Height);
 
         if (!string.IsNullOrEmpty(Style.FillColor))
         {
@@ -370,7 +370,7 @@ public class Render : ComponentBase, IAnnotationRender
             {
                 using var overlay = image[roi].Clone();
                 var Color = ParseColorToScalar(Style.FillColor);
-                Cv2.Rectangle(overlay, new OpenCvSharp.Rect(0, 0, roi.Width, roi.Height), Color, -1, LineTypes.AntiAlias);
+                Cv2.Rectangle(overlay, new Rect(0, 0, roi.Width, roi.Height), Color, -1, LineTypes.AntiAlias);
                 var alpha = ParseAlpha(Style.FillColor, Style.Opacity);
                 Cv2.AddWeighted(overlay, alpha, image[roi], 1.0 - alpha, 0, image[roi]);
             }
@@ -381,7 +381,7 @@ public class Render : ComponentBase, IAnnotationRender
             var Color = ParseColorToScalar(Style.StrokeColor);
             var thickness = Style.StrokeWidth > 0 ? Style.StrokeWidth : 1;
             var pad = thickness + 1;
-            var roi = ClipRectToImage(image, new OpenCvSharp.Rect(rect.X - pad, rect.Y - pad, rect.Width + pad * 2, rect.Height + pad * 2));
+            var roi = ClipRectToImage(image, new Rect(rect.X - pad, rect.Y - pad, rect.Width + pad * 2, rect.Height + pad * 2));
             if (roi.Width <= 0 || roi.Height <= 0) return;
             using var overlay = image[roi].Clone();
             
@@ -402,7 +402,7 @@ public class Render : ComponentBase, IAnnotationRender
             }
             else
             {
-                Cv2.Rectangle(overlay, new OpenCvSharp.Rect(offsetX, offsetY, rect.Width, rect.Height), Color, thickness, LineTypes.AntiAlias);
+                Cv2.Rectangle(overlay, new Rect(offsetX, offsetY, rect.Width, rect.Height), Color, thickness, LineTypes.AntiAlias);
             }
             var alpha = ParseAlpha(Style.StrokeColor, Style.Opacity);
             Cv2.AddWeighted(overlay, alpha, image[roi], 1.0 - alpha, 0, image[roi]);

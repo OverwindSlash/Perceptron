@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenCvSharp;
+using Perceptron.Domain.Abstraction.AlgorithmModule;
+using Perceptron.Domain.Abstraction.Annotation;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.Abstraction.MediaLoader;
 using Perceptron.Domain.Abstraction.ObjectDetector;
@@ -21,7 +23,11 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     private FrameBufferSettings _inputFrameBufferSettings;
     private FrameBufferSettings _outputFrameBufferSettings;
     private DetectorSettings _detectorSettings;
-    
+
+    private AnnotationRenderSettings _annotationRenderSettings;
+
+    private List<AlgorithmSettings> _algorithmSettings;
+
     // dependency injection
     private ServiceCollection _services;
     public ServiceProvider Provider { get; private set; }
@@ -34,7 +40,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     public IVideoFrameBuffer OutputFrameBuffer { get; private set; }
     public List<IVideoLoader> VideoLoaders { get; private set; }
     public IObjectDetector? ObjectDetector { get; private set; }
-    
+    public IAnnotationRender AnnotationRender { get; private set; }
+    public List<IAlgorithmModule> AlgorithmModules { get; private set; }
+
 
     public AnalysisPipeline(IConfiguration config)
     {
@@ -74,6 +82,12 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         _detectorSettings.ParsePreferences();
 
         // TODO: Load other component settings
+
+        _annotationRenderSettings = config.GetSection("AnnotationRender").Get<AnnotationRenderSettings>()
+                                    ?? throw new InvalidDataException("AnnotationRender settings corrupted.");
+
+        _algorithmSettings = config.GetSection("Algorithms").Get<List<AlgorithmSettings>>()
+                             ?? throw new InvalidDataException("Algorithm settings corrupted.");
     }
 
     private void RegisterComponents()
@@ -95,12 +109,19 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         }
 
         _services.AddComponent<IObjectDetector>(_detectorSettings);
-        
+        _services.AddComponent<IAnnotationRender>(_annotationRenderSettings);
+
+
         // TODO: 添加其他组件
 
-        _slideWindow = new VideoFrameSlideWindow(_pipeLineSettings.FrameLifetime);
+        foreach (var settings in _algorithmSettings)
+        {
+            _services.AddAlgorithm<IAlgorithmModule>(settings, this);
+        }
 
         Provider = _services.BuildServiceProvider();
+
+        _slideWindow = new VideoFrameSlideWindow(_pipeLineSettings.FrameLifetime);
 
         Log.Information("Components registered successfully.");
     }
@@ -134,7 +155,19 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             videoLoader.Open(settings.VideoUri);
         }
 
+        AnnotationRender = Provider.GetRequiredService<IAnnotationRender>();
+
         // TODO: 初始化其他组件
+
+        AlgorithmModules = Provider.GetServices<IAlgorithmModule>().ToList();
+        foreach (var algorithmModule in AlgorithmModules)
+        {
+            var initResult = algorithmModule.Initialize();
+            if (!initResult)
+            {
+                Log.Warning("AlgorithmModules {AlgorithmModuleAlgorithmName} initialization failed.", algorithmModule.AlgorithmName);
+            }
+        }
 
         this.SetSubscriber(objectExpiredSubscriber);
         this.SetSubscriber(frameExpiredSubscriber);
@@ -185,6 +218,14 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                         _detectorSettings.ConfThresh, _detectorSettings.IouThresh);
                 }
 
+                // TODO
+
+                // 5.algorithm modules
+                foreach (var algorithm in AlgorithmModules)
+                {
+                    var analysisResult = algorithm.Analyze(frame);
+                }
+
                 _slideWindow.AddNewFrame(frame);
                 OutputFrameBuffer.PushFrame(frame);
             }
@@ -223,6 +264,8 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         if (_pipeLineSettings.EnableDebugDisplay)
         {
             using var image = frame.Scene.Clone();
+
+            AnnotationRender.DrawAnnotations(image, frame.Annotation);
 
             // Fix: Resize returns a new Mat, so use the result as the argument
             var width = _pipeLineSettings.RealtimeDisplayWidth;

@@ -41,6 +41,9 @@
   <Folder Name="/src/5.Component/MediaLoader/">
     <Project Path="src/5.Component/MediaLoader.OpenCV/MediaLoader.OpenCV.csproj" Id="fe7832a6-29b2-4b44-ab12-5772bd5a4d6e" />
   </Folder>
+  <Folder Name="/src/6.Algorithm/">
+    <Project Path="src/6.Algorithm/Algorithm.GenerateDebugAnnotations/Algorithm.GenerateDebugAnnotations.csproj" Id="8704d032-4a47-4c8d-89e5-b4b26a449154" />
+  </Folder>
   <Folder Name="/test/" />
   <Folder Name="/test/2.Service/">
     <Project Path="test/2.Service/Perceptron.Service.Tests/Perceptron.Service.Tests.csproj" Id="f7fc414a-4194-49f2-9ff5-b845574068c4" />
