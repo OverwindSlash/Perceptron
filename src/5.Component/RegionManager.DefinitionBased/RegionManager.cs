@@ -14,6 +14,7 @@ namespace RegionManager.DefinitionBased;
 
 public class RegionManager : ComponentBase, IRegionManager
 {
+    public string SourceId { get; private set; }
     public string RegionDefinitionFile { get; private set; }
     public ImageRegionDefinition RegionDefinition { get; private set; }
 
@@ -35,6 +36,7 @@ public class RegionManager : ComponentBase, IRegionManager
 
     protected override void LoadPreferences(Dictionary<string, string>? preferences)
     {
+        SourceId = RegionManagerSettings.ParseSourceId(preferences);
         RegionDefinitionFile = RegionManagerSettings.ParseRegionDefinitionFile(preferences);
     }
 

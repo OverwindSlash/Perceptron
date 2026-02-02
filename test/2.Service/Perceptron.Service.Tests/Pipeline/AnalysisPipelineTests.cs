@@ -165,6 +165,27 @@ public class AnalysisPipelineTests
     }
 
     [Test]
+    public void Constructor_ShouldThrowInvalidDataException_WhenRegionManagerSectionIsMissing()
+    {
+        // Arrange
+        var configDict = GetValidConfigurationDictionary();
+        // Remove RegionManager section
+        var keysToRemove = configDict.Keys.Where(k => k.StartsWith("RegionManager")).ToList();
+        foreach (var key in keysToRemove)
+        {
+            configDict.Remove(key);
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidDataException>(() => new AnalysisPipeline(config));
+        Assert.That(ex!.Message, Does.Contain("RegionManager settings corrupted"));
+    }
+
+    [Test]
     public void Constructor_ShouldThrowInvalidDataException_WhenAlgorithmsSectionIsMissing()
     {
         // Arrange
@@ -271,10 +292,11 @@ public class AnalysisPipelineTests
             {"Detector:Preferences:DestinationObjectTypeName", "car"},
             {"Detector:Preferences:Names", "Alice,Bob,Charlie,David,Eve"},
 
-            // RegionManager
-            {"RegionManager:AssemblyFile", "RegionManager.DefinitionBased.dll"},
-            {"RegionManager:FullQualifiedClassName", "RegionManager.DefinitionBased.RegionManager"},
-            {"RegionManager:Preferences:RegionDefinitionFile", "test-region.json"},
+            // RegionManager (List) - Item 0
+            {"RegionManager:0:AssemblyFile", "RegionManager.DefinitionBased.dll"},
+            {"RegionManager:0:FullQualifiedClassName", "RegionManager.DefinitionBased.RegionManager"},
+            {"RegionManager:0:Preferences:SourceId", "Suzhou-Cam-001"},
+            {"RegionManager:0:Preferences:RegionDefinitionFile", "test-region.json"},
 
             // AnnotationRender
             {"AnnotationRender:AssemblyFile", "AnnotationRender.OpenCV.dll"},

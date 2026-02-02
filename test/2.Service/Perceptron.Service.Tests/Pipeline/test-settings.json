@@ -93,13 +93,24 @@
       "Names": "Alice,Bob,Charlie,David,Eve"
     }
   },
-  "RegionManager": {
-    "AssemblyFile": "RegionManager.DefinitionBased.dll",
-    "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
-    "Preferences": {
-      "RegionDefinitionFile": "Pipeline/test-region.json"
-    }
-  },
+  "RegionManager": [
+    {
+      "AssemblyFile": "RegionManager.DefinitionBased.dll",
+      "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
+      "Preferences": {
+        "SourceId": "Suzhou-Cam-001",
+        "RegionDefinitionFile": "Pipeline/test-region.json"
+      }
+    },
+    //{
+    //  "AssemblyFile": "RegionManager.DefinitionBased.dll",
+    //  "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
+    //  "Preferences": {
+    //    "SourceId": "Sea-Cam-002",
+    //    "RegionDefinitionFile": "Pipeline/test-region.json"
+    //  }
+    //}
+  ],
   "AnnotationRender": {
     "AssemblyFile": "AnnotationRender.OpenCV.dll",
     "FullQualifiedClassName": "AnnotationRender.OpenCV.Render",

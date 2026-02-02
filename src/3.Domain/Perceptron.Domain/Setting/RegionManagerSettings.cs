@@ -8,12 +8,14 @@ public class RegionManagerSettings : ComponentSettings
     public const string DefaultCameraServiceUrl = "http://localhost:44311/api/services/app/";
     public const string DefaultCameraId = "CameraId001";
 
+    public string SourceId { get; private set; } = VideoLoaderSettings.DefaultSourceId;
     public string RegionDefinitionFile { get; private set; } = DefaultRegionDefinitionFile;
     public string CameraServiceUrl { get; private set; } = DefaultCameraServiceUrl;
     public string CameraId { get; private set; } = DefaultCameraId;
 
     public override void ParsePreferences()
     {
+        SourceId = ParseSourceId(Preferences);
         RegionDefinitionFile = ParseRegionDefinitionFile(Preferences);
         CameraServiceUrl = ParseCameraServiceUrl(Preferences);
         CameraId = ParseCameraId(Preferences);
@@ -21,6 +23,11 @@ public class RegionManagerSettings : ComponentSettings
         Log.Information("RegionDefinitionFile: {file}", RegionDefinitionFile);
         Log.Information("CameraServiceUrl: {url}", CameraServiceUrl);
         Log.Information("CameraId: {id}", CameraId);
+    }
+
+    public static string ParseSourceId(Dictionary<string, string> preferences)
+    {
+        return VideoLoaderSettings.ParseSourceId(preferences);
     }
 
     public static string ParseRegionDefinitionFile(Dictionary<string, string> preferences)

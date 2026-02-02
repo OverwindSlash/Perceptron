@@ -24,7 +24,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     private FrameBufferSettings _inputFrameBufferSettings;
     private FrameBufferSettings _outputFrameBufferSettings;
     private DetectorSettings _detectorSettings;
-    private RegionManagerSettings _regionManagerSettings;
+    private List<RegionManagerSettings> _regionManagerSettings;
 
     private AnnotationRenderSettings _annotationRenderSettings;
 
@@ -42,7 +42,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     public IVideoFrameBuffer OutputFrameBuffer { get; private set; }
     public List<IVideoLoader> VideoLoaders { get; private set; }
     public IObjectDetector? ObjectDetector { get; private set; }
-    public IRegionManager? RegionManager { get; private set; }
+    public List<IRegionManager?> RegionManagers { get; private set; }
     public IAnnotationRender AnnotationRender { get; private set; }
     public List<IAlgorithmModule> AlgorithmModules { get; private set; }
 
@@ -84,9 +84,12 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                             ?? throw new InvalidDataException("Detector settings corrupted.");
         _detectorSettings.ParsePreferences();
 
-        _regionManagerSettings = config.GetSection("RegionManager").Get<RegionManagerSettings>()
+        _regionManagerSettings = config.GetSection("RegionManager").Get<List<RegionManagerSettings>>()
                                  ?? throw new InvalidDataException("RegionManager settings corrupted.");
-        _regionManagerSettings.ParsePreferences();
+        foreach (var setting in _regionManagerSettings)
+        {
+            setting.ParsePreferences();
+        }
 
         // TODO: Load other component settings
 
@@ -117,7 +120,11 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         }
 
         _services.AddComponent<IObjectDetector>(_detectorSettings);
-        _services.AddComponent<IRegionManager>(_regionManagerSettings);
+
+        foreach (var setting in _regionManagerSettings)
+        {
+            _services.AddComponent<IRegionManager>(setting);
+        }
 
         _services.AddComponent<IAnnotationRender>(_annotationRenderSettings);
 
@@ -165,9 +172,19 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         }
 
         // TODO: 考虑当多个 VideoLoader 的视频分辨率不同时的处理方案
-        RegionManager = Provider.GetService<IRegionManager>();
-        RegionManager.InitRegionDefinition(VideoLoaders[0].Specs.Width, VideoLoaders[0].Specs.Height);
-        RegionManager.SetSubscriber(objectExpiredSubscriber);
+        RegionManagers = Provider.GetServices<IRegionManager>().ToList();
+        foreach (var regionManager in RegionManagers)
+        {
+            var videoLoader = VideoLoaders.First(v => v.SourceId == regionManager.SourceId);
+
+            if (videoLoader == null)
+            {
+                throw new ArgumentException($"Can not found VideoLoader with SourceId:{regionManager.SourceId}");
+            }
+
+            regionManager.InitRegionDefinition(videoLoader.Specs.Width, videoLoader.Specs.Height);
+            regionManager.SetSubscriber(objectExpiredSubscriber);
+        }
 
         AnnotationRender = Provider.GetRequiredService<IAnnotationRender>();
 
@@ -233,7 +250,8 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                 }
 
                 // 2.region
-                RegionManager.CalcRegionProperties(frame);
+                var regionManager = RegionManagers.First(r => r.SourceId == frame.SourceId);
+                regionManager.CalcRegionProperties(frame);
 
                 // TODO
 

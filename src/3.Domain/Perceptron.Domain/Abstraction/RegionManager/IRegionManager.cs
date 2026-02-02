@@ -7,6 +7,7 @@ namespace Perceptron.Domain.Abstraction.RegionManager;
 
 public interface IRegionManager : IEventSubscriber<ObjectExpiredEvent>
 {
+    public string SourceId { get; }
     public string RegionDefinitionFile { get; }
     public ImageRegionDefinition RegionDefinition { get; }
     public bool Initialized { get; }
