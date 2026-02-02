@@ -22,7 +22,7 @@ public class BasicRegionAnnotationGenerator : IRegionAnnotationGenerator
         return annotation;
     }
 
-    public static List<Shape> GenerateAnalysisAreas(ImageRegionDefinition regionDefinition, string strokeColor = "#7DDA58")
+    public List<Shape> GenerateAnalysisAreas(ImageRegionDefinition regionDefinition, string strokeColor = "#7DDA58")
     {
         List<Shape> analysisAreas = new List<Shape>();
 
@@ -55,8 +55,7 @@ public class BasicRegionAnnotationGenerator : IRegionAnnotationGenerator
         return area;
     }
 
-
-    public static List<Shape> GenerateExcludeAreas(ImageRegionDefinition regionDefinition, string strokeColor = "#E36667")
+    public  List<Shape> GenerateExcludeAreas(ImageRegionDefinition regionDefinition, string strokeColor = "#E36667")
     {
         List<Shape> excludeAreas = new List<Shape>();
 
@@ -72,7 +71,7 @@ public class BasicRegionAnnotationGenerator : IRegionAnnotationGenerator
         return excludeAreas;
     }
 
-    public static List<Shape> GenerateLanes(ImageRegionDefinition regionDefinition, string strokeColor = "#E8E8E8")
+    public List<Shape> GenerateLanes(ImageRegionDefinition regionDefinition, string strokeColor = "#E8E8E8")
     {
         List<Shape> lanes = new List<Shape>();
 
@@ -88,7 +87,7 @@ public class BasicRegionAnnotationGenerator : IRegionAnnotationGenerator
         return lanes;
     }
 
-    public static List<Shape> GenerateInterestAreas(ImageRegionDefinition regionDefinition, string strokeColor = "#FFECA1")
+    public List<Shape> GenerateInterestAreas(ImageRegionDefinition regionDefinition, string strokeColor = "#FFECA1")
     {
         List<Shape> rois = new List<Shape>();
 
@@ -104,7 +103,7 @@ public class BasicRegionAnnotationGenerator : IRegionAnnotationGenerator
         return rois;
     }
 
-    public static List<Shape> GenerateCountLines(ImageRegionDefinition regionDefinition, string enterStrokeColor = "#4E4E4E", string leaveStrokeColor = "#4E4E4E")
+    public List<Shape> GenerateCountLines(ImageRegionDefinition regionDefinition, string enterStrokeColor = "#4E4E4E", string leaveStrokeColor = "#4E4E4E")
     {
         List<Shape> lines = new List<Shape>();
 

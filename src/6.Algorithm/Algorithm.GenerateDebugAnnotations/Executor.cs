@@ -1,5 +1,7 @@
 ﻿using Algorithm.Common;
 using Perceptron.Domain.Abstraction.Annotation;
+using Perceptron.Domain.Abstraction.RegionManager;
+using Perceptron.Domain.Annotation;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
@@ -10,11 +12,10 @@ using Perceptron.Service.Pipeline;
 
 namespace Algorithm.GenerateDebugAnnotations;
 
-public class Executor : AlgorithmBase, IDetectedObjectAnnotationGenerator, IRegionAnnotationGenerator, ILabelAnnotationGenerator
+public class Executor : AlgorithmBase
 {
-    public string AlgorithmName { get; }
-    public string AlgorithmVersion { get; }
-    public string AlgorithmDescription { get; }
+    private IDetectedObjectAnnotationGenerator _objAnnoGenerator;
+    private IRegionAnnotationGenerator _regionAnnoGenerator;
 
     private bool _willGenerateBBox;
     private string _bBoxStrokeColor;
@@ -27,12 +28,33 @@ public class Executor : AlgorithmBase, IDetectedObjectAnnotationGenerator, IRegi
     private bool _showTrackingId;
     private bool _showConfidence;
 
+    private bool _willGenerateAnalysisAreas;
+    private string _analysisAreaStrokeColor;
+
+    private bool _willGenerateExcludeAreas;
+    private string _excludeAreaStrokeColor;
+
+    private bool _willGenerateLanes;
+    private string _lanesStrokeColor;
+
+    private bool _willGenerateInterestAreas;
+    private string _interestAreasStrokeColor;
+
+    private bool _willGenerateCountLines;
+    private string _enterLineStrokeColor;
+    private string _leaveLineStrokeColor;
+
+    private List<IRegionManager?> _regionManagers;
+
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
     {
         AlgorithmName = "GenerateDebugAnnotations";
         AlgorithmVersion = "1.0.0";
         AlgorithmDescription = "Generates debug annotations for detected objects, regions, and labels.";
+
+        _objAnnoGenerator = new BasicObjectAnnotationGenerator();
+        _regionAnnoGenerator = new BasicRegionAnnotationGenerator();
     }
 
     public override bool Initialize()
@@ -48,11 +70,32 @@ public class Executor : AlgorithmBase, IDetectedObjectAnnotationGenerator, IRegi
         _showTrackingId = PreferenceParser.ParseBoolValue(_preferences, "ObjTextShowTrackingId", true);
         _showConfidence = PreferenceParser.ParseBoolValue(_preferences, "ObjTextShowConfidence", false);
 
+        _willGenerateAnalysisAreas = PreferenceParser.ParseBoolValue(_preferences, "GenerateAnalysisAreas", true);
+        _analysisAreaStrokeColor = PreferenceParser.ParseStringValue(_preferences, "AnalysisAreaStrokeColor", "#7dda58");
+
+        _willGenerateExcludeAreas = PreferenceParser.ParseBoolValue(_preferences, "GenerateExcludeAreas", true);
+        _excludeAreaStrokeColor = PreferenceParser.ParseStringValue(_preferences, "ExcludeAreaStrokeColor", "#e36667");
+
+        _willGenerateLanes = PreferenceParser.ParseBoolValue(_preferences, "GenerateLanes", true);
+        _lanesStrokeColor = PreferenceParser.ParseStringValue(_preferences, "LanesStrokeColor", "#e8e8e8");
+
+        _willGenerateInterestAreas = PreferenceParser.ParseBoolValue(_preferences, "GenerateInterestAreas", true);
+        _interestAreasStrokeColor = PreferenceParser.ParseStringValue(_preferences, "InterestAreasStrokeColor", "#ffeca1");
+
+        _willGenerateCountLines = PreferenceParser.ParseBoolValue(_preferences, "GenerateCountLines", true);
+        _enterLineStrokeColor = PreferenceParser.ParseStringValue(_preferences, "EnterLineStrokeColor", "#4e4e4e");
+        _leaveLineStrokeColor = PreferenceParser.ParseStringValue(_preferences, "LeaveLineStrokeColor", "#4e4e4e");
+
+        _regionManagers = _pipeline.RegionManagers;
+
         return base.Initialize();
     }
 
     public override AnalysisResult Analyze(Frame frame)
     {
+        var regionManager = _regionManagers.First(rm => rm.SourceId == frame.SourceId);
+        GenerateRegionAnnotation(frame, regionManager.RegionDefinition);
+
         foreach (var detectedObject in frame.DetectedObjects)
         {
             GenerateDetectedObjectAnnotation(frame, detectedObject);
@@ -63,88 +106,61 @@ public class Executor : AlgorithmBase, IDetectedObjectAnnotationGenerator, IRegi
 
     public VisualAnnotation GenerateDetectedObjectAnnotation(Frame frame, DetectedObject detectedObject)
     {
+        var annotation = frame.Annotation;
+
         if (!detectedObject.IsUnderAnalysis)
         {
-            return frame.Annotation;
+            return annotation;
         }
-
-        var bbox = detectedObject.Bbox;
 
         // bbox annotation
         if (_willGenerateBBox)
         {
-            var rect = new Shape()
-            {
-                Id = "bbox_" + detectedObject.Id,
-                Type = "rect",
-                Origin = new Origin()
-                {
-                    X = bbox.X,
-                    Y = bbox.Y
-                },
-                Size = new Size()
-                {
-                    Width = bbox.Width,
-                    Height = bbox.Height
-                },
-                Style = new Style()
-                {
-                    StrokeColor = _bBoxStrokeColor,
-                    StrokeWidth = _bBoxStrokeWidth
-                }
-            };
-
-            frame.Annotation.Shapes.Add(rect);
+            var rect = _objAnnoGenerator.GenerateBBox(detectedObject, _bBoxStrokeColor, _bBoxStrokeWidth);
+            annotation.Shapes.Add(rect);
         }
 
+        // object text annotation
         if (_willGenerateObjText)
         {
-            string content = string.Empty;
-            if (_showLabel)
-            {
-                content += $"{detectedObject.Label}_";
-            }
-
-            if (_showTrackingId)
-            {
-                content += $"{detectedObject.TrackingId}_";
-            }
-
-            if (_showConfidence)
-            {
-                content += $"{detectedObject.Confidence:F2}_";
-            }
-
-            // text annotation
-            var text = new Shape()
-            {
-                Id = "text_" + detectedObject.Id,
-                Type = "text",
-                Content = content.TrimEnd('_'),
-                Position = new Position()
-                {
-                    X = bbox.X,
-                    Y = bbox.Y - _objTextFontSize
-                },
-                Style = new Style()
-                {
-                    Color = _objTextColor,
-                    FontSize = _objTextFontSize,
-                }
-            };
-
-            frame.Annotation.Shapes.Add(text);
+            var text = _objAnnoGenerator.GenerateObjectText(detectedObject, _objTextColor, _objTextFontSize,
+                _showLabel, _showTrackingId, _showConfidence);
+            annotation.Shapes.Add(text);
         }
 
-        return frame.Annotation;
+        return annotation;
     }
 
     public VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)
     {
-        // TODO: Implement a debug annotation that highlights the region definition on the frame.
+        var annotation = frame.Annotation;
 
-        return new VisualAnnotation(frame.SourceId, frame.UtcTimeStamp,
-            frame.FrameId, frame.Scene.Width, frame.Scene.Height);
+        if (_willGenerateAnalysisAreas)
+        {
+            annotation.AddShapes(_regionAnnoGenerator.GenerateAnalysisAreas(regionDefinition, _analysisAreaStrokeColor));
+        }
+
+        if (_willGenerateExcludeAreas)
+        {
+            annotation.AddShapes(_regionAnnoGenerator.GenerateExcludeAreas(regionDefinition, _excludeAreaStrokeColor));
+        }
+
+        if (_willGenerateLanes)
+        {
+            annotation.AddShapes(_regionAnnoGenerator.GenerateLanes(regionDefinition, _lanesStrokeColor));
+        }
+
+        if (_willGenerateInterestAreas)
+        {
+            annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition, _interestAreasStrokeColor));
+        }
+
+        if (_willGenerateCountLines)
+        {
+            annotation.AddShapes(_regionAnnoGenerator.GenerateCountLines(regionDefinition, _enterLineStrokeColor, _leaveLineStrokeColor));
+        }
+
+        return annotation;
     }
 
     public VisualAnnotation GenerateLabelAnnotation(Frame frame)

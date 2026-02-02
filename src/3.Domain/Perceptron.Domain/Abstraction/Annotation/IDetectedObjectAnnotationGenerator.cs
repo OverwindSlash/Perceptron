@@ -6,5 +6,8 @@ namespace Perceptron.Domain.Abstraction.Annotation;
 
 public interface IDetectedObjectAnnotationGenerator
 {
-    VisualAnnotation GenerateDetectedObjectAnnotation(Frame frame, DetectedObject detectedObject);
+    Shape GenerateBBox(DetectedObject detectedObject, string strokeColor, int strokeWidth);
+
+    Shape GenerateObjectText(DetectedObject detectedObject, string textColor, int fontSize,
+        bool showLabel, bool showTrackingId, bool showConfidence);
 }

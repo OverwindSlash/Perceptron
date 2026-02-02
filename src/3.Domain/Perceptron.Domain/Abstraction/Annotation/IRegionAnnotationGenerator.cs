@@ -1,10 +1,13 @@
 ﻿using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.RegionDefinition;
-using Perceptron.Domain.Entity.VideoStream;
 
 namespace Perceptron.Domain.Abstraction.Annotation;
 
 public interface IRegionAnnotationGenerator
 {
-    VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition);
+    List<Shape> GenerateAnalysisAreas(ImageRegionDefinition regionDefinition, string strokeColor);
+    List<Shape> GenerateExcludeAreas(ImageRegionDefinition regionDefinition, string strokeColor);
+    List<Shape> GenerateLanes(ImageRegionDefinition regionDefinition, string strokeColor);
+    List<Shape> GenerateInterestAreas(ImageRegionDefinition regionDefinition, string strokeColor);
+    List<Shape> GenerateCountLines(ImageRegionDefinition regionDefinition, string enterStrokeColor, string leaveStrokeColor);
 }

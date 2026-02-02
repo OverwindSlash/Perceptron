@@ -24,5 +24,33 @@
         }
       ]
     }
-  ]
+  ],
+  "ExcludedAreas": [],
+  "Lanes": [],
+  "InterestAreas": [
+    {
+      "Name": "RestrictedArea",
+      "Type": "alarm",
+      "RelativeTypes": [ "boat" ],
+      "Points": [
+        {
+          "NormalizedX": 0.019921875,
+          "NormalizedY": 0.41388888888888886
+        },
+        {
+          "NormalizedX": 0.10859375,
+          "NormalizedY": 0.8083333333333333
+        },
+        {
+          "NormalizedX": 0.893359375,
+          "NormalizedY": 0.3111111111111111
+        },
+        {
+          "NormalizedX": 0.422265625,
+          "NormalizedY": 0.24930555555555556
+        }
+      ]
+    }
+  ],
+  "CountLines": []
 }
