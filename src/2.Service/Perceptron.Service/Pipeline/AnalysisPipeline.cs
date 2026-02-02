@@ -9,8 +9,10 @@ using Perceptron.Domain.Abstraction.MediaLoader;
 using Perceptron.Domain.Abstraction.ObjectDetector;
 using Perceptron.Domain.Abstraction.ObjectTracker;
 using Perceptron.Domain.Abstraction.RegionManager;
+using Perceptron.Domain.Abstraction.SnapshotManager;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event.Pipeline;
+using Perceptron.Domain.Event.SnapshotManager;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline.Extension;
 using Serilog;
@@ -27,6 +29,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     private DetectorSettings _detectorSettings;
     private List<RegionManagerSettings> _regionManagerSettings;
     private TrackerSettings _trackerSettings;
+    private SnapshotSettings _snapshotSettings;
 
     private AnnotationRenderSettings _annotationRenderSettings;
 
@@ -48,6 +51,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     public IAnnotationRender AnnotationRender { get; private set; }
     public List<IAlgorithmModule> AlgorithmModules { get; private set; }
     public IObjectTracker ObjectTracker { get; private set; }
+    public ISnapshotManager? SnapshotManager { get; private set; }
 
 
     public AnalysisPipeline(IConfiguration config)
@@ -98,6 +102,10 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                            ?? throw new InvalidDataException("Tracker settings corrupted.");
         _trackerSettings.ParsePreferences();
 
+        _snapshotSettings = config.GetSection("Snapshot").Get<SnapshotSettings>()
+                            ?? throw new InvalidDataException("Snapshot settings corrupted.");
+        _snapshotSettings.ParsePreferences();
+
         // TODO: Load other component settings
 
         _annotationRenderSettings = config.GetSection("AnnotationRender").Get<AnnotationRenderSettings>()
@@ -134,6 +142,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         }
 
         _services.AddComponent<IObjectTracker>(_trackerSettings);
+        _services.AddComponent<ISnapshotManager>(_snapshotSettings);
 
         // TODO: 添加其他组件
 
@@ -195,6 +204,12 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         }
 
         ObjectTracker = Provider.GetService<IObjectTracker>();
+
+        SnapshotManager = Provider.GetService<ISnapshotManager>();
+        SnapshotManager.SetPublisher(Provider.GetRequiredService<IPublisher<ObjectBestSnapshotCreatedEvent>>());
+        // 最后再由_snapshot 组件处理对象和帧过期事件, 以防止分析过程中截图被清理
+        SnapshotManager.SetSubscriber(objectExpiredSubscriber);
+        SnapshotManager.SetSubscriber(frameExpiredSubscriber);
 
         // TODO: 初始化其他组件
 
@@ -266,7 +281,8 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                 // 3.tracking
                 ObjectTracker.Track(frame);
 
-                // TODO
+                // 4.snapshot
+                //SnapshotManager.ProcessSnapshots(frame);
 
                 // 5.algorithm modules
                 foreach (var algorithm in AlgorithmModules)

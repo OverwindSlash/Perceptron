@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\..\src\5.Component\FrameBuffer.TwoModes\FrameBuffer.TwoModes.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\MediaLoader.OpenCV\MediaLoader.OpenCV.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\RegionManager.DefinitionBased\RegionManager.DefinitionBased.csproj" />
+    <ProjectReference Include="..\..\..\src\5.Component\SnapshotManager.InMemory\SnapshotManager.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\Tracker.Sort\Tracker.Sort.csproj" />
     <ProjectReference Include="..\..\..\src\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
   </ItemGroup>

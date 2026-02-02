@@ -123,6 +123,20 @@
       "MinStreak": 8
     }
   },
+  "Snapshot": {
+    "AssemblyFile": "SnapshotManager.InMemory.dll",
+    "FullQualifiedClassName": "SnapshotManager.InMemory.SnapshotManager",
+    "Preferences": {
+      "SnapshotsDir": "Snapshots",
+      "SaveBestSnapshot": true,
+      "BestSnapshotBy": "confidence", // "confidence" | "area" | "width" | "height"
+      "MaxSnapshots": 10,
+      "MinSnapshotWidth": 10,
+      "MinSnapshotHeight": 10,
+      "VideoClipDurationSeconds": 4,
+      "VideoFrameRate": 25
+    }
+  },
   "AnnotationRender": {
     "AssemblyFile": "AnnotationRender.OpenCV.dll",
     "FullQualifiedClassName": "AnnotationRender.OpenCV.Render",
