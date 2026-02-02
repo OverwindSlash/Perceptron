@@ -26,7 +26,7 @@
         "RetryDelayMs": 500,
         "Loop": false
       }
-    },
+    }
     //{
     // "AssemblyFile": "MediaLoader.OpenCV.dll",
     // "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
@@ -101,7 +101,7 @@
         "SourceId": "Suzhou-Cam-001",
         "RegionDefinitionFile": "Pipeline/test-region.json"
       }
-    },
+    }
     //{
     //  "AssemblyFile": "RegionManager.DefinitionBased.dll",
     //  "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
@@ -111,6 +111,18 @@
     //  }
     //}
   ],
+  "Tracker": {
+    "AssemblyFile": "Tracker.Sort.dll",
+    "FullQualifiedClassName": "Tracker.Sort.SortTracker",
+    "Preferences": {
+      "IouThreshold": 0.1,
+      "MaxMisses": 30,
+      "AppearanceWeight": 0.775,
+      "FramesToAppearanceSmooth": 40,
+      "SmoothAppearanceWeight": 0.875,
+      "MinStreak": 8
+    }
+  },
   "AnnotationRender": {
     "AssemblyFile": "AnnotationRender.OpenCV.dll",
     "FullQualifiedClassName": "AnnotationRender.OpenCV.Render",

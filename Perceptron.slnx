@@ -64,6 +64,9 @@
   <Folder Name="/src/5.Component/RegionManager/">
     <Project Path="src/5.Component/RegionManager.DefinitionBased/RegionManager.DefinitionBased.csproj" Id="8f35cb50-c57c-4d55-8212-1a51d0b1fea3" />
   </Folder>
+  <Folder Name="/src/5.Component/Tracker/">
+    <Project Path="src/5.Component/Tracker.Sort/Tracker.Sort.csproj" Id="e9a8f91b-20fc-4bd0-8080-f40f75b53d62" />
+  </Folder>
   <Folder Name="/src/6.Algorithm/">
     <Project Path="src/6.Algorithm/Algorithm.Common/Algorithm.Common.csproj" Id="5c770453-4618-400f-816f-b25fabd34a23" />
     <Project Path="src/6.Algorithm/Algorithm.GenerateDebugAnnotations/Algorithm.GenerateDebugAnnotations.csproj" Id="8704d032-4a47-4c8d-89e5-b4b26a449154" />

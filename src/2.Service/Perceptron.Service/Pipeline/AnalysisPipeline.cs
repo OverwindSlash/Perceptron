@@ -7,6 +7,7 @@ using Perceptron.Domain.Abstraction.Annotation;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.Abstraction.MediaLoader;
 using Perceptron.Domain.Abstraction.ObjectDetector;
+using Perceptron.Domain.Abstraction.ObjectTracker;
 using Perceptron.Domain.Abstraction.RegionManager;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event.Pipeline;
@@ -25,6 +26,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     private FrameBufferSettings _outputFrameBufferSettings;
     private DetectorSettings _detectorSettings;
     private List<RegionManagerSettings> _regionManagerSettings;
+    private TrackerSettings _trackerSettings;
 
     private AnnotationRenderSettings _annotationRenderSettings;
 
@@ -45,6 +47,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     public List<IRegionManager?> RegionManagers { get; private set; }
     public IAnnotationRender AnnotationRender { get; private set; }
     public List<IAlgorithmModule> AlgorithmModules { get; private set; }
+    public IObjectTracker ObjectTracker { get; private set; }
 
 
     public AnalysisPipeline(IConfiguration config)
@@ -91,6 +94,10 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             setting.ParsePreferences();
         }
 
+        _trackerSettings = config.GetSection("Tracker").Get<TrackerSettings>()
+                           ?? throw new InvalidDataException("Tracker settings corrupted.");
+        _trackerSettings.ParsePreferences();
+
         // TODO: Load other component settings
 
         _annotationRenderSettings = config.GetSection("AnnotationRender").Get<AnnotationRenderSettings>()
@@ -126,10 +133,11 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             _services.AddComponent<IRegionManager>(setting);
         }
 
-        _services.AddComponent<IAnnotationRender>(_annotationRenderSettings);
-
+        _services.AddComponent<IObjectTracker>(_trackerSettings);
 
         // TODO: 添加其他组件
+
+        _services.AddComponent<IAnnotationRender>(_annotationRenderSettings);
 
         foreach (var settings in _algorithmSettings)
         {
@@ -186,10 +194,12 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             regionManager.SetSubscriber(objectExpiredSubscriber);
         }
 
-        AnnotationRender = Provider.GetRequiredService<IAnnotationRender>();
+        ObjectTracker = Provider.GetService<IObjectTracker>();
 
         // TODO: 初始化其他组件
 
+        AnnotationRender = Provider.GetRequiredService<IAnnotationRender>();
+        
         AlgorithmModules = Provider.GetServices<IAlgorithmModule>().ToList();
         foreach (var algorithmModule in AlgorithmModules)
         {
@@ -252,6 +262,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                 // 2.region
                 var regionManager = RegionManagers.First(r => r.SourceId == frame.SourceId);
                 regionManager.CalcRegionProperties(frame);
+
+                // 3.tracking
+                ObjectTracker.Track(frame);
 
                 // TODO
 
