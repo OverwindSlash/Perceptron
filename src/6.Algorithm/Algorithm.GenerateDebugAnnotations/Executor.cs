@@ -16,8 +16,6 @@ public class Executor : AlgorithmBase, IDetectedObjectAnnotationGenerator, IRegi
     public string AlgorithmVersion { get; }
     public string AlgorithmDescription { get; }
 
-    public bool IsInitialized { get; private set; }
-
     private bool _willGenerateBBox;
     private string _bBoxStrokeColor;
     private int _bBoxStrokeWidth;
