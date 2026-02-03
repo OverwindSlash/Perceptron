@@ -100,6 +100,8 @@ public class RegionManagerTests
         
         // Simulate adding some tracking IDs by processing a frame
         var frame = CreateTestFrame();
+        frame.Retain();
+
         _regionManager.CalcRegionProperties(frame);
 
         // Act - Load again
@@ -107,6 +109,8 @@ public class RegionManagerTests
 
         // Assert - Should not throw and should work correctly
         Assert.DoesNotThrow(() => _regionManager.CalcRegionProperties(frame));
+
+        frame.Dispose();
     }
 
     #endregion

@@ -47,7 +47,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     public IVideoFrameBuffer OutputFrameBuffer { get; private set; }
     public List<IVideoLoader> VideoLoaders { get; private set; }
     public IObjectDetector? ObjectDetector { get; private set; }
-    public List<IRegionManager?> RegionManagers { get; private set; }
+    public List<IRegionManager> RegionManagers { get; private set; }
     public IAnnotationRender AnnotationRender { get; private set; }
     public List<IAlgorithmModule> AlgorithmModules { get; private set; }
     public IObjectTracker ObjectTracker { get; private set; }
@@ -165,11 +165,11 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         Log.Information("Initialize components ...");
 
         // 获取事件订阅器
-        var objectExpiredSubscriber = Provider.GetService<ISubscriber<ObjectExpiredEvent>>();
-        var frameExpiredSubscriber = Provider.GetService<ISubscriber<FrameExpiredEvent>>();
+        var objectExpiredSubscriber = Provider.GetRequiredService<ISubscriber<ObjectExpiredEvent>>();
+        var frameExpiredSubscriber = Provider.GetRequiredService<ISubscriber<FrameExpiredEvent>>();
 
         // 耗时组件优先于视频加载器初始化，以防止视频解码被延迟导致错误.
-        ObjectDetector = Provider.GetService<IObjectDetector>();
+        ObjectDetector = Provider.GetRequiredService<IObjectDetector>();
         //ObjectDetector.Init(); // 延后初始化，为了兼容华为 Ascend 推理
 
         InputFrameBuffer = Provider.GetServices<IVideoFrameBuffer>()
@@ -203,9 +203,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             regionManager.SetSubscriber(objectExpiredSubscriber);
         }
 
-        ObjectTracker = Provider.GetService<IObjectTracker>();
+        ObjectTracker = Provider.GetRequiredService<IObjectTracker>();
 
-        SnapshotManager = Provider.GetService<ISnapshotManager>();
+        SnapshotManager = Provider.GetRequiredService<ISnapshotManager>();
         SnapshotManager.SetPublisher(Provider.GetRequiredService<IPublisher<ObjectBestSnapshotCreatedEvent>>());
         SnapshotManager.SetSubscriber(objectExpiredSubscriber);
         SnapshotManager.SetSubscriber(frameExpiredSubscriber);
