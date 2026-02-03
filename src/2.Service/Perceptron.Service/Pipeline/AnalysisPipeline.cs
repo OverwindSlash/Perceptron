@@ -207,7 +207,6 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         SnapshotManager = Provider.GetService<ISnapshotManager>();
         SnapshotManager.SetPublisher(Provider.GetRequiredService<IPublisher<ObjectBestSnapshotCreatedEvent>>());
-        // 最后再由_snapshot 组件处理对象和帧过期事件, 以防止分析过程中截图被清理
         SnapshotManager.SetSubscriber(objectExpiredSubscriber);
         SnapshotManager.SetSubscriber(frameExpiredSubscriber);
 

@@ -61,6 +61,9 @@
   <Folder Name="/src/5.Component/MediaLoader/">
     <Project Path="src/5.Component/MediaLoader.OpenCV/MediaLoader.OpenCV.csproj" Id="fe7832a6-29b2-4b44-ab12-5772bd5a4d6e" />
   </Folder>
+  <Folder Name="/src/5.Component/MessagePoster/">
+    <Project Path="src/5.Component/MessagePoster.RestfulJson/MessagePoster.RestfulJson.csproj" Id="34ca8239-b0b3-4e3a-a7fe-be1fd9e07f2e" />
+  </Folder>
   <Folder Name="/src/5.Component/RegionManager/">
     <Project Path="src/5.Component/RegionManager.DefinitionBased/RegionManager.DefinitionBased.csproj" Id="8f35cb50-c57c-4d55-8212-1a51d0b1fea3" />
   </Folder>
