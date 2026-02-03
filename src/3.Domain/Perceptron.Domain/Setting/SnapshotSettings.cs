@@ -17,6 +17,7 @@ public class SnapshotSettings : ComponentSettings
     public const string DefaultSnapshotsDir = "Snapshots";
     public const bool DefaultSaveBestSnapshot = false;
     public const BestSnapshotBy DefaultBestSnapshotBy = BestSnapshotBy.Confidence;
+    public const float DefaultSnapshotExpansionRatio = 1.2f;
     public const int DefaultMaxSnapshots = 10;
     public const int DefaultMinSnapshotWidth = 40;
     public const int DefaultMinSnapshotHeight = 40;
@@ -28,6 +29,7 @@ public class SnapshotSettings : ComponentSettings
     public string SnapshotsDir { get; private set; } = DefaultSnapshotsDir;
     public bool SaveBestSnapshot { get; private set; } = DefaultSaveBestSnapshot;
     public BestSnapshotBy BestSnapshotBy { get; private set; } = DefaultBestSnapshotBy;
+    public float SnapshotExpansionRatio { get; private set; } = DefaultSnapshotExpansionRatio;
     public int MaxSnapshots { get; private set; } = DefaultMaxSnapshots;
     public int MinSnapshotWidth { get; private set; } = DefaultMinSnapshotWidth;
     public int MinSnapshotHeight { get; private set; } = DefaultMinSnapshotHeight;
@@ -40,6 +42,7 @@ public class SnapshotSettings : ComponentSettings
         SnapshotsDir = ParseSnapshotDir(Preferences);
         SaveBestSnapshot = ParseSaveBestSnapshot(Preferences);
         BestSnapshotBy = ParseBestSnapshotBy(Preferences);
+        SnapshotExpansionRatio = ParseSnapshotExpansionRatio(Preferences);
         MaxSnapshots = ParseMaxSnapshots(Preferences);
         MinSnapshotWidth = ParseMinSnapshotWidth(Preferences);
         MinSnapshotHeight = ParseMinSnapshotHeight(Preferences);
@@ -78,6 +81,18 @@ public class SnapshotSettings : ComponentSettings
         var bestSnapshotBy = Enum.TryParse<BestSnapshotBy>(bestSnapshotByString, out var result) ? result : DefaultBestSnapshotBy;
 
         return bestSnapshotBy;
+    }
+
+    public static float ParseSnapshotExpansionRatio(Dictionary<string, string> preferences)
+    {
+        var ratio = PreferenceParser.ParseFloatValue(preferences, "SnapshotExpansionRatio",
+            DefaultSnapshotExpansionRatio);
+
+        if (ratio > 1.0f)
+            return ratio;
+
+        Log.Warning("SnapshotExpansionRatio must > 1.0, Reset to default: {SnapshotExpansionRatio}", DefaultSnapshotExpansionRatio);
+        return DefaultSnapshotExpansionRatio;
     }
 
     public static int ParseMaxSnapshots(Dictionary<string, string> preferences)
@@ -137,4 +152,6 @@ public class SnapshotSettings : ComponentSettings
         Log.Warning($"VideoFrameRate must > 0, Reset to default: {DefaultVideoFrameRate}");
         return DefaultVideoFrameRate;
     }
+
+    
 }

@@ -22,6 +22,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
     private readonly string _snapshotsDir = "Snapshots";
     private bool _saveBestSnapshot = false;
     private BestSnapshotBy _bestSnapshotBy = BestSnapshotBy.Confidence;
+    private float _snapshotExpansionRatio = 1.2f;
     private int _maxObjectSnapshots = 10;
     private int _minSnapshotWidth = 40;
     private int _minSnapshotHeight = 40;
@@ -41,6 +42,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         _snapshotsDir = SnapshotSettings.ParseSnapshotDir(preferences);
         _saveBestSnapshot = SnapshotSettings.ParseSaveBestSnapshot(preferences);
         _bestSnapshotBy = SnapshotSettings.ParseBestSnapshotBy(preferences);
+        _snapshotExpansionRatio = SnapshotSettings.ParseSnapshotExpansionRatio(preferences);
         _maxObjectSnapshots = SnapshotSettings.ParseMaxSnapshots(preferences);
         _minSnapshotWidth = SnapshotSettings.ParseMinSnapshotWidth(preferences);
         _minSnapshotHeight = SnapshotSettings.ParseMinSnapshotHeight(preferences);
@@ -53,8 +55,12 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
 
     public void ProcessSnapshots(Frame frame)
     {
+        frame.Retain();
+
         AddSceneByFrameId(frame.FrameId, frame);
         AddSnapshotOfObjectById(frame);
+
+        frame.Dispose();
     }
 
     private void AddSceneByFrameId(long frameId, Frame frame)
@@ -74,8 +80,8 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
                 continue;
             }
 
-            Mat snapshot = TakeSnapshot(frame, detectedObject.Bbox.ScaleAboutCenter(1.2f, 1.2f));
-            detectedObject.AttachSnapshot(snapshot, false); // clone snapshot for object
+            Mat snapshot = TakeSnapshot(frame, detectedObject.Bbox.ScaleAboutCenter(_snapshotExpansionRatio, _snapshotExpansionRatio));
+            detectedObject.AttachSnapshot(snapshot, false); // 重要：确保 detectedObject 中的 snapshot 与 _snapshotsByScore 中的 snapshot 有不同的生命周期
             AddSnapshotOfObjectById(detectedObject.Id, CalculateFactor(detectedObject), snapshot);
         }
     }
@@ -119,8 +125,8 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         // 构造新的Rect，保证它在图像内部
         Rect validRect = new Rect(x, y, width, height);
 
-        // 使用有效Rect进行 SubMat 操作，最后 Clone 一份并返回
-        return frame.Scene.SubMat(validRect).Clone();
+        // 使用有效Rect进行 SubMat 操作
+        return frame.Scene.SubMat(validRect);
     }
 
     public void AddSnapshotOfObjectById(string objId, float score, Mat snapshot)
@@ -130,29 +136,31 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
             _snapshotsByScore.TryAdd(objId, new SortedList<float, Mat>());
         }
 
-        SortedList<float, Mat> snapshotsById = _snapshotsByScore[objId];
-        if (!snapshotsById.ContainsKey(score))
+        SortedList<float, Mat> snapshotsOfId = _snapshotsByScore[objId];    // 获取对应对象ID的快照列表
+        if (!snapshotsOfId.ContainsKey(score))
         {
-            snapshotsById.Add(score, snapshot);
+            snapshotsOfId.Add(score, snapshot);
 
-            var maxScore = snapshotsById.Keys.Max();
+            var maxScore = snapshotsOfId.Keys.Max();
             if (score == maxScore)
             {
-                ObjectBestSnapshotCreatedEvent snapshotCreatedEvent = new ObjectBestSnapshotCreatedEvent(objId, snapshot);
-                PublishEvent(snapshotCreatedEvent);
+                ObjectBestSnapshotCreatedEvent bestSnapshotCreatedEvent = new ObjectBestSnapshotCreatedEvent(objId, snapshot);
+                PublishEvent(bestSnapshotCreatedEvent);
             }
         }
         else
         {
-            snapshotsById[score] = snapshot;
+            snapshotsOfId[score].Dispose();
+            snapshotsOfId[score] = snapshot;
         }
 
-        if (snapshotsById.Count > _maxObjectSnapshots)
+        if (snapshotsOfId.Count > _maxObjectSnapshots)
         {
-            for (int i = 0; i < snapshotsById.Count - _maxObjectSnapshots; i++)
+            for (int i = 0; i < snapshotsOfId.Count - _maxObjectSnapshots; i++)
             {
                 // remove tail (lowest score)
-                snapshotsById.RemoveAt(i);
+                snapshotsOfId.Values[i].Dispose();
+                snapshotsOfId.RemoveAt(i);
             }
         }
     }
@@ -474,7 +482,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         Task.Run(() =>
         {
             ReleaseSnapshotsByObjectId(@event.Id, _saveBestSnapshot);
-            ReleaseSnapshotsByObjectId($"cb_{@event.Id}", _saveBestSnapshot);
+            //ReleaseSnapshotsByObjectId($"cb_{@event.Id}", _saveBestSnapshot);
         }).Wait();
     }
 

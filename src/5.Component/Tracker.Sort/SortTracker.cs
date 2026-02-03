@@ -43,6 +43,8 @@ public class SortTracker : ComponentBase, ITracker, IObjectTracker
 
     public void Track(Frame frame)
     {
+        frame.Retain();
+
         IEnumerable<RectangleF> bboxs = from obj in frame.DetectedObjects
             select new RectangleF(obj.Bbox.X, obj.Bbox.Y, obj.Bbox.Width, obj.Bbox.Height);
 
@@ -59,6 +61,8 @@ public class SortTracker : ComponentBase, ITracker, IObjectTracker
                 }
             }
         }
+
+        frame.Dispose();
     }
 
     public IEnumerable<Track> Track(IEnumerable<RectangleF> boxes)

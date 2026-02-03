@@ -93,6 +93,8 @@ public class Executor : AlgorithmBase
 
     public override AnalysisResult Analyze(Frame frame)
     {
+        frame.Retain();
+
         var regionManager = _regionManagers.First(rm => rm.SourceId == frame.SourceId);
         GenerateRegionAnnotation(frame, regionManager.RegionDefinition);
 
@@ -100,6 +102,8 @@ public class Executor : AlgorithmBase
         {
             GenerateDetectedObjectAnnotation(frame, detectedObject);
         }
+
+        frame.Dispose();
 
         return new AnalysisResult(true);
     }

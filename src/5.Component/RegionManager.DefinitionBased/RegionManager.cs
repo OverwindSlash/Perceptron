@@ -63,11 +63,15 @@ public class RegionManager : ComponentBase, IRegionManager
             return;
         }
 
+        frame.Retain();
+
         foreach (DetectedObject detectedObject in frame.DetectedObjects)
         {
             DetermineAnalyzableObject(detectedObject);
             CalculateLane(detectedObject);
         }
+
+        frame.Dispose();
     }
 
     private void DetermineAnalyzableObject(DetectedObject detectedObject)
@@ -160,6 +164,4 @@ public class RegionManager : ComponentBase, IRegionManager
         Dispose(true);
         GC.SuppressFinalize(this);
     }
-
-    
 }

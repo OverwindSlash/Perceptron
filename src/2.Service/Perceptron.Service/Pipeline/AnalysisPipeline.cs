@@ -282,7 +282,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                 ObjectTracker.Track(frame);
 
                 // 4.snapshot
-                //SnapshotManager.ProcessSnapshots(frame);
+                SnapshotManager.ProcessSnapshots(frame);
 
                 // 5.algorithm modules
                 foreach (var algorithm in AlgorithmModules)
