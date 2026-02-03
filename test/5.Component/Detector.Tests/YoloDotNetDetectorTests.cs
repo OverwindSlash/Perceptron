@@ -147,12 +147,16 @@ public class YoloDotNetDetectorTests
         using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
         using var frame = new Frame("tempId", 0, 0, mat);
 
+        frame.Retain();
+
         var stopwatch = Stopwatch.StartNew();
         for (int i = 0; i < repeatTimes; i++)
         {
             var items = _detector.Detect(frame);
         }
         stopwatch.Stop();
+
+        frame.Dispose();
 
         Console.WriteLine($"detection elapse: {stopwatch.ElapsedMilliseconds / repeatTimes}ms");
     }
@@ -176,6 +180,11 @@ public class YoloDotNetDetectorTests
             new Frame("tempId", 3, 100, imgs[3]),
         };
 
+        foreach (var frame in frames)
+        {
+            frame.Retain();
+        }
+
         var stopwatch = Stopwatch.StartNew();
         var singleResult1 = _detector.Detect(frames[0]);
         var singleResult2 = _detector.Detect(frames[1]);
@@ -184,12 +193,15 @@ public class YoloDotNetDetectorTests
         stopwatch.Stop();
         Console.WriteLine($"4 frames iteration detection elapse: {stopwatch.ElapsedMilliseconds}ms");
 
-        //_detector.DetectBatch(frames);
-
         var stopwatchBatch = Stopwatch.StartNew();
         var results = _detector.DetectBatch(frames);
         stopwatchBatch.Stop();
         Console.WriteLine($"4 frames batch detection elapse:: {stopwatchBatch.ElapsedMilliseconds}ms");
+
+        foreach (var frame in frames)
+        {
+            frame.Dispose();
+        }
 
         Assert.That(results.Count, Is.EqualTo(4));
         Assert.That(results[0].Count, Is.EqualTo(singleResult1.Count));
@@ -315,9 +327,13 @@ public class YoloDotNetDetectorTests
         using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
         using var frame = new Frame("tempId", 0, 0, mat);
 
+        frame.Retain();
+
         // Act
         var resultsWithSuppression = detectorWithSuppression.Detect(frame);
         var resultsWithoutSuppression = _detector.Detect(frame);
+
+        frame.Dispose();
 
         // Assert - 启用抑制后，结果数量应该小于等于未启用时的数量
         Assert.That(resultsWithSuppression.Count, Is.LessThanOrEqualTo(resultsWithoutSuppression.Count));
@@ -353,6 +369,8 @@ public class YoloDotNetDetectorTests
         // Arrange
         using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
         using var frame = new Frame("test", 0, 0, mat);
+
+        frame.Retain();
         
         // Use the default detector to find all objects first
         var allResults = _detector.Detect(frame);
@@ -371,6 +389,8 @@ public class YoloDotNetDetectorTests
 
         // Act
         var filteredResults = detectorFiltered.Detect(frame);
+
+        frame.Dispose();
 
         // Assert
         Assert.That(filteredResults.Count, Is.LessThan(allResults.Count));

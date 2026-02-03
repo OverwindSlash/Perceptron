@@ -219,8 +219,11 @@ public class YoloDetector : ComponentBase, IObjectDetector
         float confThresh = YoloDefaults.DefaultConfidenceThreshold,
         float iouThresh = YoloDefaults.DefaultIouThreshold)
     {
+        frame.Retain();
+
         if (_detectedCount++ % _detectionStride != 0)
         {
+            frame.Dispose();
             return new List<DetectedObject>();
         }
 
@@ -236,6 +239,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
 
         _detectedCount++;
 
+        frame.Dispose();
         return detectedObjects;
     }
 
@@ -357,6 +361,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
 
         foreach (var frame in frames)
         {
+            frame.Retain();
+
             // Load input image as SKBitmap (or SKImage)
             using var img = frame.Scene.ToSKBitmap();
 
@@ -375,6 +381,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
             detectedObjects = FilterDetectedObjects(detectedObjects);
 
             batchResult.Add(detectedObjects);
+
+            frames[i].Dispose();
         }
 
         return batchResult;
@@ -384,6 +392,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
         float confThresh = YoloDefaults.DefaultConfidenceThreshold,
         float iouThresh = YoloDefaults.DefaultIouThreshold)
     {
+        frame.Retain();
+
         int rows = tileSettings.Item1;
         int cols = tileSettings.Item2;
 
@@ -434,6 +444,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
         List<DetectedObject> detectedObjects = GenerateDetectedObjects(frame, merged);
 
         detectedObjects = FilterDetectedObjects(detectedObjects);
+
+        frame.Dispose();
 
         return detectedObjects;
     }

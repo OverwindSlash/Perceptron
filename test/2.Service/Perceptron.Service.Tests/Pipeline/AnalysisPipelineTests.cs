@@ -186,6 +186,48 @@ public class AnalysisPipelineTests
     }
 
     [Test]
+    public void Constructor_ShouldThrowInvalidDataException_WhenTrackerSectionIsMissing()
+    {
+        // Arrange
+        var configDict = GetValidConfigurationDictionary();
+        // Remove Tracker section
+        var keysToRemove = configDict.Keys.Where(k => k.StartsWith("Tracker")).ToList();
+        foreach (var key in keysToRemove)
+        {
+            configDict.Remove(key);
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidDataException>(() => new AnalysisPipeline(config));
+        Assert.That(ex!.Message, Does.Contain("Tracker settings corrupted"));
+    }
+
+    [Test]
+    public void Constructor_ShouldThrowInvalidDataException_WhenSnapshotSectionIsMissing()
+    {
+        // Arrange
+        var configDict = GetValidConfigurationDictionary();
+        // Remove Snapshot section
+        var keysToRemove = configDict.Keys.Where(k => k.StartsWith("Snapshot")).ToList();
+        foreach (var key in keysToRemove)
+        {
+            configDict.Remove(key);
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidDataException>(() => new AnalysisPipeline(config));
+        Assert.That(ex!.Message, Does.Contain("Snapshot settings corrupted"));
+    }
+
+    [Test]
     public void Constructor_ShouldThrowInvalidDataException_WhenAlgorithmsSectionIsMissing()
     {
         // Arrange
@@ -297,6 +339,28 @@ public class AnalysisPipelineTests
             {"RegionManager:0:FullQualifiedClassName", "RegionManager.DefinitionBased.RegionManager"},
             {"RegionManager:0:Preferences:SourceId", "Suzhou-Cam-001"},
             {"RegionManager:0:Preferences:RegionDefinitionFile", "test-region.json"},
+
+            // Tracker
+            {"Tracker:AssemblyFile", "Tracker.Sort.dll"},
+            {"Tracker:FullQualifiedClassName", "Tracker.Sort.SortTracker"},
+            {"Tracker:Preferences:IouThreshold", "0.1"},
+            {"Tracker:Preferences:MaxMisses", "30"},
+            {"Tracker:Preferences:AppearanceWeight", "0.775"},
+            {"Tracker:Preferences:FramesToAppearanceSmooth", "40"},
+            {"Tracker:Preferences:SmoothAppearanceWeight", "0.875"},
+            {"Tracker:Preferences:MinStreak", "8"},
+
+            // Snapshot
+            {"Snapshot:AssemblyFile", "SnapshotManager.InMemory.dll"},
+            {"Snapshot:FullQualifiedClassName", "SnapshotManager.InMemory.SnapshotManager"},
+            {"Snapshot:Preferences:SnapshotsDir", "Snapshots"},
+            {"Snapshot:Preferences:SaveBestSnapshot", "true"},
+            {"Snapshot:Preferences:BestSnapshotBy", "confidence"},
+            {"Snapshot:Preferences:MaxSnapshots", "10"},
+            {"Snapshot:Preferences:MinSnapshotWidth", "10"},
+            {"Snapshot:Preferences:MinSnapshotHeight", "10"},
+            {"Snapshot:Preferences:VideoClipDurationSeconds", "4"},
+            {"Snapshot:Preferences:VideoFrameRate", "25"},
 
             // AnnotationRender
             {"AnnotationRender:AssemblyFile", "AnnotationRender.OpenCV.dll"},

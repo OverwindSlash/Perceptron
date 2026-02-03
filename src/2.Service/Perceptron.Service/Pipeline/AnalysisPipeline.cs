@@ -170,7 +170,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         // 耗时组件优先于视频加载器初始化，以防止视频解码被延迟导致错误.
         ObjectDetector = Provider.GetService<IObjectDetector>();
-        // ObjectDetector.Init(); // 延后初始化，为了兼容华为 Ascend 推理
+        //ObjectDetector.Init(); // 延后初始化，为了兼容华为 Ascend 推理
 
         InputFrameBuffer = Provider.GetServices<IVideoFrameBuffer>()
                                .First(f => f.BufferName == "InputFrameBuffer");
@@ -238,6 +238,8 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     {
         Log.Information("Start analysis pipeline...");
 
+        ObjectDetector.Init(); // 延后初始化，为了兼容华为 Ascend 推理
+
         List<Task> allTasks = [];
         List<Task> videoTasks = [];
         foreach (var videoLoader in VideoLoaders)
@@ -254,8 +256,6 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         var analysisTask = Task.Run(() =>
         {
-            ObjectDetector.Init(); // 延后初始化，为了兼容华为 Ascend 推理
-
             Log.Information($"Begin analysis process...");
 
             while (!IsAllVideoCompleted(videoTasks) || InputFrameBuffer.Count != 0)
