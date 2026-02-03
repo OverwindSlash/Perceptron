@@ -78,7 +78,7 @@ public class MessagePoster : ComponentBase, IMessagePoster
 
     private bool ShouldSuppressEvent(DomainEvent @event)
     {
-        if (EventSuppressionIntervals == null || !EventSuppressionIntervals.TryGetValue(@event.EventName, out var intervalMs))
+        if (EventSuppressionIntervals == null || !EventSuppressionIntervals.TryGetValue(@event.EventName, out var intervalSec))
         {
             // If no interval configured for this event type, do not suppress
             return false;
@@ -89,7 +89,7 @@ public class MessagePoster : ComponentBase, IMessagePoster
 
         if (_lastEventPostTimes.TryGetValue(key, out var lastTime))
         {
-            if ((now - lastTime).TotalMilliseconds < intervalMs)
+            if ((now - lastTime).TotalSeconds < intervalSec)
             {
                 return true;
             }

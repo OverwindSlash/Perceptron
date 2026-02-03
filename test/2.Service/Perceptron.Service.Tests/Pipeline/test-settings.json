@@ -138,6 +138,18 @@
       "VideoFrameRate": 25
     }
   },
+  "MessagePoster": {
+    "AssemblyFile": "MessagePoster.RestfulJson.dll",
+    "FullQualifiedClassName": "MessagePoster.RestfulJson.MessagePoster",
+    "Preferences": {
+      "WillPostMessage": true,
+      "DestinationUrl": "http://127.0.0.1:5000/pipeline_event",
+      "CheckDuplicateEvent": true,
+      "EventSuppressionIntervals": {
+        "Suzhou-Cam-001_船舶处于警戒区": 30
+      }
+    }
+  },
   "AnnotationRender": {
     "AssemblyFile": "AnnotationRender.OpenCV.dll",
     "FullQualifiedClassName": "AnnotationRender.OpenCV.Render",

@@ -6,7 +6,7 @@ namespace Perceptron.Domain.Setting;
 public class MessagePosterSettings : ComponentSettings
 {
     public const bool DefaultWillPostMessage = true;
-    public const string DefaultDestinationUrl = "http://127.0.0.1/perceptron-msg";
+    public const string DefaultDestinationUrl = "http://127.0.0.1/perceptron-event";
     public const bool DefaultCheckDuplicateEvent = false;
 
     public bool WillPostMessage { get; private set; } = DefaultWillPostMessage;

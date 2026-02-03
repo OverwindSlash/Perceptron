@@ -89,6 +89,7 @@
     <Project Path="test/5.Component/Detector.Tests/Detector.Tests.csproj" Id="6c5c791c-79d0-419c-86e7-ad90f91dfeb6" />
     <Project Path="test/5.Component/FrameBuffer.Tests/FrameBuffer.Tests.csproj" Id="2cd7f620-5af8-4996-8432-aa7e76fe9eeb" />
     <Project Path="test/5.Component/MediaLoader.Tests/MediaLoader.Tests.csproj" Id="1879e277-f109-475e-b470-bed59089e75d" />
+    <Project Path="test/5.Component/MessagePoster.Tests/MessagePoster.Tests.csproj" Id="9adc4d70-108f-4a38-9e55-b1de41061334" />
     <Project Path="test/5.Component/RegionManager.Tests/RegionManager.Tests.csproj" Id="14433db4-7879-4f05-ac89-a64c2585a735" />
   </Folder>
 </Solution>
