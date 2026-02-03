@@ -150,7 +150,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         }
         else
         {
-            snapshotsOfId[score].Dispose();
+            snapshotsOfId[score].Dispose();     // 重要：需要释放Mat资源
             snapshotsOfId[score] = snapshot;
         }
 
@@ -159,7 +159,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
             for (int i = 0; i < snapshotsOfId.Count - _maxObjectSnapshots; i++)
             {
                 // remove tail (lowest score)
-                snapshotsOfId.Values[i].Dispose();
+                snapshotsOfId.Values[i].Dispose();  // 重要：需要释放Mat资源
                 snapshotsOfId.RemoveAt(i);
             }
         }

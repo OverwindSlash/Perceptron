@@ -130,6 +130,7 @@
       "SnapshotsDir": "Snapshots",
       "SaveBestSnapshot": true,
       "BestSnapshotBy": "confidence", // "confidence" | "area" | "width" | "height"
+      "SnapshotExpansionRatio": 1.2,
       "MaxSnapshots": 10,
       "MinSnapshotWidth": 10,
       "MinSnapshotHeight": 10,
