@@ -97,5 +97,7 @@
     <Project Path="test/5.Component/MediaLoader.Tests/MediaLoader.Tests.csproj" Id="1879e277-f109-475e-b470-bed59089e75d" />
     <Project Path="test/5.Component/MessagePoster.Tests/MessagePoster.Tests.csproj" Id="9adc4d70-108f-4a38-9e55-b1de41061334" />
     <Project Path="test/5.Component/RegionManager.Tests/RegionManager.Tests.csproj" Id="14433db4-7879-4f05-ac89-a64c2585a735" />
+    <Project Path="test/5.Component/SnapshotManager.Tests/SnapshotManager.Tests.csproj" Id="b1d3bbdf-18d9-44db-ae8c-236cc5ec8b44" />
+    <Project Path="test/5.Component/Tracker.Tests/Tracker.Tests.csproj" Id="cedb81dc-00cb-405d-b224-39dc91c52140" />
   </Folder>
 </Solution>

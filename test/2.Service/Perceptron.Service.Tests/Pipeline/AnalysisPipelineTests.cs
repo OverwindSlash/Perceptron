@@ -165,6 +165,48 @@ public class AnalysisPipelineTests
     }
 
     [Test]
+    public void Constructor_ShouldThrowInvalidDataException_WhenMessagePosterSectionIsMissing()
+    {
+        // Arrange
+        var configDict = GetValidConfigurationDictionary();
+        // Remove MessagePoster section
+        var keysToRemove = configDict.Keys.Where(k => k.StartsWith("MessagePoster")).ToList();
+        foreach (var key in keysToRemove)
+        {
+            configDict.Remove(key);
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidDataException>(() => new AnalysisPipeline(config));
+        Assert.That(ex!.Message, Does.Contain("MessagePoster settings corrupted"));
+    }
+
+    [Test]
+    public void Constructor_ShouldThrowInvalidDataException_WhenEventRepositorySectionIsMissing()
+    {
+        // Arrange
+        var configDict = GetValidConfigurationDictionary();
+        // Remove EventRepository section
+        var keysToRemove = configDict.Keys.Where(k => k.StartsWith("EventRepository")).ToList();
+        foreach (var key in keysToRemove)
+        {
+            configDict.Remove(key);
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidDataException>(() => new AnalysisPipeline(config));
+        Assert.That(ex!.Message, Does.Contain("EventRepository settings corrupted"));
+    }
+
+    [Test]
     public void Constructor_ShouldThrowInvalidDataException_WhenAnnotationSenderSectionIsMissing()
     {
         // Arrange
@@ -382,6 +424,25 @@ public class AnalysisPipelineTests
             {"Snapshot:Preferences:MinSnapshotHeight", "10"},
             {"Snapshot:Preferences:VideoClipDurationSeconds", "4"},
             {"Snapshot:Preferences:VideoFrameRate", "25"},
+            {"Snapshot:Preferences:SnapshotExpansionRatio", "1.2"},
+
+            // MessagePoster
+            {"MessagePoster:AssemblyFile", "MessagePoster.RestfulJson.dll"},
+            {"MessagePoster:FullQualifiedClassName", "MessagePoster.RestfulJson.MessagePoster"},
+            {"MessagePoster:Preferences:WillPostMessage", "true"},
+            {"MessagePoster:Preferences:DestinationUrl", "http://127.0.0.1:5000/pipeline_event"},
+            {"MessagePoster:Preferences:CheckDuplicateEvent", "true"},
+            {"MessagePoster:Preferences:EventSuppressionIntervals:Suzhou-Cam-001_船舶处于警戒区", "30"},
+
+            // EventRepository
+            {"EventRepository:AssemblyFile", "Repository.MinioMySQL.dll"},
+            {"EventRepository:FullQualifiedClassName", "Repository.MinioMySQL.EventRepository"},
+            {"EventRepository:Preferences:RdbConnectionString", "server=127.0.0.1;port=3306;uid=root;pwd=cs202304;database=baize"},
+            {"EventRepository:Preferences:StorageUrl", "127.0.0.1:9000"},
+            {"EventRepository:Preferences:StorageUsername", "admin"},
+            {"EventRepository:Preferences:StoragePassword", "cs202304"},
+            {"EventRepository:Preferences:WillStoreSnapshot", "true"},
+            {"EventRepository:Preferences:WillStoreVideoClip", "false"},
 
             // AnnotationSender
             {"AnnotationSender:AssemblyFile", "AnnotationSender.Udp.dll"},
@@ -406,7 +467,18 @@ public class AnalysisPipelineTests
             {"Algorithms:0:Preferences:ObjTextFontSize", "30"},
             {"Algorithms:0:Preferences:ObjTextShowLabel", "true"},
             {"Algorithms:0:Preferences:ObjTextShowTrackingId", "true"},
-            {"Algorithms:0:Preferences:ObjTextShowConfidence", "true"}
+            {"Algorithms:0:Preferences:ObjTextShowConfidence", "true"},
+            {"Algorithms:0:Preferences:GenerateAnalysisAreas", "false"},
+            {"Algorithms:0:Preferences:AnalysisAreaStrokeColor", "#7dda58"},
+            {"Algorithms:0:Preferences:GenerateExcludeAreas", "true"},
+            {"Algorithms:0:Preferences:ExcludeAreaStrokeColor", "#e36667"},
+            {"Algorithms:0:Preferences:GenerateLanes", "true"},
+            {"Algorithms:0:Preferences:LanesStrokeColor", "#e8e8e8"},
+            {"Algorithms:0:Preferences:GenerateInterestAreas", "true"},
+            {"Algorithms:0:Preferences:InterestAreasStrokeColor", "#ffeca1"},
+            {"Algorithms:0:Preferences:GenerateCountLines", "true"},
+            {"Algorithms:0:Preferences:EnterLineStrokeColor", "#4e4e4e"},
+            {"Algorithms:0:Preferences:LeaveLineStrokeColor", "#4e4e4e"}
         };
     }
 }
