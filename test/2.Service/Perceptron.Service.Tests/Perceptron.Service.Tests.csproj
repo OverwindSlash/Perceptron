@@ -19,11 +19,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\2.Service\Perceptron.Service\Perceptron.Service.csproj" />
+    <ProjectReference Include="..\..\..\src\4.Repository\Repository.MinioMySQL\Repository.MinioMySQL.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\AnnotationRender.OpenCV\AnnotationRender.OpenCV.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\AnnotationSender.Udp\AnnotationSender.Udp.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\Detector.YoloDotNet\Detector.YoloDotNet.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\FrameBuffer.TwoModes\FrameBuffer.TwoModes.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\MediaLoader.OpenCV\MediaLoader.OpenCV.csproj" />
+    <ProjectReference Include="..\..\..\src\5.Component\MessagePoster.RestfulJson\MessagePoster.RestfulJson.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\RegionManager.DefinitionBased\RegionManager.DefinitionBased.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\SnapshotManager.InMemory\SnapshotManager.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\Tracker.Sort\Tracker.Sort.csproj" />

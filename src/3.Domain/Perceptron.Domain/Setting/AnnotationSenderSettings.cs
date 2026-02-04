@@ -18,7 +18,9 @@ public class AnnotationSenderSettings : ComponentSettings
 
     public override void ParsePreferences()
     {
-        throw new NotImplementedException();
+        EnableAnnotationUdpSender = ParseEnableAnnotationUdpSender(Preferences);
+        AnnotationUdpDestinationHost = ParseAnnotationUdpDestinationHost(Preferences);
+        AnnotationUdpDestinationPort = ParseAnnotationUdpDestinationPort(Preferences);
     }
 
     public static bool ParseEnableAnnotationUdpSender(Dictionary<string, string> preferences)

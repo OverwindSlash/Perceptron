@@ -6,9 +6,11 @@ using Perceptron.Domain.Abstraction.AlgorithmModule;
 using Perceptron.Domain.Abstraction.Annotation;
 using Perceptron.Domain.Abstraction.FrameBuffer;
 using Perceptron.Domain.Abstraction.MediaLoader;
+using Perceptron.Domain.Abstraction.MessagePoster;
 using Perceptron.Domain.Abstraction.ObjectDetector;
 using Perceptron.Domain.Abstraction.ObjectTracker;
 using Perceptron.Domain.Abstraction.RegionManager;
+using Perceptron.Domain.Abstraction.Repository;
 using Perceptron.Domain.Abstraction.SnapshotManager;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event.Pipeline;
@@ -30,6 +32,8 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     private List<RegionManagerSettings> _regionManagerSettings;
     private TrackerSettings _trackerSettings;
     private SnapshotSettings _snapshotSettings;
+    private MessagePosterSettings _messagePosterSettings;
+    private EventRepositorySettings _eventRepositorySettings;
     private AnnotationSenderSettings _annotationSenderSettings;
     private AnnotationRenderSettings _annotationRenderSettings;
 
@@ -46,10 +50,12 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     public IVideoFrameBuffer InputFrameBuffer { get; private set; }
     public IVideoFrameBuffer OutputFrameBuffer { get; private set; }
     public List<IVideoLoader> VideoLoaders { get; private set; }
-    public IObjectDetector? ObjectDetector { get; private set; }
+    public IObjectDetector ObjectDetector { get; private set; }
     public List<IRegionManager> RegionManagers { get; private set; }
     public IObjectTracker ObjectTracker { get; private set; }
-    public ISnapshotManager? SnapshotManager { get; private set; }
+    public ISnapshotManager SnapshotManager { get; private set; }
+    public IMessagePoster MessagePoster { get; private set; }
+    public IEventRepository EventRepository { get; private set; }
     public IAnnotationSender AnnotationSender { get; private set; }
     public IAnnotationRender AnnotationRender { get; private set; }
     public List<IAlgorithmModule> AlgorithmModules { get; private set; }
@@ -70,9 +76,11 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
     private void LoadSettings(IConfiguration config)
     {
+        // pipeline
         _pipeLineSettings = config.GetSection("Pipeline").Get<PipelineSettings>()
                             ?? throw new InvalidDataException("Pipeline settings corrupted.");
 
+        // video loaders
         _videoLoaderSettings = config.GetSection("VideoLoaders").Get<List<VideoLoaderSettings>>()
                                ?? throw new InvalidDataException("VideoLoader settings corrupted.");
         foreach (var setting in _videoLoaderSettings)
@@ -80,6 +88,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             setting.ParsePreferences();
         }
 
+        // frame buffers
         _inputFrameBufferSettings = config.GetSection("InputFrameBuffer").Get<FrameBufferSettings>()
                                     ?? throw new InvalidDataException("InputFrameBuffer settings corrupted.");
         _inputFrameBufferSettings.ParsePreferences();
@@ -88,10 +97,12 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                                      ?? throw new InvalidDataException("OutputFrameBuffer settings corrupted.");
         _outputFrameBufferSettings.ParsePreferences();
 
+        // detector
         _detectorSettings = config.GetSection("Detector").Get<DetectorSettings>()
                             ?? throw new InvalidDataException("Detector settings corrupted.");
         _detectorSettings.ParsePreferences();
 
+        // region managers
         _regionManagerSettings = config.GetSection("RegionManager").Get<List<RegionManagerSettings>>()
                                  ?? throw new InvalidDataException("RegionManager settings corrupted.");
         foreach (var setting in _regionManagerSettings)
@@ -99,23 +110,36 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             setting.ParsePreferences();
         }
 
+        // tracker
         _trackerSettings = config.GetSection("Tracker").Get<TrackerSettings>()
                            ?? throw new InvalidDataException("Tracker settings corrupted.");
         _trackerSettings.ParsePreferences();
 
+        // snapshot manager
         _snapshotSettings = config.GetSection("Snapshot").Get<SnapshotSettings>()
                             ?? throw new InvalidDataException("Snapshot settings corrupted.");
         _snapshotSettings.ParsePreferences();
 
-        // TODO: Load other component settings
+        // message poster
+        _messagePosterSettings = config.GetSection("MessagePoster").Get<MessagePosterSettings>()
+                                 ?? throw new InvalidDataException("MessagePoster settings corrupted.");
+        _messagePosterSettings.ParsePreferences();
 
+        // event repository
+        _eventRepositorySettings = config.GetSection("EventRepository").Get<EventRepositorySettings>()
+                                   ?? throw new InvalidDataException("EventRepository settings corrupted.");
+        _eventRepositorySettings.ParsePreferences();
+
+        // annotation
         _annotationSenderSettings = config.GetSection("AnnotationSender").Get<AnnotationSenderSettings>()
                                      ?? throw new InvalidDataException("AnnotationSender settings corrupted.");
+        _annotationSenderSettings.ParsePreferences();
 
         _annotationRenderSettings = config.GetSection("AnnotationRender").Get<AnnotationRenderSettings>()
                                     ?? throw new InvalidDataException("AnnotationRender settings corrupted.");
         _annotationRenderSettings.ParsePreferences();
 
+        // algorithm modules
         _algorithmSettings = config.GetSection("Algorithms").Get<List<AlgorithmSettings>>()
                              ?? throw new InvalidDataException("Algorithm settings corrupted.");
     }
@@ -148,7 +172,8 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         _services.AddComponent<IObjectTracker>(_trackerSettings);
         _services.AddComponent<ISnapshotManager>(_snapshotSettings);
 
-        // TODO: 添加其他组件
+        _services.AddComponent<IMessagePoster>(_messagePosterSettings);
+        _services.AddComponent<IEventRepository>(_eventRepositorySettings);
 
         _services.AddComponent<IAnnotationSender>(_annotationSenderSettings);
         _services.AddComponent<IAnnotationRender>(_annotationRenderSettings);
@@ -215,7 +240,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         SnapshotManager.SetSubscriber(objectExpiredSubscriber);
         SnapshotManager.SetSubscriber(frameExpiredSubscriber);
 
-        // TODO: 初始化其他组件
+        MessagePoster = Provider.GetRequiredService<IMessagePoster>();
+
+        EventRepository = Provider.GetRequiredService<IEventRepository>();
 
         AnnotationSender = Provider.GetRequiredService<IAnnotationSender>();
         AnnotationRender = Provider.GetRequiredService<IAnnotationRender>();

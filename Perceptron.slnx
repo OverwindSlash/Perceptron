@@ -44,6 +44,9 @@
   <Folder Name="/src/3.Domain/">
     <Project Path="src/3.Domain/Perceptron.Domain/Perceptron.Domain.csproj" />
   </Folder>
+  <Folder Name="/src/4.Repository/">
+    <Project Path="src/4.Repository/Repository.MinioMySQL/Repository.MinioMySQL.csproj" Id="4427bba6-d517-4fde-b262-0e0a2d1b4afa" />
+  </Folder>
   <Folder Name="/src/5.Component/" />
   <Folder Name="/src/5.Component/AnnotationRender/">
     <Project Path="src/5.Component/AnnotationRender.OpenCV/AnnotationRender.OpenCV.csproj" Id="d7e969ef-9f1c-4905-98d0-05493486a011" />

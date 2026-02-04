@@ -1,0 +1,2 @@
+﻿docker run --name mysql-dev -p 3306:3306 -d -e MYSQL_ROOT_PASSWORD=cs202304 mysql:8.0 --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+docker run -d --name minio -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=admin" -e "MINIO_ROOT_PASSWORD=cs202304" quay.io/minio/minio server /data --console-address ":9001"
