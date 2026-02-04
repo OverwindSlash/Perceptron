@@ -30,7 +30,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     private List<RegionManagerSettings> _regionManagerSettings;
     private TrackerSettings _trackerSettings;
     private SnapshotSettings _snapshotSettings;
-
+    private AnnotationSenderSettings _annotationSenderSettings;
     private AnnotationRenderSettings _annotationRenderSettings;
 
     private List<AlgorithmSettings> _algorithmSettings;
@@ -48,10 +48,11 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     public List<IVideoLoader> VideoLoaders { get; private set; }
     public IObjectDetector? ObjectDetector { get; private set; }
     public List<IRegionManager> RegionManagers { get; private set; }
-    public IAnnotationRender AnnotationRender { get; private set; }
-    public List<IAlgorithmModule> AlgorithmModules { get; private set; }
     public IObjectTracker ObjectTracker { get; private set; }
     public ISnapshotManager? SnapshotManager { get; private set; }
+    public IAnnotationSender AnnotationSender { get; private set; }
+    public IAnnotationRender AnnotationRender { get; private set; }
+    public List<IAlgorithmModule> AlgorithmModules { get; private set; }
 
 
     public AnalysisPipeline(IConfiguration config)
@@ -108,6 +109,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         // TODO: Load other component settings
 
+        _annotationSenderSettings = config.GetSection("AnnotationSender").Get<AnnotationSenderSettings>()
+                                     ?? throw new InvalidDataException("AnnotationSender settings corrupted.");
+
         _annotationRenderSettings = config.GetSection("AnnotationRender").Get<AnnotationRenderSettings>()
                                     ?? throw new InvalidDataException("AnnotationRender settings corrupted.");
         _annotationRenderSettings.ParsePreferences();
@@ -146,6 +150,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         // TODO: 添加其他组件
 
+        _services.AddComponent<IAnnotationSender>(_annotationSenderSettings);
         _services.AddComponent<IAnnotationRender>(_annotationRenderSettings);
 
         foreach (var settings in _algorithmSettings)
@@ -212,6 +217,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
         // TODO: 初始化其他组件
 
+        AnnotationSender = Provider.GetRequiredService<IAnnotationSender>();
         AnnotationRender = Provider.GetRequiredService<IAnnotationRender>();
         
         AlgorithmModules = Provider.GetServices<IAlgorithmModule>().ToList();
@@ -253,7 +259,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
             videoTasks.Add(videoTask);
         }
 
-        var analysisTask = Task.Run(() =>
+        var analysisTask = Task.Run(async () =>
         {
             Log.Information($"Begin analysis process...");
 
@@ -288,6 +294,9 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                 {
                     var analysisResult = algorithm.Analyze(frame);
                 }
+
+                // 6. annotation sending
+                await AnnotationSender.SendAsync(frame.Annotation);
 
                 _slideWindow.AddNewFrame(frame);
                 OutputFrameBuffer.PushFrame(frame);

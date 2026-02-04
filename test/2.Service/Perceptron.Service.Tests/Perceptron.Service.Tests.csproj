@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\2.Service\Perceptron.Service\Perceptron.Service.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\AnnotationRender.OpenCV\AnnotationRender.OpenCV.csproj" />
+    <ProjectReference Include="..\..\..\src\5.Component\AnnotationSender.Udp\AnnotationSender.Udp.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\Detector.YoloDotNet\Detector.YoloDotNet.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\FrameBuffer.TwoModes\FrameBuffer.TwoModes.csproj" />
     <ProjectReference Include="..\..\..\src\5.Component\MediaLoader.OpenCV\MediaLoader.OpenCV.csproj" />

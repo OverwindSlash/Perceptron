@@ -48,6 +48,9 @@
   <Folder Name="/src/5.Component/AnnotationRender/">
     <Project Path="src/5.Component/AnnotationRender.OpenCV/AnnotationRender.OpenCV.csproj" Id="d7e969ef-9f1c-4905-98d0-05493486a011" />
   </Folder>
+  <Folder Name="/src/5.Component/AnnotationSender/">
+    <Project Path="src/5.Component/AnnotationSender.Udp/AnnotationSender.Udp.csproj" Id="be44acd9-f0d2-404d-8a76-fdc2fd8b45d1" />
+  </Folder>
   <Folder Name="/src/5.Component/Common/">
     <Project Path="src/5.Component/ComponentCommon/ComponentCommon.csproj" Id="107135d8-077b-48f9-8bdd-d89a2bfd5295" />
   </Folder>

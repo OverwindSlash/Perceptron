@@ -150,6 +150,15 @@
       }
     }
   },
+  "AnnotationSender": {
+    "AssemblyFile": "AnnotationSender.Udp.dll",
+    "FullQualifiedClassName": "AnnotationSender.Udp.AnnotationUdpSender",
+    "Preferences": {
+      "EnableAnnotationUdpSender": true,
+      "AnnotationUdpDestinationHost": "127.0.0.1",
+      "AnnotationUdpDestinationPort": 9999
+    }
+  },
   "AnnotationRender": {
     "AssemblyFile": "AnnotationRender.OpenCV.dll",
     "FullQualifiedClassName": "AnnotationRender.OpenCV.Render",

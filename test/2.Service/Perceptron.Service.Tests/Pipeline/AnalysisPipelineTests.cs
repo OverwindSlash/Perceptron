@@ -165,6 +165,27 @@ public class AnalysisPipelineTests
     }
 
     [Test]
+    public void Constructor_ShouldThrowInvalidDataException_WhenAnnotationSenderSectionIsMissing()
+    {
+        // Arrange
+        var configDict = GetValidConfigurationDictionary();
+        // Remove AnnotationSender section
+        var keysToRemove = configDict.Keys.Where(k => k.StartsWith("AnnotationSender")).ToList();
+        foreach (var key in keysToRemove)
+        {
+            configDict.Remove(key);
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidDataException>(() => new AnalysisPipeline(config));
+        Assert.That(ex!.Message, Does.Contain("AnnotationSender settings corrupted"));
+    }
+
+    [Test]
     public void Constructor_ShouldThrowInvalidDataException_WhenRegionManagerSectionIsMissing()
     {
         // Arrange
@@ -361,6 +382,13 @@ public class AnalysisPipelineTests
             {"Snapshot:Preferences:MinSnapshotHeight", "10"},
             {"Snapshot:Preferences:VideoClipDurationSeconds", "4"},
             {"Snapshot:Preferences:VideoFrameRate", "25"},
+
+            // AnnotationSender
+            {"AnnotationSender:AssemblyFile", "AnnotationSender.Udp.dll"},
+            {"AnnotationSender:FullQualifiedClassName", "AnnotationSender.Udp.AnnotationUdpSender"},
+            {"AnnotationSender:Preferences:EnableAnnotationUdpSender", "true"},
+            {"AnnotationSender:Preferences:AnnotationUdpDestinationHost", "127.0.0.1"},
+            {"AnnotationSender:Preferences:AnnotationUdpDestinationPort", "9999"},
 
             // AnnotationRender
             {"AnnotationRender:AssemblyFile", "AnnotationRender.OpenCV.dll"},
