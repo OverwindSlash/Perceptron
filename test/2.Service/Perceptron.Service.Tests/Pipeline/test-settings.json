@@ -134,6 +134,7 @@
       "MaxSnapshots": 10,
       "MinSnapshotWidth": 10,
       "MinSnapshotHeight": 10,
+      "SnapshotRetentionDays": 1,
       "VideoClipDurationSeconds": 4,
       "VideoFrameRate": 25
     }

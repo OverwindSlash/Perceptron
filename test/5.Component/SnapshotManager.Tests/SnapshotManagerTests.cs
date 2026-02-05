@@ -151,7 +151,7 @@ namespace SnapshotManager.Tests
             Assert.That(initialSnapshots.Count, Is.GreaterThan(0), "Snapshots should be cached before expiration");
 
             // Act
-            var expireEvent = new ObjectExpiredEvent(detectedObject.Id, detectedObject.LabelId, detectedObject.Label, detectedObject.TrackingId);
+            var expireEvent = new ObjectExpiredEvent(frame.SourceId, detectedObject.Id, detectedObject.LabelId, detectedObject.Label, detectedObject.TrackingId);
             _snapshotManager.ProcessEvent(expireEvent);
 
             // Assert

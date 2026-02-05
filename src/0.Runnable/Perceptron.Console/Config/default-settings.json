@@ -129,11 +129,12 @@
     "Preferences": {
       "SnapshotsDir": "Snapshots",
       "SaveBestSnapshot": true,
-      "BestSnapshotBy": "confidence",
+      "BestSnapshotBy": "confidence", // "confidence" | "area" | "width" | "height"
       "SnapshotExpansionRatio": 1.2,
       "MaxSnapshots": 10,
-      "MinSnapshotWidth": 10,
-      "MinSnapshotHeight": 10,
+      "MinSnapshotWidth": 50,
+      "MinSnapshotHeight": 50,
+      "SnapshotRetentionDays": 1,
       "VideoClipDurationSeconds": 4,
       "VideoFrameRate": 25
     }

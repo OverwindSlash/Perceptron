@@ -1,4 +1,4 @@
-﻿using Perceptron.Domain.Extensions;
+using Perceptron.Domain.Extensions;
 using Serilog;
 using System.Globalization;
 
@@ -21,6 +21,7 @@ public class SnapshotSettings : ComponentSettings
     public const int DefaultMaxSnapshots = 10;
     public const int DefaultMinSnapshotWidth = 40;
     public const int DefaultMinSnapshotHeight = 40;
+    public const int DefaultSnapshotRetentionDays = 3;
     public const int DefaultVideoClipDurationSeconds = 10;
     public const double DefaultVideoFrameRate = 25.0;
 
@@ -31,6 +32,7 @@ public class SnapshotSettings : ComponentSettings
     public int MaxSnapshots { get; private set; } = DefaultMaxSnapshots;
     public int MinSnapshotWidth { get; private set; } = DefaultMinSnapshotWidth;
     public int MinSnapshotHeight { get; private set; } = DefaultMinSnapshotHeight;
+    public int SnapshotRetentionDays { get; private set; } = DefaultSnapshotRetentionDays;
     public int VideoClipDurationSeconds { get; private set; } = DefaultVideoClipDurationSeconds;
     public double VideoFrameRate { get; private set; } = DefaultVideoFrameRate;
 
@@ -44,12 +46,13 @@ public class SnapshotSettings : ComponentSettings
         MaxSnapshots = ParseMaxSnapshots(Preferences);
         MinSnapshotWidth = ParseMinSnapshotWidth(Preferences);
         MinSnapshotHeight = ParseMinSnapshotHeight(Preferences);
+        SnapshotRetentionDays = ParseSnapshotRetentionDays(Preferences);
         VideoClipDurationSeconds = ParseVideoClipDurationSeconds(Preferences);
         VideoFrameRate = ParseVideoFrameRate(Preferences);
 
         Log.Information("SnapshotsDir: {dir}", SnapshotsDir);
-        Log.Information("SaveBestSnapshot: {flag}, BestSnapshotBy: {by}, MaxSnapshots: {max}, MinSnapshotWidth: {minWidth}, MinSnapshotHeight: {minHeight}",
-            SaveBestSnapshot, BestSnapshotBy, MaxSnapshots, MinSnapshotWidth, MinSnapshotHeight);
+        Log.Information("SaveBestSnapshot: {flag}, BestSnapshotBy: {by}, MaxSnapshots: {max}, MinSnapshotWidth: {minWidth}, MinSnapshotHeight: {minHeight}, SnapshotRetentionDays: {retentionDays}",
+            SaveBestSnapshot, BestSnapshotBy, MaxSnapshots, MinSnapshotWidth, MinSnapshotHeight, SnapshotRetentionDays);
         Log.Information("VideoClipDurationSeconds: {duration}, VideoFrameRate: {frameRate}",
             VideoClipDurationSeconds, VideoFrameRate);
     }
@@ -126,6 +129,17 @@ public class SnapshotSettings : ComponentSettings
         return DefaultMinSnapshotHeight;
     }
 
+    public static int ParseSnapshotRetentionDays(Dictionary<string, string> preferences)
+    {
+        var days = PreferenceParser.ParseIntValue(preferences, "SnapshotRetentionDays", DefaultSnapshotRetentionDays);
+
+        if (days > 0)
+            return days;
+
+        Log.Warning("SnapshotRetentionDays must > 0, Reset to default: {SnapshotRetentionDays}", DefaultSnapshotRetentionDays);
+        return DefaultSnapshotRetentionDays;
+    }
+
     public static int ParseVideoClipDurationSeconds(Dictionary<string, string> preferences)
     {
         var videoClipDurationSeconds =
@@ -149,6 +163,4 @@ public class SnapshotSettings : ComponentSettings
         Log.Warning($"VideoFrameRate must > 0, Reset to default: {DefaultVideoFrameRate}");
         return DefaultVideoFrameRate;
     }
-
-    
 }

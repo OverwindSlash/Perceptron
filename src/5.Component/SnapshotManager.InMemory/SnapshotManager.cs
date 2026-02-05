@@ -26,8 +26,11 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
     private int _maxObjectSnapshots = 10;
     private int _minSnapshotWidth = 40;
     private int _minSnapshotHeight = 40;
+    private int _snapshotRetentionDays = 3;
     private int _videoClipDurationSeconds = 10;
     private double _videoFrameRate = 25.0;
+
+    private readonly System.Timers.Timer _cleanupTimer;
 
     public string Name => "In-memory snapshot manager";
     public string SnapshotDir => _snapshotsDir;
@@ -46,11 +49,20 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         _maxObjectSnapshots = SnapshotSettings.ParseMaxSnapshots(preferences);
         _minSnapshotWidth = SnapshotSettings.ParseMinSnapshotWidth(preferences);
         _minSnapshotHeight = SnapshotSettings.ParseMinSnapshotHeight(preferences);
+        _snapshotRetentionDays = SnapshotSettings.ParseSnapshotRetentionDays(preferences);
         _videoClipDurationSeconds = SnapshotSettings.ParseVideoClipDurationSeconds(preferences);
         _videoFrameRate = SnapshotSettings.ParseVideoFrameRate(preferences);
 
         var snapshotFullPath = Path.Combine(Directory.GetCurrentDirectory(), _snapshotsDir);
         snapshotFullPath.EnsureDirExistence();
+
+        _cleanupTimer = new System.Timers.Timer(TimeSpan.FromHours(1).TotalMilliseconds);
+        _cleanupTimer.Elapsed += (sender, e) => CleanupSnapshots();
+        _cleanupTimer.AutoReset = true;
+        _cleanupTimer.Start();
+
+        // Initial cleanup
+        Task.Run(() => CleanupSnapshots());
     }
 
     public void ProcessSnapshots(Frame frame)
@@ -249,21 +261,21 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         }
     }
 
-    private void ReleaseSnapshotsByObjectId(string id, bool saveBeforeRelease = true)
+    private void ReleaseSnapshotsByObjectId(ObjectExpiredEvent @event, bool saveBeforeRelease = true)
     {
-        if (!_snapshotsByScore.ContainsKey(id))
+        if (!_snapshotsByScore.ContainsKey(@event.Id))
         {
             return;
         }
 
-        SortedList<float, Mat> snapshots = _snapshotsByScore[id];
+        SortedList<float, Mat> snapshots = _snapshotsByScore[@event.Id];
 
         if (saveBeforeRelease)
         {
             var highestScore = snapshots.Keys.Max();
             Mat highestSnapshot = snapshots[highestScore];
 
-            SaveBestSnapshot(id, highestSnapshot);
+            SaveBestSnapshot(@event, highestSnapshot);
         }
 
         foreach (Mat snapshot in snapshots.Values)
@@ -271,10 +283,10 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
             snapshot.Dispose();
         }
 
-        _snapshotsByScore.TryRemove(id, out var removedSnapshots);
+        _snapshotsByScore.TryRemove(@event.Id, out var removedSnapshots);
     }
 
-    private void SaveBestSnapshot(string id, Mat highestSnapshot)
+    private void SaveBestSnapshot(ObjectExpiredEvent @event, Mat highestSnapshot)
     {
         // if (highestSnapshot.IsDisposed)
         // {
@@ -282,10 +294,11 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         // }
 
         string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-        string filename = id.Replace(':', '_');
+        string date = DateTime.Now.ToString("yyyyMMdd");
+        string filename = @event.Id.Replace(':', '_');
         if (highestSnapshot.Width > _minSnapshotWidth && highestSnapshot.Height > _minSnapshotHeight)
         {
-            string path = $"{_snapshotsDir}/Best";
+            string path = $"{_snapshotsDir}/Best/{date}/{@event.SourceId}";
             path.EnsureDirExistence();
             var fileSavePath = Path.Combine(path, $"{filename}_{timestamp}.jpg");
 
@@ -481,7 +494,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
     {
         Task.Run(() =>
         {
-            ReleaseSnapshotsByObjectId(@event.Id, _saveBestSnapshot);
+            ReleaseSnapshotsByObjectId(@event, _saveBestSnapshot);
             //ReleaseSnapshotsByObjectId($"cb_{@event.Id}", _saveBestSnapshot);
         }).Wait();
     }
@@ -504,8 +517,51 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         _objBestSnapshotCreatedEventPublisher.Publish(@event);
     }
 
+    private void CleanupSnapshots()
+    {
+        try
+        {
+            var bestSnapshotsDir = Path.Combine(_snapshotsDir, "Best");
+            if (!Directory.Exists(bestSnapshotsDir))
+            {
+                return;
+            }
+
+            var directories = Directory.GetDirectories(bestSnapshotsDir);
+            var now = DateTime.Now;
+            var retentionDays = _snapshotRetentionDays;
+
+            foreach (var dir in directories)
+            {
+                var dirName = Path.GetFileName(dir);
+                if (DateTime.TryParseExact(dirName, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var date))
+                {
+                    if ((now - date).TotalDays > retentionDays)
+                    {
+                        try
+                        {
+                            Directory.Delete(dir, true);
+                            Log.Information("Deleted old snapshot directory: {dir}", dir);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error(ex, "Failed to delete old snapshot directory: {dir}", dir);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error during snapshot cleanup");
+        }
+    }
+
     public override void Dispose()
     {
+        _cleanupTimer?.Stop();
+        _cleanupTimer?.Dispose();
+
         foreach (Mat scene in _scenesOfFrame.Values)
         {
             scene.Dispose();

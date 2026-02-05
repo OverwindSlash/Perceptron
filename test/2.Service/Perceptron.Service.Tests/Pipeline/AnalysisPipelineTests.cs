@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Configuration;
-using Perceptron.Domain.Event.Pipeline;
 using Perceptron.Service.Pipeline;
 
 namespace Perceptron.Service.Tests.Pipeline;
@@ -422,6 +421,7 @@ public class AnalysisPipelineTests
             {"Snapshot:Preferences:MaxSnapshots", "10"},
             {"Snapshot:Preferences:MinSnapshotWidth", "10"},
             {"Snapshot:Preferences:MinSnapshotHeight", "10"},
+            {"Snapshot:Preferences:SnapshotRetentionDays", "3"},
             {"Snapshot:Preferences:VideoClipDurationSeconds", "4"},
             {"Snapshot:Preferences:VideoFrameRate", "25"},
             {"Snapshot:Preferences:SnapshotExpansionRatio", "1.2"},
