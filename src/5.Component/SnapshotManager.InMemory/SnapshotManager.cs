@@ -356,7 +356,8 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
                 double fps = frameRate ?? _videoFrameRate;
                 
                 // 获取所有可用的帧ID并排序
-                var allAvailableFrameIds = _scenesOfFrame.Keys.OrderBy(frameId => frameId).ToList();
+                var allAvailableFrameIds = _scenesOfFrame.Keys.ToList();
+                allAvailableFrameIds.Sort();
                 
                 if (allAvailableFrameIds.Count == 0)
                 {
@@ -364,7 +365,9 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
                 }
                 
                 // 检查中心帧是否存在
-                if (!allAvailableFrameIds.Contains(centerFrameId))
+                // 使用 BinarySearch 提高查找效率 (O(log N))
+                int centerIndex = allAvailableFrameIds.BinarySearch(centerFrameId);
+                if (centerIndex < 0)
                 {
                     throw new InvalidOperationException($"Center frame {centerFrameId} is not available in cache");
                 }
@@ -373,55 +376,49 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
                 int idealTotalFrames = (int)(requestedDuration * fps);
                 int idealHalfFrames = idealTotalFrames / 2;
                 
-                // 找到中心帧在可用帧列表中的索引
-                int centerIndex = allAvailableFrameIds.IndexOf(centerFrameId);
-                
-                // 计算实际可用的前后帧数
-                int availableFramesBefore = centerIndex;
+                // 计算需要的后向帧数
+                int requiredFramesAfter = idealHalfFrames;
                 int availableFramesAfter = allAvailableFrameIds.Count - centerIndex - 1;
                 
-                // 检查是否有足够的帧数，如果不足则等待
-                int requiredFramesBefore = idealHalfFrames;
-                int requiredFramesAfter = idealHalfFrames;
-                
                 // 等待足够的帧数（最多等待3秒）
+                // 优化：只有在后向帧数不足时才等待。前向帧数不足无法通过等待解决（历史帧不会凭空出现）。
                 int maxWaitSeconds = 3;
-                int waitIntervalMs = 100; // 每50ms检查一次
+                int waitIntervalMs = 100; // 每100ms检查一次
                 int totalWaitTime = 0;
                 
-                while ((availableFramesBefore < requiredFramesBefore || availableFramesAfter < requiredFramesAfter) && totalWaitTime < maxWaitSeconds * 1000)
+                while (availableFramesAfter < requiredFramesAfter && totalWaitTime < maxWaitSeconds * 1000)
                 {
-                    // Console.WriteLine($"等待更多帧数据... 当前可用: 前{availableFramesBefore}帧, 后{availableFramesAfter}帧, 需要: 前{requiredFramesBefore}帧, 后{requiredFramesAfter}帧");
-                    
                     await Task.Delay(waitIntervalMs);
                     totalWaitTime += waitIntervalMs;
                     
                     // 重新获取可用帧列表
-                    allAvailableFrameIds = _scenesOfFrame.Keys.OrderBy(frameId => frameId).ToList();
+                    allAvailableFrameIds = _scenesOfFrame.Keys.ToList();
+                    allAvailableFrameIds.Sort();
                     
-                    if (!allAvailableFrameIds.Contains(centerFrameId))
+                    centerIndex = allAvailableFrameIds.BinarySearch(centerFrameId);
+                    if (centerIndex < 0)
                     {
                         throw new InvalidOperationException($"Center frame {centerFrameId} is no longer available in cache");
                     }
                     
-                    centerIndex = allAvailableFrameIds.IndexOf(centerFrameId);
-                    availableFramesBefore = centerIndex;
                     availableFramesAfter = allAvailableFrameIds.Count - centerIndex - 1;
                 }
                 
-                // 检查是否获得了足够的帧数
-                if (availableFramesBefore < requiredFramesBefore || availableFramesAfter < requiredFramesAfter)
+                // 确定最终的帧范围（Best Effort 策略：尽可能多地包含请求的帧，而不是抛出异常）
+                int actualFramesBefore = Math.Min(centerIndex, idealHalfFrames);
+                int actualFramesAfter = Math.Min(availableFramesAfter, idealHalfFrames);
+                
+                // 记录如果是由于超时导致的帧数不足
+                if (availableFramesAfter < requiredFramesAfter)
                 {
-                    throw new InvalidOperationException(
-                        $"等待超时：无法获得足够的帧数。当前可用: 前{availableFramesBefore}帧, 后{availableFramesAfter}帧, " +
-                        $"需要: 前{requiredFramesBefore}帧, 后{requiredFramesAfter}帧");
+                     Log.Warning($"Video generation timeout: could not get full duration. Requested after: {requiredFramesAfter}, Available: {availableFramesAfter}");
                 }
                 
-                // 确定最终的帧范围（使用完整的请求范围）
-                int startIndex = centerIndex - requiredFramesBefore;
-                int endIndex = centerIndex + requiredFramesAfter;
+                int startIndex = centerIndex - actualFramesBefore;
+                int endIndex = centerIndex + actualFramesAfter;
+                int count = endIndex - startIndex + 1;
                 
-                var selectedFrameIds = allAvailableFrameIds.GetRange(startIndex, endIndex - startIndex + 1);
+                var selectedFrameIds = allAvailableFrameIds.GetRange(startIndex, count);
                 
                 if (selectedFrameIds.Count == 0)
                 {
@@ -451,7 +448,17 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
                 {
                     if (_scenesOfFrame.TryGetValue(frameId, out var frame) && !frame.Empty())
                     {
-                        writer.Write(frame);
+                        // 确保帧尺寸一致，如果不一致需要缩放（通常应该是一致的）
+                        if (frame.Width != imageWidth || frame.Height != imageHeight)
+                        {
+                            using var resizedFrame = new Mat();
+                            Cv2.Resize(frame, resizedFrame, new Size(imageWidth, imageHeight));
+                            writer.Write(resizedFrame);
+                        }
+                        else
+                        {
+                            writer.Write(frame);
+                        }
                         writtenFrames++;
                     }
                 }
@@ -465,7 +472,6 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
                 Log.Information($"Video clip generated: {filepath}");
                 Log.Information($"Center frame: {centerFrameId}, Requested duration: {requestedDuration}s, Actual duration: {actualDuration:F2}s, FPS: {fps}");
                 Log.Information($"Frame range: {selectedFrameIds.First()} - {selectedFrameIds.Last()}, Written frames: {writtenFrames}/{selectedFrameIds.Count}");
-                Log.Information($"Used frames before center: {requiredFramesBefore}, after center: {requiredFramesAfter}");
             }
             catch (Exception ex)
             {
