@@ -1,5 +1,6 @@
 ﻿using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using System.Text.Json;
+using Serilog;
 
 namespace Perceptron.Domain.Entity.RegionDefinition;
 
@@ -159,25 +160,39 @@ public class ImageRegionDefinition : ImageBasedGeometric
 
     public static void SaveToJson(string filename, ImageRegionDefinition definition)
     {
-        string jsonString = JsonSerializer.Serialize(definition);
+        string jsonString = JsonSerializer.Serialize(definition, ImageRegionDefinitionContext.Default.ImageRegionDefinition);
         File.WriteAllText(filename, jsonString);
     }
 
     public static ImageRegionDefinition LoadFromJson(string filename, int imageWidth, int imageHeight)
     {
+        if (!Path.IsPathRooted(filename))
+        {
+            filename = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filename);
+        }
+
         ImageRegionDefinition definition = new ImageRegionDefinition();
 
         try
         {
             string jsonString = File.ReadAllText(filename);
-            definition = JsonSerializer.Deserialize<ImageRegionDefinition>(jsonString);
+            definition = JsonSerializer.Deserialize(jsonString, ImageRegionDefinitionContext.Default.ImageRegionDefinition);
             definition.SetImageSize(imageWidth, imageHeight);
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            string jsonString = File.ReadAllText("default-region.json");
-            definition = JsonSerializer.Deserialize<ImageRegionDefinition>(jsonString);
-            definition.SetImageSize(imageWidth, imageHeight);
+            Log.Fatal(e.Message);
+            try
+            {
+                string defaultPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default-region.json");
+                string jsonString = File.ReadAllText(defaultPath);
+                definition = JsonSerializer.Deserialize(jsonString, ImageRegionDefinitionContext.Default.ImageRegionDefinition);
+                definition.SetImageSize(imageWidth, imageHeight);
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal($"Failed to load default region definition: {ex.Message}");
+            }
         }
 
         return definition;

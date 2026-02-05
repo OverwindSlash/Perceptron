@@ -364,4 +364,6 @@ FodyWeavers.xsd
 
 # Onnx model
 *.onnx
+
+# log
 *.txt

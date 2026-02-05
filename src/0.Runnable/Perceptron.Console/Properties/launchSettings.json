@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Perceptron.Console": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

@@ -24,8 +24,6 @@ public class SnapshotSettings : ComponentSettings
     public const int DefaultVideoClipDurationSeconds = 10;
     public const double DefaultVideoFrameRate = 25.0;
 
-    private static readonly TextInfo TextInfo = new CultureInfo("en-US", false).TextInfo;
-
     public string SnapshotsDir { get; private set; } = DefaultSnapshotsDir;
     public bool SaveBestSnapshot { get; private set; } = DefaultSaveBestSnapshot;
     public BestSnapshotBy BestSnapshotBy { get; private set; } = DefaultBestSnapshotBy;
@@ -77,8 +75,7 @@ public class SnapshotSettings : ComponentSettings
         var bestSnapshotByString =
             PreferenceParser.ParseStringValue(preferences, "BestSnapshotBy", DefaultBestSnapshotBy.ToString()).Trim();
 
-        bestSnapshotByString = TextInfo.ToTitleCase(bestSnapshotByString);
-        var bestSnapshotBy = Enum.TryParse<BestSnapshotBy>(bestSnapshotByString, out var result) ? result : DefaultBestSnapshotBy;
+        var bestSnapshotBy = Enum.TryParse<BestSnapshotBy>(bestSnapshotByString, true, out var result) ? result : DefaultBestSnapshotBy;
 
         return bestSnapshotBy;
     }

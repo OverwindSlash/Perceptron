@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>..\..\..</DockerfileContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+    <PackageReference Include="Serilog" Version="4.3.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\1.Application\Perceptron.AppService.Console\Perceptron.AppService.Console.csproj" />
+    <ProjectReference Include="..\..\4.Repository\Repository.MinioMySQL\Repository.MinioMySQL.csproj" />
+    <ProjectReference Include="..\..\5.Component\AnnotationRender.OpenCV\AnnotationRender.OpenCV.csproj" />
+    <ProjectReference Include="..\..\5.Component\AnnotationSender.Udp\AnnotationSender.Udp.csproj" />
+    <ProjectReference Include="..\..\5.Component\Detector.YoloDotNet\Detector.YoloDotNet.csproj" />
+    <ProjectReference Include="..\..\5.Component\FrameBuffer.TwoModes\FrameBuffer.TwoModes.csproj" />
+    <ProjectReference Include="..\..\5.Component\MediaLoader.OpenCV\MediaLoader.OpenCV.csproj" />
+    <ProjectReference Include="..\..\5.Component\MessagePoster.RestfulJson\MessagePoster.RestfulJson.csproj" />
+    <ProjectReference Include="..\..\5.Component\RegionManager.DefinitionBased\RegionManager.DefinitionBased.csproj" />
+    <ProjectReference Include="..\..\5.Component\SnapshotManager.InMemory\SnapshotManager.InMemory.csproj" />
+    <ProjectReference Include="..\..\5.Component\Tracker.Sort\Tracker.Sort.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Config\default-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="RegionDefinitions\default-region.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -7,8 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\3.Domain\Perceptron.Domain\Perceptron.Domain.csproj" />
-    <ProjectReference Include="..\Algorithm.Common\Algorithm.Common.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\2.Service\Perceptron.Service\Perceptron.Service.csproj" />
   </ItemGroup>
 
 </Project>

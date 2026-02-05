@@ -21,6 +21,7 @@
     <File Path="spec/3.Domain/Entity/DetectedObject-Spec.md" />
     <File Path="spec/3.Domain/Entity/Frame-Spec.md" />
   </Folder>
+  <Folder Name="/spec/4.Repository/" />
   <Folder Name="/spec/5.Component/" />
   <Folder Name="/spec/5.Component/Annotation/">
     <File Path="spec/5.Component/Annotation/AnnotationRender-Spec.md" />
@@ -34,12 +35,24 @@
   <Folder Name="/spec/5.Component/MediaLoader/">
     <File Path="spec/5.Component/MediaLoader/MediaLoader-Spec.md" />
   </Folder>
+  <Folder Name="/spec/5.Component/MessagePoster/">
+    <File Path="spec/5.Component/MessagePoster/MessagePoster-Spec.md" />
+  </Folder>
+  <Folder Name="/spec/5.Component/SnapshotManager/">
+    <File Path="spec/5.Component/SnapshotManager/SnapshotManager-Spec.md" />
+  </Folder>
   <Folder Name="/spec/6.Algorithm/">
     <File Path="spec/6.Algorithm/AlgorithmModule-Spec.md" />
   </Folder>
   <Folder Name="/src/" />
+  <Folder Name="/src/0.Runnable/">
+    <Project Path="src/0.Runnable/Perceptron.Console/Perceptron.Console.csproj" Id="cf4817ed-6ae3-40b3-ba1d-9840a126e0ab" />
+  </Folder>
+  <Folder Name="/src/1.Application/">
+    <Project Path="src/1.Application/Perceptron.AppService.Console/Perceptron.AppService.Console.csproj" />
+  </Folder>
   <Folder Name="/src/2.Service/">
-    <Project Path="src/2.Service/Perceptron.Service/Perceptron.Service.csproj" Id="bf441be6-e854-4bc5-a9a8-73e492a9b810" />
+    <Project Path="src/2.Service/Perceptron.Service/Perceptron.Service.csproj" />
   </Folder>
   <Folder Name="/src/3.Domain/">
     <Project Path="src/3.Domain/Perceptron.Domain/Perceptron.Domain.csproj" />
@@ -89,6 +102,9 @@
   </Folder>
   <Folder Name="/test/3.Domain/">
     <Project Path="test/3.Domain/Perceptron.Domain.Tests/Perceptron.Domain.Tests.csproj" />
+  </Folder>
+  <Folder Name="/test/4.Repository/">
+    <Project Path="test/4.Repository/Repository.Tests/Repository.Tests.csproj" Id="5756fb02-3901-406e-8ac8-5a9d8f764a3c" />
   </Folder>
   <Folder Name="/test/5.Component/">
     <Project Path="test/5.Component/AnnotationRender.Tests/AnnotationRender.Tests.csproj" Id="53e1adb9-b300-484a-bb83-3049a014ef80" />
