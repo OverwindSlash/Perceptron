@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Dapper;
 using Minio;
 using Minio.DataModel.Args;
@@ -20,7 +21,7 @@ public class EventRepository : IEventRepository, IDisposable
     public bool WillStoreSnapshot { get; }
     public bool WillStoreVideoClip { get; }
 
-    private IMinioClient _minio;
+    protected IMinioClient _minio;
 
     public EventRepository(Dictionary<string, string>? preferences = null)
     {
@@ -34,7 +35,7 @@ public class EventRepository : IEventRepository, IDisposable
         InitObjectStorageClient();
     }
 
-    private void InitObjectStorageClient()
+    protected virtual void InitObjectStorageClient()
     {
         _minio = new MinioClient()
             .WithEndpoint(StorageUrl)
@@ -47,7 +48,7 @@ public class EventRepository : IEventRepository, IDisposable
     {
         try
         {
-            using var connection = new MySqlConnection(RdbConnectionString);
+            using var connection = CreateConnection();
             connection.Open();
 
             // 测试连接是否成功
@@ -83,17 +84,9 @@ public class EventRepository : IEventRepository, IDisposable
                     .WithBucket(bucketName);
                 await _minio.MakeBucketAsync(mbArgs).ConfigureAwait(false);
 
-                var policyJson = $@"{{
-    ""Version"": ""2012-10-17"",
-    ""Statement"": [
-        {{
-            ""Effect"": ""Allow"",
-            ""Principal"": {{""AWS"": ""*""}},
-            ""Action"": ""s3:GetObject"",
-            ""Resource"": ""arn:aws:s3:::{bucketName}/*""
-        }}
-    ]
-}}";
+                var policyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "BucketPolicy.json");
+                var policyTemplate = await File.ReadAllTextAsync(policyPath);
+                var policyJson = policyTemplate.Replace("__BUCKET_NAME__", bucketName);
                 // Change policy type parameter
                 var args = new SetPolicyArgs()
                     .WithBucket(bucketName)
@@ -242,7 +235,7 @@ public class EventRepository : IEventRepository, IDisposable
         try
         {
             // 为每个操作创建独立的数据库连接，避免并发访问问题
-            using var connection = new MySqlConnection(RdbConnectionString);
+            using var connection = CreateConnection();
             await connection.OpenAsync();
 
             var parameters = new
@@ -265,6 +258,11 @@ public class EventRepository : IEventRepository, IDisposable
         {
             Log.Error($"Insert Event into database failed. Error message: {ex.Message}");
         }
+    }
+
+    protected virtual DbConnection CreateConnection()
+    {
+        return new MySqlConnection(RdbConnectionString);
     }
 
     public Task<DomainEvent> LoadDomainEventAsync(string eventId)
