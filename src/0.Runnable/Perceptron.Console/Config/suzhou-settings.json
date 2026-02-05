@@ -155,7 +155,7 @@
     "AssemblyFile": "Repository.MinioMySQL.dll",
     "FullQualifiedClassName": "Repository.MinioMySQL.EventRepository",
     "Preferences": {
-      "RdbConnectionString": "server=127.0.0.1;port=3306;uid=root;pwd=cs202304;database=baize",
+      "RdbConnectionString": "server=127.0.0.1;port=3306;uid=root;pwd=cs202304;database=perceptron",
       "StorageUrl": "127.0.0.1:9000",
       "StorageUsername": "admin",
       "StoragePassword": "cs202304",

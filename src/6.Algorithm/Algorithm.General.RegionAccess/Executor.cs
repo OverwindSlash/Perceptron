@@ -364,7 +364,14 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             snapshotManager,
             repository,
             (sourceId, evtName, algoName, objId, regionName) => new EnterRegionEvent(sourceId, evtName, algoName, objId, regionName),
-            "entering"
+            "entering",
+            (evt, imgPath, jsonPath) =>
+            {
+                if (evt is EnterRegionEvent enEvt)
+                {
+                    enEvt.ImageJsonLocalPath = jsonPath;
+                }
+            }
         );
     }
 
@@ -405,7 +412,14 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             snapshotManager,
             repository,
             (sourceId, evtName, algoName, objId, regionName) => new LeaveRegionEvent(sourceId, evtName, algoName, objId, regionName),
-            "leaving"
+            "leaving",
+            (evt, imgPath, jsonPath) =>
+            {
+                if (evt is LeaveRegionEvent lvEvt)
+                {
+                    lvEvt.ImageJsonLocalPath = jsonPath;
+                }
+            }
         );
     }
 

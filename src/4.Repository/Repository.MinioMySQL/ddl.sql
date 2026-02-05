@@ -1,4 +1,4 @@
-﻿-- baize.events definition
+﻿-- events definition
 
 CREATE TABLE `events` (
                           `EventId` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '事件唯一标识符 (GUID)',

@@ -437,7 +437,7 @@ public class AnalysisPipelineTests
             // EventRepository
             {"EventRepository:AssemblyFile", "Repository.MinioMySQL.dll"},
             {"EventRepository:FullQualifiedClassName", "Repository.MinioMySQL.EventRepository"},
-            {"EventRepository:Preferences:RdbConnectionString", "server=127.0.0.1;port=3306;uid=root;pwd=cs202304;database=baize"},
+            {"EventRepository:Preferences:RdbConnectionString", "server=127.0.0.1;port=3306;uid=root;pwd=cs202304;database=perceptron"},
             {"EventRepository:Preferences:StorageUrl", "127.0.0.1:9000"},
             {"EventRepository:Preferences:StorageUsername", "admin"},
             {"EventRepository:Preferences:StoragePassword", "cs202304"},
