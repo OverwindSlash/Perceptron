@@ -11,6 +11,7 @@ using SkiaSharp;
 using System.Diagnostics;
 using YoloDotNet;
 using YoloDotNet.Enums;
+using YoloDotNet.ExecutionProvider.CoreML;
 using YoloDotNet.ExecutionProvider.Cpu;
 using YoloDotNet.ExecutionProvider.Cuda;
 using YoloDotNet.Models;
@@ -175,6 +176,9 @@ public class YoloDetector : ComponentBase, IObjectDetector
                 break;
             case "cuda":
                 yoloOptions.ExecutionProvider = new CudaExecutionProvider(_modelPath, _deviceId);
+                break;
+            case "coreML":
+                yoloOptions.ExecutionProvider = new CoreMLExecutionProvider(_modelPath);
                 break;
             default:
                 yoloOptions.ExecutionProvider = new CpuExecutionProvider(_modelPath);
