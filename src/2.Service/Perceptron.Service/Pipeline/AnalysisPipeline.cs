@@ -18,6 +18,7 @@ using Perceptron.Domain.Event.SnapshotManager;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline.Extension;
 using Serilog;
+using System.Collections.Concurrent;
 
 namespace Perceptron.Service.Pipeline;
 
@@ -60,6 +61,8 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     public IAnnotationRender AnnotationRender { get; private set; }
     public List<IAlgorithmModule> AlgorithmModules { get; private set; }
 
+    // object id to gui mapping
+    private ConcurrentDictionary<string, string> _objectId2GuiDictionary = new ConcurrentDictionary<string, string>();
 
     public AnalysisPipeline(IConfiguration config)
     {
@@ -374,6 +377,20 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         }
     }
 
+    public string QueryGuidByObjectId(string objectId)
+    {
+        if (_objectId2GuiDictionary.ContainsKey(objectId))
+        {
+            return _objectId2GuiDictionary[objectId];
+        }
+        else
+        {
+            string guid = Guid.NewGuid().ToString();
+            _objectId2GuiDictionary.TryAdd(objectId, guid);
+            return guid;
+        }
+    }
+
     public override void ProcessEvent(FrameExpiredEvent @event)
     {
         // TODO: 实现帧过期事件处理逻辑
@@ -381,6 +398,14 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
 
     public override void ProcessEvent(ObjectExpiredEvent @event)
     {
-        // TODO: 实现对象过期事件处理逻辑
+        _objectId2GuiDictionary.TryRemove(@event.Id, out _);
+    }
+
+    public override void Dispose()
+    {
+        _slideWindow.Dispose();
+        Provider.Dispose();
+
+        base.Dispose();
     }
 }

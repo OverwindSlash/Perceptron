@@ -55,4 +55,12 @@ public class PropertiesBag : IPropertiesBag
     {
         return new Dictionary<string, object?>(_properties);
     }
+
+    public virtual bool HasProperty(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) 
+            throw new ArgumentException("Key cannot be null or whitespace.", nameof(key));
+
+        return _properties.ContainsKey(key);
+    }
 }
