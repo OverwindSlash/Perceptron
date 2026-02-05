@@ -9,7 +9,7 @@ public class EnterRegionEvent : DomainEvent
 
     public string ObjectId { get; }
     public string RegionName { get; }
-    public string ObjectGuid { get; set; }
+    
     public string Annotations { get; set; }
 
     public EnterRegionEvent(string sourceId, string eventName, string algorithmName, string objectId, string regionName)

@@ -31,14 +31,21 @@
     <ProjectReference Include="..\..\5.Component\RegionManager.DefinitionBased\RegionManager.DefinitionBased.csproj" />
     <ProjectReference Include="..\..\5.Component\SnapshotManager.InMemory\SnapshotManager.InMemory.csproj" />
     <ProjectReference Include="..\..\5.Component\Tracker.Sort\Tracker.Sort.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.RegionAccess\Algorithm.General.RegionAccess.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Config\suzhou-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Config\default-settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="RegionDefinitions\default-region.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="RegionDefinitions\suzhou-region.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

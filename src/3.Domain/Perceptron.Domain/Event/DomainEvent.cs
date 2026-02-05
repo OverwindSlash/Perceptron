@@ -6,13 +6,8 @@ namespace Perceptron.Domain.Event;
 
 public abstract class DomainEvent : EventBase
 {
-    protected static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DictionaryKeyPolicy = JsonNamingPolicy.CamelCase
-    };
     public string SourceId { get; }
+    public string ObjectGuid { get; set; }
     public string EventType { get; }
     public string EventName { get; }
     public string AlgorithmName { get; }
@@ -31,6 +26,13 @@ public abstract class DomainEvent : EventBase
     public string VideoJsonLocalPath { get; set; }
 
     private readonly ConcurrentDictionary<string, object?> _customProperties = new();
+
+    public static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DictionaryKeyPolicy = JsonNamingPolicy.CamelCase
+    };
 
     // PropertyBag
     public void SetProperty(string key, object? value)

@@ -23,7 +23,6 @@ using Perceptron.Service.Pipeline;
 using Serilog;
 using System.Collections.Concurrent;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Algorithm.General.RegionAccess;
 
@@ -83,13 +82,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     private IDetectedObjectAnnotationGenerator _objAnnoGenerator;
     private IRegionAnnotationGenerator _regionAnnoGenerator;
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DictionaryKeyPolicy = JsonNamingPolicy.CamelCase
-    };
-
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
     {
@@ -136,7 +128,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         _regionAnnoGenerator = new BasicRegionAnnotationGenerator();
     }
 
-    public bool Initialize()
+    public override bool Initialize()
     {
         var provider = _pipeline.Provider;
 
@@ -438,7 +430,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         domainEvent.ObjectGuid = _pipeline.QueryGuidByObjectId(detectedObject.Id);
         
         // 2. Serialize Annotations (Synchronously)
-        var annotationJson = JsonSerializer.Serialize(frame.Annotation, _jsonOptions);
+        var annotationJson = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
         
         // Set Annotations property dynamically if it exists
         // (EnterRegionEvent, InRegionEvent, LeaveRegionEvent all have 'Annotations' property)
@@ -515,6 +507,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     {
         var annotation = frame.Annotation;
 
+        annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition, "#ffeca1"));
+
         //if (_willGenerateAnalysisAreas)
         //{
         //    annotation.AddShapes(_regionAnnoGenerator.GenerateAnalysisAreas(regionDefinition, _analysisAreaStrokeColor));
@@ -550,6 +544,33 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         if (!detectedObject.IsUnderAnalysis)
         {
             return annotation;
+        }
+
+        var rect = _objAnnoGenerator.GenerateBBox(detectedObject, "#8fce00", 1);
+        annotation.Shapes.Add(rect);
+
+        var text = _objAnnoGenerator.GenerateObjectText(detectedObject, "#8fce00", 30, true, true, false);
+        annotation.Shapes.Add(text);
+
+        if (detectedObject.HasProperty("EnterRegion") && detectedObject.GetProperty<bool>("EnterRegion"))
+        {
+            text.Content = $"{detectedObject.LocalId} Entering";
+            text.Style.Color = EnteringAnnotationColor;
+            rect.Style.StrokeColor = EnteringAnnotationColor;
+        }
+
+        if (detectedObject.HasProperty("InRegion") && detectedObject.GetProperty<bool>("InRegion"))
+        {
+            text.Content = $"{detectedObject.LocalId} In Region";
+            text.Style.Color = InAnnotationColor;
+            rect.Style.StrokeColor = InAnnotationColor;
+        }
+
+        if (detectedObject.HasProperty("LeaveRegion") && detectedObject.GetProperty<bool>("LeaveRegion"))
+        {
+            text.Content = $"{detectedObject.LocalId} Leaving";
+            text.Style.Color = LeavingAnnotationColor;
+            rect.Style.StrokeColor = LeavingAnnotationColor;
         }
 
         //// bbox annotation

@@ -9,7 +9,6 @@ public class LeaveRegionEvent : DomainEvent
 
     public string ObjectId { get; }
     public string RegionName { get; }
-    public string ObjectGuid { get; set; }
     public string Annotations { get; set; }
 
     public LeaveRegionEvent(string sourceId, string eventName, string algorithmName, string objectId, string regionName)
