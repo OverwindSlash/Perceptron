@@ -6,7 +6,7 @@ namespace Perceptron.Domain.Annotation;
 
 public class BasicObjectAnnotationGenerator : IDetectedObjectAnnotationGenerator
 {
-    public Shape GenerateBBox(DetectedObject detectedObject, string strokeColor, int strokeWidth)
+    public Shape GenerateBBox(DetectedObject detectedObject, string strokeColor = "#8fce00", int strokeWidth = 1)
     {
         var bbox = detectedObject.Bbox;
 
@@ -34,8 +34,8 @@ public class BasicObjectAnnotationGenerator : IDetectedObjectAnnotationGenerator
         return rect;
     }
 
-    public Shape GenerateObjectText(DetectedObject detectedObject, string textColor, int fontSize, 
-        bool showLabel, bool showTrackingId, bool showConfidence)
+    public Shape GenerateObjectText(DetectedObject detectedObject, string textColor = "#ffff00", int fontSize = 20,
+        bool showLabel = true, bool showTrackingId = true, bool showConfidence = false)
     {
         var bbox = detectedObject.Bbox;
 

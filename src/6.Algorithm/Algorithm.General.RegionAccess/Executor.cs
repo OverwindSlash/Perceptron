@@ -521,32 +521,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     {
         var annotation = frame.Annotation;
 
-        annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition, "#ffeca1"));
-
-        //if (_willGenerateAnalysisAreas)
-        //{
-        //    annotation.AddShapes(_regionAnnoGenerator.GenerateAnalysisAreas(regionDefinition, _analysisAreaStrokeColor));
-        //}
-
-        //if (_willGenerateExcludeAreas)
-        //{
-        //    annotation.AddShapes(_regionAnnoGenerator.GenerateExcludeAreas(regionDefinition, _excludeAreaStrokeColor));
-        //}
-
-        //if (_willGenerateLanes)
-        //{
-        //    annotation.AddShapes(_regionAnnoGenerator.GenerateLanes(regionDefinition, _lanesStrokeColor));
-        //}
-
-        //if (_willGenerateInterestAreas)
-        //{
-        //    annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition, _interestAreasStrokeColor));
-        //}
-
-        //if (_willGenerateCountLines)
-        //{
-        //    annotation.AddShapes(_regionAnnoGenerator.GenerateCountLines(regionDefinition, _enterLineStrokeColor, _leaveLineStrokeColor));
-        //}
+        annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition));
 
         return annotation;
     }
@@ -560,10 +535,10 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             return annotation;
         }
 
-        var rect = _objAnnoGenerator.GenerateBBox(detectedObject, "#8fce00", 1);
+        var rect = _objAnnoGenerator.GenerateBBox(detectedObject);
         annotation.Shapes.Add(rect);
 
-        var text = _objAnnoGenerator.GenerateObjectText(detectedObject, "#8fce00", 30, true, true, false);
+        var text = _objAnnoGenerator.GenerateObjectText(detectedObject, fontSize:30);
         annotation.Shapes.Add(text);
 
         if (detectedObject.HasProperty("EnterRegion") && detectedObject.GetProperty<bool>("EnterRegion"))
@@ -586,21 +561,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             text.Style.Color = LeavingAnnotationColor;
             rect.Style.StrokeColor = LeavingAnnotationColor;
         }
-
-        //// bbox annotation
-        //if (_willGenerateBBox)
-        //{
-        //    var rect = _objAnnoGenerator.GenerateBBox(detectedObject, _bBoxStrokeColor, _bBoxStrokeWidth);
-        //    annotation.Shapes.Add(rect);
-        //}
-
-        //// object text annotation
-        //if (_willGenerateObjText)
-        //{
-        //    var text = _objAnnoGenerator.GenerateObjectText(detectedObject, _objTextColor, _objTextFontSize,
-        //        _showLabel, _showTrackingId, _showConfidence);
-        //    annotation.Shapes.Add(text);
-        //}
 
         return annotation;
     }

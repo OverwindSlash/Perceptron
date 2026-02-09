@@ -28,6 +28,9 @@ public class DetectionFilter
     /// <returns>过滤后的对象列表</returns>
     public static List<DetectedObject> FilterInnerSameObjects(List<DetectedObject> detectedObjects, float innerObjectOverlapRatio)
     {
+        if (detectedObjects == null) throw new ArgumentNullException(nameof(detectedObjects));
+        if (innerObjectOverlapRatio < 0 || innerObjectOverlapRatio > 1) throw new ArgumentOutOfRangeException(nameof(innerObjectOverlapRatio), "Ratio must be between 0 and 1.");
+
         var filteredObjects = new List<DetectedObject>();
 
         // 标记需要移除的对象索引
@@ -50,7 +53,7 @@ public class DetectionFilter
                 if (currentObject.LabelId == otherObject.LabelId)
                 {
                     // 使用重叠百分比判断，当重叠大于设定阈值时进行过滤
-                    float overlapPercentage = currentObject.Bbox.OverlapPercentage(otherObject.Bbox);
+                    float overlapPercentage = currentObject.Bbox.IoF(otherObject.Bbox);
                     if (overlapPercentage > innerObjectOverlapRatio)
                     {
                         // 保留面积更大的边界框，移除面积较小的

@@ -84,10 +84,10 @@ namespace Perceptron.Domain.Entity.ObjectDetection
         public string TrackKey => $"{SourceId}|{TrackingId}";
 
         [JsonIgnore]
-        public string Id => $"{SourceId}_{LabelId}_{TrackingId}";
+        public string Id => $"{SourceId}_{Label}_{TrackingId}";
 
         [JsonIgnore]
-        public string LocalId => $"{LabelId}_{TrackingId}";
+        public string LocalId => $"{Label}_{TrackingId}";
 
         // 6.1 快照
         [JsonIgnore]
