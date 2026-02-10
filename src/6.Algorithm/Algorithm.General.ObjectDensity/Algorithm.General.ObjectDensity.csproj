@@ -10,8 +10,4 @@
     <ProjectReference Include="..\Algorithm.Common\Algorithm.Common.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Event\" />
-  </ItemGroup>
-
 </Project>

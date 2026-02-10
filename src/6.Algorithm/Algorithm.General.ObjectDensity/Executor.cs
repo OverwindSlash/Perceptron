@@ -1,12 +1,61 @@
 ﻿using Algorithm.Common;
+using Algorithm.General.ObjectDensity.Event;
+using MessagePipe;
+using Microsoft.Extensions.DependencyInjection;
+using OpenCvSharp;
+using Perceptron.Domain.Abstraction.Annotation;
+using Perceptron.Domain.Abstraction.MessagePoster;
+using Perceptron.Domain.Abstraction.Repository;
+using Perceptron.Domain.Abstraction.SnapshotManager;
+using Perceptron.Domain.Annotation;
+using Perceptron.Domain.Entity.Annotation;
+using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
+using Perceptron.Domain.Entity.RegionDefinition;
+using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using Perceptron.Domain.Entity.VideoStream;
+using Perceptron.Domain.Event;
+using Perceptron.Domain.Extensions;
+using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
+using Serilog;
+using System.Text.Json;
 
 namespace Algorithm.General.ObjectDensity;
 
 public class Executor : AlgorithmBase
 {
+    public const string DefaultObjectToBeCount = "person";
+    public const string DefaultCountRegionName = "Count Region";
+    public const int DefaultMaxCountThreshold = 10;
+    
+    private const bool DefaultWillSaveEventSnapshot = true;
+    private const bool DefaultWillSaveEventVideoClip = false;
+    public const int DefaultLocalEventIntervalSec = 1;
+    public const string DefaultEventSnapshotDir = "Events/ObjectDensity";
+    public const string DefaultEventName = "人群聚集超限事件";
+
+    public string ObjectToBeCount { get; }
+    public string CountRegionName { get; }
+    public int MaxCountThreshold { get; }
+
+    public bool WillSaveEventSnapshot { get; }
+    public bool WillSaveEventVideoClip { get; }
+    public int LocalEventIntervalSec { get; }
+    public string EventSnapshotDir { get; }
+    public string EventName { get; }
+
+    private IPublisher<DensityExceedThresholdEvent> _densityEventPublisher;
+
+    private ISnapshotManager _snapshotManager;
+    private IEventRepository _eventRepository;
+    private IMessagePoster _messagePoster;
+
+    private IDetectedObjectAnnotationGenerator _objAnnoGenerator;
+    private IRegionAnnotationGenerator _regionAnnoGenerator;
+
+    private DateTime _lastProcessTime = DateTime.MinValue;
+
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences) 
         : base(pipeline, preferences)
     {
@@ -15,10 +64,212 @@ public class Executor : AlgorithmBase
         AlgorithmName = "Object Density";
         AlgorithmVersion = "1.0.0";
         AlgorithmDescription = "Detects object density in video frames.";
+
+        ObjectToBeCount = PreferenceParser.ParseStringValue(preferences, "ObjectToBeCount", DefaultObjectToBeCount);
+        CountRegionName = PreferenceParser.ParseStringValue(preferences, "CountRegionName", DefaultCountRegionName);
+        MaxCountThreshold = PreferenceParser.ParseIntValue(preferences, "MaxCountThreshold", DefaultMaxCountThreshold);
+
+        WillSaveEventSnapshot =
+            PreferenceParser.ParseBoolValue(preferences, "WillSaveEventSnapshot", DefaultWillSaveEventSnapshot);
+
+        WillSaveEventVideoClip =
+            PreferenceParser.ParseBoolValue(preferences, "WillSaveEventVideoClip", DefaultWillSaveEventVideoClip);
+
+        LocalEventIntervalSec =
+            PreferenceParser.ParseIntValue(preferences, "LocalEventIntervalSec", DefaultLocalEventIntervalSec);
+        EventSnapshotDir = PreferenceParser.ParseStringValue(preferences, "EventSnapshotDir", DefaultEventSnapshotDir);
+        EventSnapshotDir.EnsureDirExistence();
+        EventName = PreferenceParser.ParseStringValue(preferences, "EventName", DefaultEventName);
+
+        _objAnnoGenerator = new BasicObjectAnnotationGenerator();
+        _regionAnnoGenerator = new BasicRegionAnnotationGenerator();
+    }
+
+    public override bool Initialize()
+    {
+        var provider = _pipeline.Provider;
+
+        _densityEventPublisher = provider.GetRequiredService<IPublisher<DensityExceedThresholdEvent>>();
+
+        _snapshotManager = _pipeline.SnapshotManager;
+        _eventRepository = _pipeline.EventRepository;
+        _messagePoster = _pipeline.MessagePoster;
+
+        return base.Initialize();
     }
 
     public override AnalysisResult Analyze(Frame frame)
     {
-        throw new NotImplementedException();
+        frame.Retain();
+
+        var regionManager = _pipeline.RegionManagers.First(rm => rm.SourceId == frame.SourceId);
+        var definition = regionManager.RegionDefinition;
+
+        var interestArea = definition.InterestAreas.FirstOrDefault(ia => ia.Name == CountRegionName);
+        if (interestArea == null)
+        {
+            // 处理未找到兴趣区域的情况
+            return new AnalysisResult(false);
+        }
+
+        int count = 0;
+        foreach (var detectedObject in frame.DetectedObjects)
+        {
+            if (!detectedObject.IsUnderAnalysis)
+            {
+                continue;
+            }
+
+            if (detectedObject.Label.ToLower() != ObjectToBeCount)
+            {
+                continue;
+            }
+
+            var objectCenter = new NormalizedPoint(frame.Scene.Width, frame.Scene.Height,
+                (int)detectedObject.CenterX, (int)detectedObject.CenterY);
+
+            if (!interestArea.IsPointInPolygon(objectCenter))
+            {
+                continue;
+            }
+
+            GenerateDetectedObjectAnnotation(frame, detectedObject);
+
+            count++;
+        }
+
+        if (count > MaxCountThreshold)
+        {
+            Log.Warning($"{ObjectToBeCount} number: {count} in detection region, exceed max thresh: {MaxCountThreshold}.");
+
+            frame.SetProperty("ObjectDensityExceed", true);
+
+            ProcessDensityExceedEvent(frame, count);
+        }
+
+        // 绘制区域与分析结果标注
+        GenerateRegionAnnotation(frame, definition);
+
+        frame.Dispose();
+
+        return new AnalysisResult(true);
+    }
+
+    private void ProcessDensityExceedEvent(Frame frame, int count)
+    {
+        if (CheckLocalEventInterval()) return;
+
+        // 1. Create Event
+        var densityEvent = new DensityExceedThresholdEvent(
+            sourceId: frame.SourceId,
+            eventName: EventName,
+            algorithmName: AlgorithmName,
+            regionName: CountRegionName,
+            objectToBeCount: ObjectToBeCount,
+            objectCount: count,
+            maxCountThresh: MaxCountThreshold
+        );
+
+        // 2. Serialize Annotations (Synchronously)
+        var annotationJson = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
+        densityEvent.Annotations = annotationJson;
+
+        // 3. Prepare Snapshot (Synchronously - critical for thread safety)
+        Mat? snapshot = null;
+        if (WillSaveEventSnapshot)
+        {
+            // Clone the scene because frame.Scene might be disposed/reused in the main loop
+            snapshot = frame.Scene.Clone();
+        }
+
+        var frameId = frame.FrameId;
+
+        // 4. Async Saving
+        string now = DateTime.Now.ToString("yyyyMMddhhmmss");
+        Task.Run(async () =>
+        {
+            try
+            {
+                using (snapshot) // Ensure disposal of the cloned snapshot
+                {
+                    string savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"));
+                    savePath.EnsureDirExistence();
+
+                    if (snapshot != null && !snapshot.IsDisposed)
+                    {
+                        string imagePath = Path.Combine(savePath, $"objectDensity_{now}.jpg");
+                        snapshot.SaveImage(imagePath);
+
+                        string annotationPath = Path.Combine(savePath, $"objectDensity_{now}.json");
+                        File.WriteAllText(annotationPath, annotationJson);
+
+                        densityEvent.ImageLocalPath = imagePath;
+                        densityEvent.ImageJsonLocalPath = annotationPath;
+                    }
+
+                    if (WillSaveEventVideoClip)
+                    {
+                        string videoPath = Path.Combine(savePath, $"objectDensity_{now}.mp4");
+                        // Note: GenerateVideoClipAroundFrameAsync might be fire-and-forget or long running.
+                        _snapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
+
+                        densityEvent.VideoLocalPath = videoPath;
+                    }
+
+                    await _eventRepository.SaveDomainEventAsync(densityEvent);
+
+                    _messagePoster.PostDomainEventMessage(densityEvent);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error processing object density event {EventName}", EventName);
+            }
+        });
+    }
+
+    private bool CheckLocalEventInterval()
+    {
+        if ((DateTime.Now - _lastProcessTime).TotalSeconds < LocalEventIntervalSec)
+        {
+            return true;
+        }
+
+        _lastProcessTime = DateTime.Now;
+        return false;
+    }
+
+    public VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)
+    {
+        var annotation = frame.Annotation;
+
+        if (frame.HasProperty("ObjectDensityExceed") && frame.GetProperty<bool>("ObjectDensityExceed"))
+        {
+            annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition, "#F44336"));
+        }
+        else
+        {
+            annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition));
+        }
+
+        return annotation;
+    }
+
+    public VisualAnnotation GenerateDetectedObjectAnnotation(Frame frame, DetectedObject detectedObject)
+    {
+        var annotation = frame.Annotation;
+
+        if (!detectedObject.IsUnderAnalysis)
+        {
+            return annotation;
+        }
+
+        var rect = _objAnnoGenerator.GenerateBBox(detectedObject);
+        annotation.Shapes.Add(rect);
+
+        var text = _objAnnoGenerator.GenerateObjectText(detectedObject, fontSize: 30);
+        annotation.Shapes.Add(text);
+
+        return annotation;
     }
 }

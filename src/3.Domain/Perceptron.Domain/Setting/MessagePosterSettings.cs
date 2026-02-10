@@ -46,16 +46,20 @@ public class MessagePosterSettings : ComponentSettings
 
     public static Dictionary<string, int> ParseEventSuppressionIntervals(Dictionary<string, string>? preferences)
     {
-        var json = PreferenceParser.ParseStringValue(preferences, "EventSuppressionIntervals", "{}");
-        try
+        var dict = PreferenceParser.ParserDictionary(preferences, "EventSuppressionIntervals", new Dictionary<string, string>());
+
+        var result = new Dictionary<string, int>();
+        foreach (var kvp in dict)
         {
-            if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, int>();
-            return JsonSerializer.Deserialize<Dictionary<string, int>>(json) ?? new Dictionary<string, int>();
+            if (int.TryParse(kvp.Value, out int interval))
+            {
+                result[kvp.Key] = interval;
+            }
+            else
+            {
+                Log.Warning("Invalid suppression interval for event {event}: {value}", kvp.Key, kvp.Value);
+            }
         }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Failed to parse EventSuppressionIntervals, using default empty dictionary.");
-            return new Dictionary<string, int>();
-        }
+        return result;
     }
 }
