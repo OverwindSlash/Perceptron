@@ -1,0 +1,56 @@
+{
+  "Name": "Suzhou-Demo",
+  "IsObjectAnalyzableRetain": false,
+  "IsDoubleLineCounting": false,
+  "AnalysisAreas": [
+    {
+      "Name": "analysis region",
+      "Points": [
+        {
+          "NormalizedX": 0,
+          "NormalizedY": 0
+        },
+        {
+          "NormalizedX": 1,
+          "NormalizedY": 0
+        },
+        {
+          "NormalizedX": 1,
+          "NormalizedY": 1
+        },
+        {
+          "NormalizedX": 0,
+          "NormalizedY": 1
+        }
+      ]
+    }
+  ],
+  "ExcludedAreas": [],
+  "Lanes": [],
+  "InterestAreas": [
+    {
+      "Name": "CountRegion",
+      "Type": "counting",
+      "RelativeTypes": [ "person" ],
+      "Points": [
+        {
+          "NormalizedX": 0.2764505119453925,
+          "NormalizedY": 0.3840909090909091
+        },
+        {
+          "NormalizedX": 0.5819112627986348,
+          "NormalizedY": 0.3886363636363636
+        },
+        {
+          "NormalizedX": 0.5767918088737202,
+          "NormalizedY": 0.7454545454545455
+        },
+        {
+          "NormalizedX": 0.2713310580204778,
+          "NormalizedY": 0.7545454545454545
+        }
+      ]
+    }
+  ],
+  "CountLines": []
+}

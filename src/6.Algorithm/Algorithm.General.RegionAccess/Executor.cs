@@ -148,9 +148,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
     public override AnalysisResult Analyze(Frame frame)
     {
-        var regionManager = _pipeline.RegionManagers.First(rm => rm.SourceId == frame.SourceId);
+        frame.Retain();
 
+        var regionManager = _pipeline.RegionManagers.First(rm => rm.SourceId == frame.SourceId);
         var definition = regionManager.RegionDefinition;
+
         var snapshotManager = _pipeline.SnapshotManager;
         var repository = _pipeline.EventRepository;
 
@@ -297,6 +299,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             // 更新对象的当前状态
             _objRegionStates[detectedObject.Id] = currentState;
         }
+
+        frame.Dispose();
 
         return new AnalysisResult(true);
     }

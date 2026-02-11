@@ -69,6 +69,26 @@ public static class PreferenceParser
         });
     }
 
+    public static Dictionary<string, string> ParserDictionary(Dictionary<string, string>? preferences, string key, Dictionary<string, string> defaultValue)
+    {
+        // 字典会以逗号分隔，键值对之间用冒号连接
+        // 例如："key1:value1,key2:value2,key3:value3"
+        return ParseValue(preferences, key, defaultValue, s =>
+        {
+            var dict = new Dictionary<string, string>();
+            var parts = s.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            
+            foreach (var part in parts)
+            {
+                var kv = part.Split(':', 2);
+                if (kv.Length != 2) throw new FormatException("Dictionary entry must be in 'key:value' format");
+                dict[kv[0].Trim()] = kv[1].Trim();
+            }
+
+            return dict;
+        });
+    }
+
     public static T ParseValue<T>(Dictionary<string, string>? preferences, string key, T defaultValue, Func<string, T> parser)
     {
         if (preferences == null)
@@ -97,5 +117,5 @@ public static class PreferenceParser
             Log.Warning("Invalid {Key} format. Reset to default: {DefaultValue}", key, defaultValue);
             return defaultValue;
         }
-    }
+    }    
 }
