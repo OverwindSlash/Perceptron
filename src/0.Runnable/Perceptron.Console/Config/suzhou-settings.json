@@ -17,7 +17,7 @@
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
         "SourceId": "Suzhou-Cam-001",
-        "VideoUri": "D:\\Video\\Ship\\suzhou.ts",
+        "VideoUri": "E:\\data\\boat\\river.ts",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -123,6 +123,22 @@
       "MinStreak": 8
     }
   },
+  //"Tracker": {
+  //  "AssemblyFile": "Tracker.DeepSort.dll",
+  //  "FullQualifiedClassName": "Tracker.DeepSort.DeepSortTracker",
+  //  "Preferences": {
+  //    "SessionDevice": "cuda",
+  //    "IouThreshold": 0.3,
+  //    "TargetConfidence": 0.4,
+  //    "MaxMisses": 50,
+  //    "AppearanceExtractorVersion": 0,
+  //    "AppearanceExtractorFilePath": "Models/osnet_x1_0_msmt17.onnx",
+  //    "AppearanceWeight": 0.775,
+  //    "FramesToAppearanceSmooth": 40,
+  //    "SmoothAppearanceWeight": 0.875,
+  //    "MinStreak": 8
+  //  }
+  //},
   "Snapshot": {
     "AssemblyFile": "SnapshotManager.InMemory.dll",
     "FullQualifiedClassName": "SnapshotManager.InMemory.SnapshotManager",
