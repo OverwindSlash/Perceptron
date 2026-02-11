@@ -16,4 +16,10 @@
     <ProjectReference Include="..\ComponentCommon\ComponentCommon.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Models\osnet_x1_0_msmt17.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

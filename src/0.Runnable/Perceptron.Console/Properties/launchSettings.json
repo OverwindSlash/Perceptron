@@ -2,7 +2,7 @@
   "profiles": {
     "Perceptron.Console": {
       "commandName": "Project",
-      "commandLineArgs": "-c Config/phq-boat-density-settings.json"
+      "commandLineArgs": "-c Config/suzhou-settings.json"
     },
     "Container (Dockerfile)": {
       "commandName": "Docker"

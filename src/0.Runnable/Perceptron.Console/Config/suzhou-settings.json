@@ -17,7 +17,7 @@
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
         "SourceId": "Suzhou-Cam-001",
-        "VideoUri": "E:\\data\\boat\\river.ts",
+        "VideoUri": "D:\\Video\\Ship\\suzhou.ts",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -65,7 +65,7 @@
     "AssemblyFile": "Detector.YoloDotNet.dll",
     "FullQualifiedClassName": "Detector.YoloDotNet.YoloDetector",
     "Preferences": {
-      "ModelPath": "Models/yolo11m.onnx",
+      "ModelPath": "Models/yolo11x.onnx",
       "ModelConfig": "Models/yolo11.json",
       "ExecutionProvider": "cuda",
       "DeviceId": 0,
