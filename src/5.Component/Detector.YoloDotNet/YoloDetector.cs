@@ -2,6 +2,7 @@
 using Detector.Common;
 using OpenCvSharp;
 using Perceptron.Domain.Abstraction.ObjectDetector;
+using Perceptron.Domain.Abstraction.RegionManager;
 using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Extensions;
@@ -58,6 +59,9 @@ public class YoloDetector : ComponentBase, IObjectDetector
     private List<string> _sourceTypeNames;
     private string _destinationTypeName;
 
+    // region managers
+    private List<IRegionManager> _regionManagers;
+
     // for yolo predictor
     private Yolo _predictor;
     private readonly List<string> _typeNames;
@@ -81,8 +85,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
         _maxBboxWidth = 1000;
         _maxBboxHeight = 1000;
 
-        _regionDetectionEnabled = false;
-        _detectionRegion = new Rect(0, 0, 0, 0);
+        // _regionDetectionEnabled = false;
+        // _detectionRegion = new Rect(0, 0, 0, 0);
 
         _tileDetectionEnabled = false;
         _tileDetectionSize = new Tuple<int, int>(1, 1);
@@ -108,10 +112,12 @@ public class YoloDetector : ComponentBase, IObjectDetector
         _detectedCount = 0;
     }
 
-    public void Init()
+    public void Init(List<IRegionManager> regionManagers)
     {
         Log.Information($"YoloDotNet detector initializing...");
         Stopwatch stopwatch = Stopwatch.StartNew();
+
+        _regionManagers = regionManagers;
 
         LoadPreferences(_preferences);
 
@@ -138,8 +144,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
         _filterLargeObject = DetectorSettings.ParseFilterLargeObject(preferences);
         _maxBboxWidth = DetectorSettings.ParseMaxBboxWidth(preferences);
         _maxBboxHeight = DetectorSettings.ParseMaxBboxHeight(preferences);
-        _regionDetectionEnabled = DetectorSettings.ParseRegionDetectionEnabled(preferences);
-        _detectionRegion = DetectorSettings.ParseDetectionRegion(preferences);
+        //_regionDetectionEnabled = DetectorSettings.ParseRegionDetectionEnabled(preferences);
+        //_detectionRegion = DetectorSettings.ParseDetectionRegion(preferences);
         _tileDetectionEnabled = DetectorSettings.ParseTileDetectionEnabled(preferences);
         _tileDetectionSize = DetectorSettings.ParseTileDetectionSize(preferences);
         _maxStitchGapPixel = DetectorSettings.ParseMaxStitchGapPixel(preferences);
@@ -154,7 +160,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
         Log.Verbose("TargetTypes: {Join}, DetectionStride: {DetectionStride}", string.Join(", ", _targetTypes), _detectionStride);
         Log.Verbose("FilterSmallObject:{FilterSmallObject}, MinBboxWidth: {MinBboxWidth}, MinBboxHeight: {MinBboxHeight}", _filterSmallObject, _minBboxWidth, _minBboxHeight);
         Log.Verbose("FilterLargeObject:{FilterLargeObject}, MaxBboxWidth: {MaxBboxWidth}, MaxBboxHeight: {MaxBboxHeight}", _filterLargeObject, _maxBboxWidth, _maxBboxHeight);
-        Log.Verbose("RegionDetectionEnabled: {RegionDetectionEnabled}, DetectionRegion: ({DetectionRegionX}, {DetectionRegionY}, {DetectionRegionWidth}, {DetectionRegionHeight})", _regionDetectionEnabled, _detectionRegion.X, _detectionRegion.Y, _detectionRegion.Width, _detectionRegion.Height);
+        //Log.Verbose("RegionDetectionEnabled: {RegionDetectionEnabled}, DetectionRegion: ({DetectionRegionX}, {DetectionRegionY}, {DetectionRegionWidth}, {DetectionRegionHeight})", _regionDetectionEnabled, _detectionRegion.X, _detectionRegion.Y, _detectionRegion.Width, _detectionRegion.Height);
         Log.Verbose("TileDetectionEnabled: {TileDetectionEnabled}, TileDetectionSize: {TileDetectionSize}, MaxStitchGapPixel: {MaxStitchGapPixel}, MinVerticalOverlapRatio: {MinVerticalOverlapRatio}", _tileDetectionEnabled, _tileDetectionSize, _maxStitchGapPixel, _minVerticalOverlapRatio);
         Log.Verbose("WillSuppressInnerSameObject: {WillSuppressInnerSameObject}, InnerOverlapRatio: {InnerObjectOverlapRatio}", _willSuppressInnerSameObject, _innerObjectOverlapRatio);
         Log.Verbose("WillMapObjectTypes: {WillMapObjectTypes}, Source: {Join}, To: {DestinationTypeName}", _willMapObjectTypes, string.Join(", ", _sourceTypeNames), _destinationTypeName);
@@ -231,20 +237,48 @@ public class YoloDetector : ComponentBase, IObjectDetector
             return new List<DetectedObject>();
         }
 
-        Mat inputImage = GenerateRegionImage(frame.Scene);
+        //Mat inputImage = GenerateRegionImage(frame.Scene);
 
-        using SKBitmap bitmap = inputImage.ToSKBitmap();
-        
-        var objectDetections = _predictor.RunObjectDetection(bitmap, confThresh, iouThresh);
+        List<Tuple<Mat, Rect>> imageAndRegions = GenerateAnalysisImages(frame);
 
-        List<DetectedObject> detectedObjects = GenerateDetectedObjects(frame, ConvertToYoloPrediction(objectDetections));
+        List<DetectedObject> detectedObjects = new List<DetectedObject>();
+        foreach (var imageAndRegion in imageAndRegions)
+        {
+            var image = imageAndRegion.Item1;
+            var rect = imageAndRegion.Item2;
 
-        detectedObjects = FilterDetectedObjects(detectedObjects);
+            using SKBitmap bitmap = image.ToSKBitmap();
+
+            var detections = _predictor.RunObjectDetection(bitmap, confThresh, iouThresh);
+            List<DetectedObject> analysisAreaDetections = GenerateDetectedObjects(frame, ConvertToYoloPrediction(detections, rect));
+            analysisAreaDetections = FilterDetectedObjects(analysisAreaDetections);
+
+            detectedObjects.AddRange(analysisAreaDetections);
+
+            image.Dispose();
+        }
 
         _detectedCount++;
 
         frame.Dispose();
         return detectedObjects;
+    }
+
+    private List<Tuple<Mat, Rect>> GenerateAnalysisImages(Frame frame)
+    {
+        var regionManager = _regionManagers.First(m => m.SourceId == frame.SourceId);
+        var regionDefinition = regionManager.RegionDefinition;
+
+        var imageAndRect = new List<Tuple<Mat, Rect>>(regionDefinition.AnalysisAreas.Count);
+
+        foreach (var analysisArea in regionDefinition.AnalysisAreas)
+        {
+            var analysisAreaRect = analysisArea.GetBoundingBox();
+            var analysisImage = new Mat(frame.Scene, analysisAreaRect);
+            imageAndRect.Add(new Tuple<Mat, Rect>(analysisImage, analysisAreaRect));
+        }
+
+        return imageAndRect;
     }
 
     private Mat GenerateRegionImage(Mat image)
@@ -299,7 +333,7 @@ public class YoloDetector : ComponentBase, IObjectDetector
         return detectedObjects;
     }
 
-    private List<YoloPrediction> ConvertToYoloPrediction(List<ObjectDetection> objectDetections)
+    private List<YoloPrediction> ConvertToYoloPrediction(List<ObjectDetection> objectDetections, Rect rect = new Rect())
     {
         var yoloPredictions = new List<YoloPrediction>(objectDetections.Count);
 
@@ -312,8 +346,8 @@ public class YoloDetector : ComponentBase, IObjectDetector
                 Confidence = (float)objectDetection.Confidence,
                 BBox = new Rect()
                 {
-                    X = objectDetection.BoundingBox.Left,
-                    Y = objectDetection.BoundingBox.Top,
+                    X = objectDetection.BoundingBox.Left + rect.X,
+                    Y = objectDetection.BoundingBox.Top + rect.Y,
                     Width = objectDetection.BoundingBox.Width,
                     Height = objectDetection.BoundingBox.Height
                 },
@@ -461,6 +495,9 @@ public class YoloDetector : ComponentBase, IObjectDetector
 
     public void Dispose()
     {
-        _predictor.Dispose();
+        if (_predictor != null)
+        {
+            _predictor.Dispose();
+        }
     }
 }

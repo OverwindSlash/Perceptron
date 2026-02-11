@@ -280,7 +280,10 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
 
         foreach (Mat snapshot in snapshots.Values)
         {
-            snapshot.Dispose();
+            if (!snapshot.IsDisposed)
+            {
+                snapshot.Dispose();
+            }
         }
 
         _snapshotsByScore.TryRemove(@event.Id, out var removedSnapshots);

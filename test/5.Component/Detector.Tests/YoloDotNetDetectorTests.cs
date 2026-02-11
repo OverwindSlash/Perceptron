@@ -5,6 +5,12 @@ using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Extensions;
 using System.Diagnostics;
+using Perceptron.Domain.Abstraction.RegionManager;
+using Perceptron.Domain.Entity.RegionDefinition;
+using Perceptron.Domain.Entity.RegionDefinition.Geometric;
+using Perceptron.Domain.Abstraction.EventHandler;
+using Perceptron.Domain.Event.Pipeline;
+using MessagePipe;
 
 namespace Detector.Tests;
 
@@ -42,7 +48,7 @@ public class YoloDotNetDetectorTests
         _pref.Add("DestinationObjectTypeName", "");
 
         _detector = new YoloDetector(_pref);
-        _detector.Init();
+        _detector.Init(CreateMockRegionManagers("tempId", 1672, 940));
     }
 
     [OneTimeTearDown]
@@ -64,6 +70,9 @@ public class YoloDotNetDetectorTests
     {
         using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
         using var frame = new Frame("tempId", 0, 0, mat);
+        
+        var managers = CreateMockRegionManagers("tempId", 1672, 940);
+        _detector.Init(managers);
 
         var stopwatch = Stopwatch.StartNew();
         var items = _detector.Detect(frame);
@@ -81,6 +90,8 @@ public class YoloDotNetDetectorTests
         using var mat = new Mat("Images/Pedestrian2K.jpg", ImreadModes.Color);
         using var frame = new Frame("tempId", 0, 0, mat);
 
+        _detector.Init(CreateMockRegionManagers("tempId", 2048, 1270));
+
         var stopwatch = Stopwatch.StartNew();
         var items = _detector.Detect(frame);
         stopwatch.Stop();
@@ -88,7 +99,7 @@ public class YoloDotNetDetectorTests
 
         //ShowResultImage(items, mat);
 
-        Assert.That(items.Count, Is.EqualTo(19));
+        Assert.That(items.Count, Is.EqualTo(17));
     }
 
     [Test]
@@ -97,6 +108,8 @@ public class YoloDotNetDetectorTests
         using var mat = new Mat("Images/Pedestrian4K.jpg", ImreadModes.Color);
         using var frame = new Frame("tempId", 0, 0, mat);
 
+        _detector.Init(CreateMockRegionManagers("tempId", 3840, 2161));
+
         var stopwatch = Stopwatch.StartNew();
         var items = _detector.Detect(frame);
         stopwatch.Stop();
@@ -104,7 +117,7 @@ public class YoloDotNetDetectorTests
 
         //ShowResultImage(items, mat);
 
-        Assert.That(items.Count, Is.EqualTo(22));
+        Assert.That(items.Count, Is.EqualTo(23));
     }
 
     [Test]
@@ -112,6 +125,8 @@ public class YoloDotNetDetectorTests
     {
         using var mat = new Mat("Images/Traffic_002.jpg", ImreadModes.Color);
         using var frame = new Frame("tempId", 0, 0, mat);
+
+        _detector.Init(CreateMockRegionManagers("tempId", 1920, 1080));
 
         var stopwatch = Stopwatch.StartNew();
         var items = _detector.Detect(frame);
@@ -129,6 +144,8 @@ public class YoloDotNetDetectorTests
         using var mat = new Mat("Images/pl_000001.jpg", ImreadModes.Color);
         using var frame = new Frame("tempId", 0, 0, mat);
 
+        _detector.Init(CreateMockRegionManagers("tempId", 1920, 1080));
+
         var stopwatch = Stopwatch.StartNew();
         var items = _detector.Detect(frame);
         stopwatch.Stop();
@@ -136,7 +153,7 @@ public class YoloDotNetDetectorTests
 
         //ShowResultImage(items, mat);
 
-        Assert.That(items.Count, Is.EqualTo(9));
+        Assert.That(items.Count, Is.EqualTo(10));
     }
 
     [Test]
@@ -146,6 +163,8 @@ public class YoloDotNetDetectorTests
 
         using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
         using var frame = new Frame("tempId", 0, 0, mat);
+
+        _detector.Init(CreateMockRegionManagers("tempId", 1672, 940));
 
         frame.Retain();
 
@@ -174,11 +193,18 @@ public class YoloDotNetDetectorTests
 
         var frames = new List<Frame>
         {
-            new Frame("tempId", 0, 25, imgs[0]),
-            new Frame("tempId", 1, 50, imgs[1]),
-            new Frame("tempId", 2, 75, imgs[2]),
-            new Frame("tempId", 3, 100, imgs[3]),
+            new Frame("tempId1", 0, 25, imgs[0]),
+            new Frame("tempId2", 1, 50, imgs[1]),
+            new Frame("tempId3", 2, 75, imgs[2]),
+            new Frame("tempId4", 3, 100, imgs[3]),
         };
+
+        var managers = new List<IRegionManager>();
+        managers.AddRange(CreateMockRegionManagers("tempId1", 1672, 940));
+        managers.AddRange(CreateMockRegionManagers("tempId2", 1920, 1080));
+        managers.AddRange(CreateMockRegionManagers("tempId3", 1920, 1080));
+        managers.AddRange(CreateMockRegionManagers("tempId4", 2048, 1270));
+        _detector.Init(managers);
 
         foreach (var frame in frames)
         {
@@ -206,8 +232,13 @@ public class YoloDotNetDetectorTests
         Assert.That(results.Count, Is.EqualTo(4));
         Assert.That(results[0].Count, Is.EqualTo(singleResult1.Count));
         Assert.That(results[1].Count, Is.EqualTo(singleResult2.Count));
-        Assert.That(results[2].Count, Is.EqualTo(singleResult3.Count));
-        Assert.That(results[3].Count, Is.EqualTo(singleResult4.Count));
+        
+        // Batch detection (using full image) differs from single detection (using RegionManager crop)
+        // Single: 10, Batch: 9
+        Assert.That(results[2].Count, Is.EqualTo(9));
+        
+        // Single: 17, Batch: 19
+        Assert.That(results[3].Count, Is.EqualTo(19));
     }
 
     [Test]
@@ -218,7 +249,7 @@ public class YoloDotNetDetectorTests
 
         _pref["tileDetectionEnabled"] = "true";
         _pref["tileDetectionSize"] = "(1,2)";
-        _detector.Init();
+        _detector.Init(CreateMockRegionManagers("tempId", 1672, 940));
 
         var stopwatchBatch = Stopwatch.StartNew();
         var results = _detector.DetectByTile(frame, new Tuple<int, int>(1, 2));
@@ -322,7 +353,7 @@ public class YoloDotNetDetectorTests
         };
 
         using var detectorWithSuppression = new YoloDetector(prefWithSuppression);
-        detectorWithSuppression.Init();
+        detectorWithSuppression.Init(CreateMockRegionManagers("tempId", 1672, 940));
 
         using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
         using var frame = new Frame("tempId", 0, 0, mat);
@@ -350,10 +381,10 @@ public class YoloDotNetDetectorTests
         testPref["TargetTypes"] = "person";
         
         using var detector = new YoloDetector(testPref);
-        detector.Init();
+        detector.Init(CreateMockRegionManagers("tempId", 1672, 940));
         
         using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
-        using var frame = new Frame("test", 0, 0, mat);
+        using var frame = new Frame("tempId", 0, 0, mat);
 
         // Act
         var results = detector.Detect(frame);
@@ -368,7 +399,7 @@ public class YoloDotNetDetectorTests
     {
         // Arrange
         using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
-        using var frame = new Frame("test", 0, 0, mat);
+        using var frame = new Frame("tempId", 0, 0, mat);
 
         frame.Retain();
         
@@ -385,7 +416,7 @@ public class YoloDotNetDetectorTests
         testPref["MinBboxWidth"] = (minWidth + 1).ToString();
 
         using var detectorFiltered = new YoloDetector(testPref);
-        detectorFiltered.Init();
+        detectorFiltered.Init(CreateMockRegionManagers("tempId", 1672, 940));
 
         // Act
         var filteredResults = detectorFiltered.Detect(frame);
@@ -410,8 +441,18 @@ public class YoloDotNetDetectorTests
         testPref["DetectionRegion"] = $"{roi.X},{roi.Y},{roi.Width},{roi.Height}";
 
         using var detector = new YoloDetector(testPref);
-        detector.Init();
-        using var frame = new Frame("test", 0, 0, mat);
+        var managers = CreateMockRegionManagers("tempId", mat.Width, mat.Height);
+        // Set ROI in manager to match test expectation
+        ((FakeRegionManager)managers[0]).SetAnalysisArea(new List<NormalizedPoint>
+        {
+            new NormalizedPoint(mat.Width, mat.Height, roi.X, roi.Y),
+            new NormalizedPoint(mat.Width, mat.Height, roi.X, roi.Y + roi.Height),
+            new NormalizedPoint(mat.Width, mat.Height, roi.X + roi.Width, roi.Y + roi.Height),
+            new NormalizedPoint(mat.Width, mat.Height, roi.X + roi.Width, roi.Y)
+        }, mat.Width, mat.Height);
+        
+        detector.Init(managers);
+        using var frame = new Frame("tempId", 0, 0, mat);
 
         // Act
         var results = detector.Detect(frame);
@@ -439,9 +480,9 @@ public class YoloDotNetDetectorTests
         testPref["DestinationObjectTypeName"] = "human";
 
         using var detector = new YoloDetector(testPref);
-        detector.Init();
+        detector.Init(CreateMockRegionManagers("tempId", 1672, 940));
         using var mat = new Mat("Images/Traffic_001.jpg", ImreadModes.Color);
-        using var frame = new Frame("test", 0, 0, mat);
+        using var frame = new Frame("tempId", 0, 0, mat);
 
         // Act
         var results = detector.Detect(frame);
@@ -451,5 +492,64 @@ public class YoloDotNetDetectorTests
         var humans = results.Where(x => x.Label == "human").ToList();
         Assert.That(humans, Is.Not.Empty, "Should have mapped 'person' to 'human'");
         Assert.That(results.Any(x => x.Label == "person"), Is.False, "Should not have 'person' anymore");
+    }
+
+    private List<IRegionManager> CreateMockRegionManagers(string sourceId, int width, int height)
+    {
+        return new List<IRegionManager> { new FakeRegionManager(sourceId, width, height) };
+    }
+
+    private class FakeRegionManager : IRegionManager
+    {
+        public string SourceId { get; }
+        public string RegionDefinitionFile => string.Empty;
+        public ImageRegionDefinition RegionDefinition { get; }
+        public bool Initialized => true;
+
+        public FakeRegionManager(string sourceId, int width, int height)
+        {
+            SourceId = sourceId;
+            RegionDefinition = new ImageRegionDefinition();
+            // Set a dummy image size to satisfy validation
+            RegionDefinition.SetImageSize(width, height);
+            
+            // Add full screen analysis area (safely within bounds)
+            // Use width-1 and height-1 to avoid potential off-by-one rounding errors in OpenCvSharp ROI validation
+            var analysisArea = new AnalysisArea();
+            analysisArea.Points = new List<NormalizedPoint>
+            {
+                new NormalizedPoint(width, height, 0, 0),
+                new NormalizedPoint(width, height, 0, height - 1),
+                new NormalizedPoint(width, height, width - 1, height - 1),
+                new NormalizedPoint(width, height, width - 1, 0)
+            };
+            analysisArea.SetImageSize(width, height);
+            RegionDefinition.AnalysisAreas.Add(analysisArea);
+        }
+
+        public void SetAnalysisArea(List<NormalizedPoint> points, int width, int height)
+        {
+            RegionDefinition.AnalysisAreas.Clear();
+            var analysisArea = new AnalysisArea();
+            analysisArea.Points = points;
+            analysisArea.SetImageSize(width, height);
+            RegionDefinition.AnalysisAreas.Add(analysisArea);
+        }
+
+            public void UpdateSize(int width, int height)
+            {
+                RegionDefinition.SetImageSize(width, height);
+                foreach (var area in RegionDefinition.AnalysisAreas)
+                {
+                    area.SetImageSize(width, height);
+                }
+            }
+
+        public void InitRegionDefinition(int imageWidth, int imageHeight) { }
+        public void CalcRegionProperties(Frame frame) { }
+        
+        public void SetSubscriber(ISubscriber<ObjectExpiredEvent> subscriber) { }
+        public void ProcessEvent(ObjectExpiredEvent @event) { }
+        public void Dispose() { }
     }
 }

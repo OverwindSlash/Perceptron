@@ -273,7 +273,7 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
     {
         Log.Information("Start analysis pipeline...");
 
-        ObjectDetector.Init(); // 延后初始化，为了兼容华为 Ascend 推理
+        ObjectDetector.Init(RegionManagers); // 延后初始化，为了兼容华为 Ascend 推理
 
         List<Task> allTasks = [];
         List<Task> videoTasks = [];

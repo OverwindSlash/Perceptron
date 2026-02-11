@@ -79,8 +79,6 @@
       "FilterLargeObject": false,
       "MaxBboxWidth": 500,
       "MaxBboxHeight": 400,
-      "RegionDetectionEnabled": false,
-      "DetectionRegion": "1452, 656, 1009, 331",
       "TileDetectionEnabled": false,
       "TileDetectionSize": "1, 2",
       "MaxStitchGapPixel": 3,
@@ -132,8 +130,8 @@
       "BestSnapshotBy": "confidence", // "confidence" | "area" | "width" | "height"
       "SnapshotExpansionRatio": 1.2,
       "MaxSnapshots": 10,
-      "MinSnapshotWidth": 10,
-      "MinSnapshotHeight": 10,
+      "MinSnapshotWidth": 50,
+      "MinSnapshotHeight": 50,
       "SnapshotRetentionDays": 1,
       "VideoClipDurationSeconds": 4,
       "VideoFrameRate": 25
@@ -146,9 +144,7 @@
       "WillPostMessage": true,
       "DestinationUrl": "http://127.0.0.1:5000/pipeline_event",
       "CheckDuplicateEvent": true,
-      "EventSuppressionIntervals": {
-        "Suzhou-Cam-001_船舶处于警戒区": 30
-      }
+      "EventSuppressionIntervals": "人员聚集事件:30,其他事件:100"
     }
   },
   "EventRepository": {
@@ -204,6 +200,20 @@
         "GenerateCountLines": true,
         "EnterLineStrokeColor": "#4e4e4e",
         "LeaveLineStrokeColor": "#4e4e4e"
+      }
+    },
+    {
+      "AssemblyFile": "Algorithm.General.ObjectDensity.dll",
+      "FullQualifiedClassName": "Algorithm.General.ObjectDensity.Executor",
+      "Preferences": {
+        "ObjectToBeCount": "person",
+        "CountRegionName": "CountRegion",
+        "MaxCountThreshold": 10,
+        "WillSaveEventSnapshot": true,
+        "WillSaveEventVideoClip": false,
+        "LocalEventIntervalSec": 3,
+        "EventSnapshotDir": "Events/HumanGathering",
+        "EventName": "人员聚集事件"
       }
     }
   ]
