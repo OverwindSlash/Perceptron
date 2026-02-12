@@ -33,11 +33,15 @@
     <ProjectReference Include="..\..\5.Component\Tracker.DeepSort\Tracker.DeepSort.csproj" />
     <ProjectReference Include="..\..\5.Component\Tracker.Sort\Tracker.Sort.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectDensity\Algorithm.General.ObjectDensity.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrence\Algorithm.General.ObjectOccurrence.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.RegionAccess\Algorithm.General.RegionAccess.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Config\fire-smoke-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Config\phq-boat-density-settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -48,6 +52,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Config\default-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="RegionDefinitions\fire-smoke-region.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="RegionDefinitions\default-region.json">

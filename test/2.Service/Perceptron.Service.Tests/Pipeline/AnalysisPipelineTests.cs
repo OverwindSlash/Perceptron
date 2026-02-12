@@ -405,10 +405,6 @@ public class AnalysisPipelineTests
             {"Tracker:FullQualifiedClassName", "Tracker.Sort.SortTracker"},
             {"Tracker:Preferences:IouThreshold", "0.1"},
             {"Tracker:Preferences:MaxMisses", "30"},
-            {"Tracker:Preferences:AppearanceWeight", "0.775"},
-            {"Tracker:Preferences:FramesToAppearanceSmooth", "40"},
-            {"Tracker:Preferences:SmoothAppearanceWeight", "0.875"},
-            {"Tracker:Preferences:MinStreak", "8"},
 
             // Snapshot
             {"Snapshot:AssemblyFile", "SnapshotManager.InMemory.dll"},

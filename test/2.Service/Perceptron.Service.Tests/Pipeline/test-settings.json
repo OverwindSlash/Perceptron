@@ -114,11 +114,7 @@
     "FullQualifiedClassName": "Tracker.Sort.SortTracker",
     "Preferences": {
       "IouThreshold": 0.1,
-      "MaxMisses": 30,
-      "AppearanceWeight": 0.775,
-      "FramesToAppearanceSmooth": 40,
-      "SmoothAppearanceWeight": 0.875,
-      "MinStreak": 8
+      "MaxMisses": 30
     }
   },
   "Snapshot": {

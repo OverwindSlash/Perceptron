@@ -43,6 +43,24 @@
     // }
     //}
   ],
+  "RegionManager": [
+    {
+      "AssemblyFile": "RegionManager.DefinitionBased.dll",
+      "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
+      "Preferences": {
+        "SourceId": "Suzhou-Cam-001",
+        "RegionDefinitionFile": "RegionDefinitions/suzhou-region.json"
+      }
+    }
+    //{
+    //  "AssemblyFile": "RegionManager.DefinitionBased.dll",
+    //  "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
+    //  "Preferences": {
+    //    "SourceId": "Sea-Cam-002",
+    //    "RegionDefinitionFile": "Pipeline/test-region.json"
+    //  }
+    //}
+  ],
   "InputFrameBuffer": {
     "AssemblyFile": "FrameBuffer.TwoModes.dll",
     "FullQualifiedClassName": "FrameBuffer.TwoModes.VideoFrameBuffer",
@@ -91,34 +109,12 @@
       "Names": "Alice,Bob,Charlie,David,Eve"
     }
   },
-  "RegionManager": [
-    {
-      "AssemblyFile": "RegionManager.DefinitionBased.dll",
-      "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
-      "Preferences": {
-        "SourceId": "Suzhou-Cam-001",
-        "RegionDefinitionFile": "RegionDefinitions/suzhou-region.json"
-      }
-    }
-    //{
-    //  "AssemblyFile": "RegionManager.DefinitionBased.dll",
-    //  "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
-    //  "Preferences": {
-    //    "SourceId": "Sea-Cam-002",
-    //    "RegionDefinitionFile": "Pipeline/test-region.json"
-    //  }
-    //}
-  ],
   "Tracker": {
     "AssemblyFile": "Tracker.Sort.dll",
     "FullQualifiedClassName": "Tracker.Sort.SortTracker",
     "Preferences": {
       "IouThreshold": 0.1,
-      "MaxMisses": 30,
-      "AppearanceWeight": 0.775,
-      "FramesToAppearanceSmooth": 40,
-      "SmoothAppearanceWeight": 0.875,
-      "MinStreak": 8
+      "MaxMisses": 30
     }
   },
   //"Tracker": {
@@ -128,7 +124,7 @@
   //    "SessionDevice": "cuda",
   //    "IouThreshold": 0.3,
   //    "TargetConfidence": 0.4,
-  //    "MaxMisses": 50,
+  //    "MaxMisses": 30,
   //    "AppearanceExtractorVersion": 0,
   //    "AppearanceExtractorFilePath": "Models/osnet_x1_0_msmt17.onnx",
   //    "AppearanceWeight": 0.775,

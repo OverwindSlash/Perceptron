@@ -43,6 +43,24 @@
     // }
     //}
   ],
+  "RegionManager": [
+    {
+      "AssemblyFile": "RegionManager.DefinitionBased.dll",
+      "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
+      "Preferences": {
+        "SourceId": "PHQ-FixCam-001",
+        "RegionDefinitionFile": "RegionDefinitions/phq-analysis-region.json"
+      }
+    }
+    //{
+    //  "AssemblyFile": "RegionManager.DefinitionBased.dll",
+    //  "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
+    //  "Preferences": {
+    //    "SourceId": "Sea-Cam-002",
+    //    "RegionDefinitionFile": "Pipeline/test-region.json"
+    //  }
+    //}
+  ],
   "InputFrameBuffer": {
     "AssemblyFile": "FrameBuffer.TwoModes.dll",
     "FullQualifiedClassName": "FrameBuffer.TwoModes.VideoFrameBuffer",
@@ -90,34 +108,12 @@
       "Names": "Alice,Bob,Charlie,David,Eve"
     }
   },
-  "RegionManager": [
-    {
-      "AssemblyFile": "RegionManager.DefinitionBased.dll",
-      "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
-      "Preferences": {
-        "SourceId": "PHQ-FixCam-001",
-        "RegionDefinitionFile": "RegionDefinitions/phq-analysis-region.json"
-      }
-    }
-    //{
-    //  "AssemblyFile": "RegionManager.DefinitionBased.dll",
-    //  "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
-    //  "Preferences": {
-    //    "SourceId": "Sea-Cam-002",
-    //    "RegionDefinitionFile": "Pipeline/test-region.json"
-    //  }
-    //}
-  ],
   "Tracker": {
     "AssemblyFile": "Tracker.Sort.dll",
     "FullQualifiedClassName": "Tracker.Sort.SortTracker",
     "Preferences": {
       "IouThreshold": 0.1,
-      "MaxMisses": 30,
-      "AppearanceWeight": 0.775,
-      "FramesToAppearanceSmooth": 40,
-      "SmoothAppearanceWeight": 0.875,
-      "MinStreak": 8
+      "MaxMisses": 30
     }
   },
   "Snapshot": {

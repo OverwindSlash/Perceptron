@@ -93,8 +93,6 @@ public class Executor : AlgorithmBase
 
         if (count > MaxCountThreshold)
         {
-            Log.Warning($"{ObjectToBeCount} number: {count} in detection region, exceed max thresh: {MaxCountThreshold}.");
-
             frame.SetProperty("ObjectDensityExceed", true);
 
             ProcessDensityExceedEvent(frame, count);
@@ -111,6 +109,8 @@ public class Executor : AlgorithmBase
     private void ProcessDensityExceedEvent(Frame frame, int count)
     {
         if (CheckLocalEventInterval()) return;
+
+        Log.Warning($"{ObjectToBeCount} number: {count} in detection region, exceed max thresh: {MaxCountThreshold}.");
 
         // 1. Create Event
         var densityEvent = new DensityExceedThresholdEvent(
