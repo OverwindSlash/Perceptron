@@ -182,8 +182,7 @@
         "ObjectToBeCount": "boat",
         "CountRegionName": "CountArea",
         "MaxCountThreshold": 50,
-        "WillSaveEventSnapshot": true,
-        "WillSaveEventVideoClip": false,
+        "GenerateObjText": false,
         "LocalEventIntervalSec": 3,
         "EventSnapshotDir": "Events/BoatCounting",
         "EventName": "船舶数量计数"

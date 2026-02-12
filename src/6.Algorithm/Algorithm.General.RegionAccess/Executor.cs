@@ -3,12 +3,9 @@ using Algorithm.General.RegionAccess.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
 using OpenCvSharp;
-using Perceptron.Domain.Abstraction.Annotation;
 using Perceptron.Domain.Abstraction.EventHandler;
-using Perceptron.Domain.Abstraction.MessagePoster;
 using Perceptron.Domain.Abstraction.Repository;
 using Perceptron.Domain.Abstraction.SnapshotManager;
-using Perceptron.Domain.Annotation;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
@@ -28,41 +25,35 @@ namespace Algorithm.General.RegionAccess;
 
 public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 {
-    private const string DefaultEventSnapshotDir = "Events/RegionAccess";
     private const string DefaultRegionName = "RestrictedArea";
     private static readonly List<string> DefaultRelativeTypes = [];
     private const int DefaultStateStabilityThreshold = 3;
-    private const string DefaultEnteringEventName = "EnterRegion";
-    private const string DefaultInEventName = "InRegion";
-    private const string DefaultLeavingEventName = "LeaveRegion";
     private const int DefaultFontSize = 16;
+    private const string DefaultEnteringEventName = "EnterRegion";
     private const string DefaultEnteringAnnotationColor = "#FF0000";
+    private const string DefaultInEventName = "InRegion";
     private const string DefaultInAnnotationColor = "#00FF00";
+    private const string DefaultLeavingEventName = "LeaveRegion";
     private const string DefaultLeavingAnnotationColor = "#0000FF";
-    private const bool DefaultWillSaveEventSnapshot = true;
-    private const bool DefaultWillSaveEventVideoClip = false;
 
-    public string EventSnapshotDir { get; }
-    public string RegionName { get; }
-    public List<string> RegionRelativeTypes { get; }
+    public string RegionName { get; private set; }
+    public List<string> RegionRelativeTypes { get; private set; }
 
-    public string EnteringEventName { get; }
-    public string InEventName { get; }
-    public string LeavingEventName { get; }
+    // 状态变化阈值：对象状态需要稳定多少帧后才发布事件（默认3帧）
+    public int StateStabilityThreshold { get; private set; }
 
-    public int FontSize { get; }
-    public string EnteringAnnotationColor { get; }
-    public string InAnnotationColor { get; }
-    public string LeavingAnnotationColor { get; }
+    public int FontSize { get; private set; }
+    public string EnteringEventName { get; private set; }
+    public string EnteringAnnotationColor { get; private set; }
+    public string InEventName { get; private set; }
+    public string InAnnotationColor { get; private set; }
+    public string LeavingEventName { get; private set; }
+    public string LeavingAnnotationColor { get; private set; }
 
-    public bool WillSaveEventSnapshot { get; }
-    public bool WillSaveEventVideoClip { get; }
 
     private IPublisher<EnterRegionEvent> _enterEventPublisher;
     private IPublisher<InRegionEvent> _inEventPublisher;
     private IPublisher<LeaveRegionEvent> _leaveEventPublisher;
-
-    private IMessagePoster _messagePoster;
 
     private ISubscriber<ObjectExpiredEvent> _oeSubscriber;
     private IDisposable _disposableOeSubscriber;
@@ -72,65 +63,28 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     // 状态稳定性跟踪：记录每个对象在当前状态下的持续帧数
     private ConcurrentDictionary<string, int> _objStateStabilityCounter = new();
 
-    // 状态变化阈值：对象状态需要稳定多少帧后才发布事件（默认3帧）
-    private readonly int _stateStabilityThreshold;
-
     private ConcurrentDictionary<string, bool> _objLastInRegionStatus;
 
-    private readonly AnalysisPipeline _pipeline;
-
-    private IDetectedObjectAnnotationGenerator _objAnnoGenerator;
-    private IRegionAnnotationGenerator _regionAnnoGenerator;
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
     {
-        _pipeline = pipeline;
-
         AlgorithmName = "Region Access";
         AlgorithmVersion = "1.0.0";
         AlgorithmDescription = "Detects access to specific regions in the video stream.";
 
-        EventSnapshotDir = PreferenceParser.ParseStringValue(preferences, "EventSnapshotDir", DefaultEventSnapshotDir);
-        EventSnapshotDir.EnsureDirExistence();
 
-        RegionName = PreferenceParser.ParseStringValue(preferences, "RegionName", DefaultRegionName);
+        
 
-        RegionRelativeTypes =
-            PreferenceParser.ParseStringListValue(preferences, "RegionRelativeTypes", DefaultRelativeTypes);
 
-        EnteringEventName =
-            PreferenceParser.ParseStringValue(preferences, "EnteringEventName", DefaultEnteringEventName);
-
-        InEventName = PreferenceParser.ParseStringValue(preferences, "InEventName", DefaultInEventName);
-
-        LeavingEventName =
-            PreferenceParser.ParseStringValue(preferences, "LeavingEventName", DefaultLeavingEventName);
-
-        FontSize = PreferenceParser.ParseIntValue(preferences, "FontSize", DefaultFontSize);
-        EnteringAnnotationColor = PreferenceParser.ParseStringValue(preferences, "EnteringAnnotationColor", DefaultEnteringAnnotationColor);
-        InAnnotationColor = PreferenceParser.ParseStringValue(preferences, "InAnnotationColor", DefaultInAnnotationColor);
-        LeavingAnnotationColor = PreferenceParser.ParseStringValue(preferences, "LeavingAnnotationColor", DefaultLeavingAnnotationColor);
-
-        WillSaveEventSnapshot =
-            PreferenceParser.ParseBoolValue(preferences, "WillSaveEventSnapshot", DefaultWillSaveEventSnapshot);
-
-        WillSaveEventVideoClip =
-            PreferenceParser.ParseBoolValue(preferences, "WillSaveEventVideoClip", DefaultWillSaveEventVideoClip);
-
-        _stateStabilityThreshold =
-            PreferenceParser.ParseIntValue(preferences, "StateStabilityThreshold", DefaultStateStabilityThreshold);
-        _stateStabilityThreshold = Math.Max(1, _stateStabilityThreshold); // 确保阈值至少为1
+        
 
         _objLastInRegionStatus = new ConcurrentDictionary<string, bool>();
-
-        _objAnnoGenerator = new BasicObjectAnnotationGenerator();
-        _regionAnnoGenerator = new BasicRegionAnnotationGenerator();
     }
 
     public override bool Initialize()
     {
-        var provider = _pipeline.Provider;
+        var provider = Pipeline.Provider;
 
         _enterEventPublisher = provider.GetRequiredService<IPublisher<EnterRegionEvent>>();
         _inEventPublisher = provider.GetRequiredService<IPublisher<InRegionEvent>>();
@@ -139,22 +93,38 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         var subscriber = provider.GetService<ISubscriber<ObjectExpiredEvent>>();
         this.SetSubscriber(subscriber);
 
-        _messagePoster = provider.GetRequiredService<IMessagePoster>();
+        // settings
+        RegionName = PreferenceParser.ParseStringValue(Preferences, "RegionName", DefaultRegionName);
 
-        IsInitialized = true;
+        RegionRelativeTypes =
+            PreferenceParser.ParseStringListValue(Preferences, "RegionRelativeTypes", DefaultRelativeTypes);
 
-        return true;
+        StateStabilityThreshold =
+            PreferenceParser.ParseIntValue(Preferences, "StateStabilityThreshold", DefaultStateStabilityThreshold);
+        StateStabilityThreshold = Math.Max(1, StateStabilityThreshold); // 确保阈值至少为1
+
+        FontSize = PreferenceParser.ParseIntValue(Preferences, "FontSize", DefaultFontSize);
+
+        EnteringEventName =
+            PreferenceParser.ParseStringValue(Preferences, "EnteringEventName", DefaultEnteringEventName);
+        EnteringAnnotationColor = PreferenceParser.ParseStringValue(Preferences, "EnteringAnnotationColor", DefaultEnteringAnnotationColor);
+
+        InEventName = PreferenceParser.ParseStringValue(Preferences, "InEventName", DefaultInEventName);
+        InAnnotationColor = PreferenceParser.ParseStringValue(Preferences, "InAnnotationColor", DefaultInAnnotationColor);
+
+        LeavingEventName =
+            PreferenceParser.ParseStringValue(Preferences, "LeavingEventName", DefaultLeavingEventName);
+        LeavingAnnotationColor = PreferenceParser.ParseStringValue(Preferences, "LeavingAnnotationColor", DefaultLeavingAnnotationColor);
+
+        return base.Initialize();
     }
 
     public override AnalysisResult Analyze(Frame frame)
     {
         frame.Retain();
 
-        var regionManager = _pipeline.RegionManagers.First(rm => rm.SourceId == frame.SourceId);
+        var regionManager = RegionManagers.First(rm => rm.SourceId == frame.SourceId);
         var definition = regionManager.RegionDefinition;
-
-        var snapshotManager = _pipeline.SnapshotManager;
-        var repository = _pipeline.EventRepository;
 
         var interestArea = definition.InterestAreas.FirstOrDefault(ia => ia.Name == RegionName);
         if (interestArea == null)
@@ -238,7 +208,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             _objStateStabilityCounter[detectedObject.Id] = stabilityCounter;
 
             // 只有当状态稳定达到阈值时才发布事件（首次达到阈值时发布）
-            bool reachStableThresh = stabilityCounter == _stateStabilityThreshold;
+            bool reachStableThresh = stabilityCounter == StateStabilityThreshold;
             
             // 根据当前状态设置属性
             string now = DateTime.Now.ToString("yyyyMMddhhmmss");
@@ -253,7 +223,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
                     if (reachStableThresh)
                     {
-                        ProcessEnteringEvent(frame, detectedObject, stabilityCounter, now, snapshotManager, repository);
+                        ProcessEnteringEvent(frame, detectedObject, stabilityCounter, now, SnapshotManager, EventRepository);
                     }
 
                     break;
@@ -267,7 +237,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
                     if (reachStableThresh)
                     {
-                        ProcessInRegionEvent(frame, detectedObject, stabilityCounter, now, snapshotManager, repository);
+                        ProcessInRegionEvent(frame, detectedObject, stabilityCounter, now, SnapshotManager, EventRepository);
                     }
 
                     break;
@@ -281,7 +251,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
                     if (reachStableThresh)
                     {
-                        ProcessLeavingEvent(frame, detectedObject, stabilityCounter, now, snapshotManager, repository);
+                        ProcessLeavingEvent(frame, detectedObject, stabilityCounter, now, SnapshotManager, EventRepository);
                     }
 
                     break;
@@ -445,7 +415,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         
         // 1. Create Event
         var domainEvent = eventFactory(frame.SourceId, eventName, AlgorithmName, detectedObject.Id, RegionName);
-        domainEvent.ObjectGuid = _pipeline.QueryGuidByObjectId(detectedObject.Id);
+        domainEvent.ObjectGuid = Pipeline.QueryGuidByObjectId(detectedObject.Id);
         
         // 2. Serialize Annotations (Synchronously)
         var annotationJson = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
@@ -485,7 +455,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                         snapshot.SaveImage(imagePath);
 
                         string annotationPath = Path.Combine(savePath, $"{filePrefix}_{now}.json");
-                        File.WriteAllText(annotationPath, annotationJson);
+                        await File.WriteAllTextAsync(annotationPath, annotationJson);
 
                         // Set ImageLocalPath (Available on DomainEvent or specific events)
                         // Assuming DomainEvent or specific events have ImageLocalPath. 
@@ -502,7 +472,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                     {
                         string videoPath = Path.Combine(savePath, $"{filePrefix}_{now}.mp4");
                         // Note: GenerateVideoClipAroundFrameAsync might be fire-and-forget or long running.
-                        snapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
+                        await snapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
                         
                         if (domainEvent is EnterRegionEvent e) e.VideoLocalPath = videoPath;
                         else if (domainEvent is InRegionEvent i) i.VideoLocalPath = videoPath;
@@ -511,7 +481,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
                     await repository.SaveDomainEventAsync(domainEvent);
 
-                    _messagePoster.PostDomainEventMessage(domainEvent);
+                    MessagePoster.PostDomainEventMessage(domainEvent);
                 }
             }
             catch (Exception ex)
@@ -521,16 +491,16 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         });
     }
 
-    public VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)
+    protected override VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)
     {
         var annotation = frame.Annotation;
 
-        annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition));
+        annotation.AddShapes(RegionAnnoGenerator.GenerateInterestAreas(regionDefinition));
 
         return annotation;
     }
 
-    public VisualAnnotation GenerateDetectedObjectAnnotation(Frame frame, DetectedObject detectedObject)
+    protected override VisualAnnotation GenerateDetectedObjectAnnotation(Frame frame, DetectedObject detectedObject)
     {
         var annotation = frame.Annotation;
 
@@ -539,10 +509,10 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             return annotation;
         }
 
-        var rect = _objAnnoGenerator.GenerateBBox(detectedObject);
+        var rect = ObjAnnoGenerator.GenerateBBox(detectedObject);
         annotation.Shapes.Add(rect);
 
-        var text = _objAnnoGenerator.GenerateObjectText(detectedObject, fontSize:30);
+        var text = ObjAnnoGenerator.GenerateObjectText(detectedObject, fontSize:FontSize);
         annotation.Shapes.Add(text);
 
         if (detectedObject.HasProperty("EnterRegion") && detectedObject.GetProperty<bool>("EnterRegion"))
