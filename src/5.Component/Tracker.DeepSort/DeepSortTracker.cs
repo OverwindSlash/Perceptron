@@ -111,6 +111,7 @@ namespace Tracker.DeepSort
         /// </summary>
         public void Track(Frame frame)
         {
+            frame.Retain();
             if (frame == null) throw new ArgumentNullException(nameof(frame));
             if (_matcher == null) throw new InvalidOperationException("Matcher not initialized.");
             //Console.WriteLine($"DetectedObjects count: {frame.DetectedObjects.Count}");
@@ -169,6 +170,7 @@ namespace Tracker.DeepSort
             //    Console.WriteLine($"Warning: Only {resulting.Count} out of {detectedObjects.Count} detected objects were matched to tracks. Unmatched objects will be removed from the frame.");
             //}
             frame.DetectedObjects = resulting;
+            frame.Dispose();
         }
 
         public void Dispose()
