@@ -113,7 +113,7 @@ namespace Tracker.DeepSort
         {
             if (frame == null) throw new ArgumentNullException(nameof(frame));
             if (_matcher == null) throw new InvalidOperationException("Matcher not initialized.");
-
+            //Console.WriteLine($"DetectedObjects count: {frame.DetectedObjects.Count}");
             var detectedObjects = frame.DetectedObjects ?? Array.Empty<Perceptron.Domain.Entity.ObjectDetection.DetectedObject>();
 
             // 过滤掉低置信度检测，避免无意义的 ReID 调用
@@ -121,6 +121,10 @@ namespace Tracker.DeepSort
                 .Select((d, idx) => (Obj: d, Index: idx))
                 .Where(x => x.Obj.Confidence >= _targetConfidence)
                 .ToArray();
+            //if (detectedObjects.Count != candidates.Length)
+            //{
+            //   Console.WriteLine($"Warning: DetectedObjects count ({detectedObjects.Count}) does not match tracks count ({candidates.Length}).");
+            //}
 
             if (candidates.Length == 0)
             {
@@ -131,10 +135,16 @@ namespace Tracker.DeepSort
             IPrediction[] predictions = candidates
                 .Select(c => new FramePrediction(c.Obj))
                 .ToArray();
-
+            //Console.WriteLine($"Filtered object count: {predictions.Length}");
             IReadOnlyList<Tracker.DeepSort.Matchers.Abstract.ITrack> tracks = _matcher.Run(frame.Scene, predictions);
+            //if (detectedObjects.Count != tracks.Count)
+            //{
+            //    Console.WriteLine($"Warning: DetectedObjects count ({detectedObjects.Count}) does not match tracks count ({tracks.Count}). This may indicate a mismatch in the matching process.");
+            //}
 
             // 将轨迹 Id 回写回原始 DetectedObjects（如果轨迹历史包含当前检测框）
+            // 同时收集被匹配到的 DetectedObject 引用，最终从 frame 中移除未匹配的项
+            var matched = new HashSet<Perceptron.Domain.Entity.ObjectDetection.DetectedObject>();
             foreach (var detectedObject in detectedObjects)
             {
                 var bbox = detectedObject.Bbox;
@@ -145,10 +155,20 @@ namespace Tracker.DeepSort
                     if (track.History != null && track.History.Contains(roi))
                     {
                         detectedObject.TrackingId = track.Id;
+                        matched.Add(detectedObject);
                         break;
                     }
                 }
             }
+
+            // 将未被匹配到的 detected object 从 frame 中移除
+            // 注意：Frame.DetectedObjects 是可写的 IReadOnlyList，因此这里构建新的 List 并赋值回去
+            var resulting = detectedObjects.Where(d => matched.Contains(d)).ToList();
+            //if (resulting.Count != detectedObjects.Count)
+            //{
+            //    Console.WriteLine($"Warning: Only {resulting.Count} out of {detectedObjects.Count} detected objects were matched to tracks. Unmatched objects will be removed from the frame.");
+            //}
+            frame.DetectedObjects = resulting;
         }
 
         public void Dispose()
