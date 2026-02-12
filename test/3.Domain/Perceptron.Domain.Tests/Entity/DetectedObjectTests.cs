@@ -239,7 +239,7 @@ namespace Perceptron.Domain.Tests.Entity
             var obj = new DetectedObject("src1", 10, time, 5, "car", 0.8765f, _defaultBbox, 99);
             var str = obj.ToString();
             
-            Assert.That(str, Contains.Substring("src1_5_99")); // Id
+            Assert.That(str, Contains.Substring("src1_car_99")); // Id
             Assert.That(str, Contains.Substring("src=src1"));
             Assert.That(str, Contains.Substring("frame=10"));
             Assert.That(str, Contains.Substring("t=2023-01-01T12:00:00.0000000Z")); // O format

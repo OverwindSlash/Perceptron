@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="YoloDotNet" Version="4.1.0" />
+    <PackageReference Include="YoloDotNet" Version="4.2.0" />
     <PackageReference Include="YoloDotNet.ExecutionProvider.CoreML" Version="1.1.0" />
     <PackageReference Include="YoloDotNet.ExecutionProvider.Cpu" Version="1.1.0" />
     <PackageReference Include="YoloDotNet.ExecutionProvider.Cuda" Version="1.1.0" />
@@ -21,6 +21,9 @@
 
   <ItemGroup>
     <None Update="Models\yolo11m.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Models\yolo11x.onnx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

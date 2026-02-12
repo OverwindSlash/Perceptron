@@ -79,8 +79,6 @@
       "FilterLargeObject": false,
       "MaxBboxWidth": 500,
       "MaxBboxHeight": 400,
-      "RegionDetectionEnabled": false,
-      "DetectionRegion": "1452, 656, 1009, 331",
       "TileDetectionEnabled": false,
       "TileDetectionSize": "1, 2",
       "MaxStitchGapPixel": 3,

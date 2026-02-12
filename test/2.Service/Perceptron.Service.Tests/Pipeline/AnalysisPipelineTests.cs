@@ -383,8 +383,6 @@ public class AnalysisPipelineTests
             {"Detector:Preferences:FilterLargeObject", "false"},
             {"Detector:Preferences:MaxBboxWidth", "500"},
             {"Detector:Preferences:MaxBboxHeight", "400"},
-            {"Detector:Preferences:RegionDetectionEnabled", "false"},
-            {"Detector:Preferences:DetectionRegion", "1452, 656, 1009, 331"},
             {"Detector:Preferences:TileDetectionEnabled", "false"},
             {"Detector:Preferences:TileDetectionSize", "1, 2"},
             {"Detector:Preferences:MaxStitchGapPixel", "3"},

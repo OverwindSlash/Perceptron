@@ -31,7 +31,7 @@ namespace MessagePoster.Tests
                 { "WillPostMessage", "false" },
                 { "DestinationUrl", "http://example.com/api" },
                 { "CheckDuplicateEvent", "true" },
-                { "EventSuppressionIntervals", "{\"EventA\": 10, \"EventB\": 20}" }
+                { "EventSuppressionIntervals", "EventA:10,EventB:20" }
             };
 
             var poster = new MessagePoster.RestfulJson.MessagePoster(prefs);
@@ -111,7 +111,7 @@ namespace MessagePoster.Tests
             var prefs = new Dictionary<string, string>
             {
                 { "CheckDuplicateEvent", "true" },
-                { "EventSuppressionIntervals", "{\"EventA\": 10}" }
+                { "EventSuppressionIntervals", "EventA:10" }
             };
             var poster = new MessagePoster.RestfulJson.MessagePoster(prefs);
             var evt = new TestDomainEvent("source1", "type", "EventA", "algo");

@@ -33,7 +33,7 @@ public class Executor : AlgorithmBase
     private const bool DefaultWillSaveEventVideoClip = false;
     public const int DefaultLocalEventIntervalSec = 1;
     public const string DefaultEventSnapshotDir = "Events/ObjectDensity";
-    public const string DefaultEventName = "人群聚集超限事件";
+    public const string DefaultEventName = "目标对象数量超限";
 
     public string ObjectToBeCount { get; }
     public string CountRegionName { get; }
@@ -137,6 +137,8 @@ public class Executor : AlgorithmBase
 
             count++;
         }
+
+        frame.SetProperty("ObjectCount", count);
 
         if (count > MaxCountThreshold)
         {
@@ -252,6 +254,27 @@ public class Executor : AlgorithmBase
             annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition));
         }
 
+        // text annotation
+        int count = frame.GetProperty<int>("ObjectCount");
+        var text = new Shape()
+        {
+            Id = "text_count",
+            Type = "text",
+            Content = $"count:{count}",
+            Position = new Position()
+            {
+                X = frame.Scene.Width - 250,
+                Y = 50
+            },
+            Style = new Style()
+            {
+                Color = "#FFFF33",
+                FontSize = 50,
+            }
+        };
+
+        annotation.AddShape(text);
+
         return annotation;
     }
 
@@ -267,8 +290,8 @@ public class Executor : AlgorithmBase
         var rect = _objAnnoGenerator.GenerateBBox(detectedObject);
         annotation.Shapes.Add(rect);
 
-        var text = _objAnnoGenerator.GenerateObjectText(detectedObject, fontSize: 30);
-        annotation.Shapes.Add(text);
+        // var text = _objAnnoGenerator.GenerateObjectText(detectedObject, fontSize: 30);
+        // annotation.Shapes.Add(text);
 
         return annotation;
     }

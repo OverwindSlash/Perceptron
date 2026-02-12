@@ -1,11 +1,12 @@
-﻿using Perceptron.Domain.Entity.ObjectDetection;
+﻿using Perceptron.Domain.Abstraction.RegionManager;
+using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.VideoStream;
 
 namespace Perceptron.Domain.Abstraction.ObjectDetector;
 
 public interface IObjectDetector : IDisposable
 {
-    void Init();
+    void Init(List<IRegionManager> regionManagers);
 
     IReadOnlyList<DetectedObject> Detect(Frame frame, float confThresh, float iouThresh);
 
