@@ -199,22 +199,24 @@
         "InterestAreasStrokeColor": "#ffeca1",
         "GenerateCountLines": true,
         "EnterLineStrokeColor": "#4e4e4e",
-        "LeaveLineStrokeColor": "#4e4e4e"
+        "EnterLineStrokeWidth": 2,
+        "LeaveLineStrokeColor": "#4e4e4e",
+        "LeaveLineStrokeWidth": 2
       }
     },
-    {
-      "AssemblyFile": "Algorithm.General.ObjectDensity.dll",
-      "FullQualifiedClassName": "Algorithm.General.ObjectDensity.Executor",
-      "Preferences": {
-        "ObjectToBeCount": "person",
-        "CountRegionName": "CountRegion",
-        "MaxCountThreshold": 10,
-        "WillSaveEventSnapshot": true,
-        "WillSaveEventVideoClip": false,
-        "LocalEventIntervalSec": 3,
-        "EventSnapshotDir": "Events/HumanGathering",
-        "EventName": "人员聚集事件"
-      }
-    }
+    //{
+    //  "AssemblyFile": "Algorithm.General.ObjectDensity.dll",
+    //  "FullQualifiedClassName": "Algorithm.General.ObjectDensity.Executor",
+    //  "Preferences": {
+    //    "ObjectToBeCount": "person",
+    //    "CountRegionName": "CountRegion",
+    //    "MaxCountThreshold": 10,
+    //    "WillSaveEventSnapshot": true,
+    //    "WillSaveEventVideoClip": false,
+    //    "LocalEventIntervalSec": 3,
+    //    "EventSnapshotDir": "Events/HumanGathering",
+    //    "EventName": "人员聚集事件"
+    //  }
+    //}
   ]
 }

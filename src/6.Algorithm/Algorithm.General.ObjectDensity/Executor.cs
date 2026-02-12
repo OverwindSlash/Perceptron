@@ -3,13 +3,7 @@ using Algorithm.General.ObjectDensity.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
 using OpenCvSharp;
-using Perceptron.Domain.Abstraction.Annotation;
-using Perceptron.Domain.Abstraction.MessagePoster;
-using Perceptron.Domain.Abstraction.Repository;
-using Perceptron.Domain.Abstraction.SnapshotManager;
-using Perceptron.Domain.Annotation;
 using Perceptron.Domain.Entity.Annotation;
-using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.RegionDefinition;
 using Perceptron.Domain.Entity.RegionDefinition.Geometric;
@@ -28,81 +22,38 @@ public class Executor : AlgorithmBase
     public const string DefaultObjectToBeCount = "person";
     public const string DefaultCountRegionName = "Count Region";
     public const int DefaultMaxCountThreshold = 10;
-    
-    private const bool DefaultWillSaveEventSnapshot = true;
-    private const bool DefaultWillSaveEventVideoClip = false;
-    public const int DefaultLocalEventIntervalSec = 1;
-    public const string DefaultEventSnapshotDir = "Events/ObjectDensity";
-    public const string DefaultEventName = "目标对象数量超限";
 
-    public string ObjectToBeCount { get; }
-    public string CountRegionName { get; }
-    public int MaxCountThreshold { get; }
-
-    public bool WillSaveEventSnapshot { get; }
-    public bool WillSaveEventVideoClip { get; }
-    public int LocalEventIntervalSec { get; }
-    public string EventSnapshotDir { get; }
-    public string EventName { get; }
+    public string ObjectToBeCount { get; private set; }
+    public string CountRegionName { get; private set; }
+    public int MaxCountThreshold { get; private set; }
 
     private IPublisher<DensityExceedThresholdEvent> _densityEventPublisher;
-
-    private ISnapshotManager _snapshotManager;
-    private IEventRepository _eventRepository;
-    private IMessagePoster _messagePoster;
-
-    private IDetectedObjectAnnotationGenerator _objAnnoGenerator;
-    private IRegionAnnotationGenerator _regionAnnoGenerator;
-
-    private DateTime _lastProcessTime = DateTime.MinValue;
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences) 
         : base(pipeline, preferences)
     {
-        _pipeline = pipeline;
-
         AlgorithmName = "Object Density";
         AlgorithmVersion = "1.0.0";
         AlgorithmDescription = "Detects object density in video frames.";
-
-        ObjectToBeCount = PreferenceParser.ParseStringValue(preferences, "ObjectToBeCount", DefaultObjectToBeCount);
-        CountRegionName = PreferenceParser.ParseStringValue(preferences, "CountRegionName", DefaultCountRegionName);
-        MaxCountThreshold = PreferenceParser.ParseIntValue(preferences, "MaxCountThreshold", DefaultMaxCountThreshold);
-
-        WillSaveEventSnapshot =
-            PreferenceParser.ParseBoolValue(preferences, "WillSaveEventSnapshot", DefaultWillSaveEventSnapshot);
-
-        WillSaveEventVideoClip =
-            PreferenceParser.ParseBoolValue(preferences, "WillSaveEventVideoClip", DefaultWillSaveEventVideoClip);
-
-        LocalEventIntervalSec =
-            PreferenceParser.ParseIntValue(preferences, "LocalEventIntervalSec", DefaultLocalEventIntervalSec);
-        EventSnapshotDir = PreferenceParser.ParseStringValue(preferences, "EventSnapshotDir", DefaultEventSnapshotDir);
-        EventSnapshotDir.EnsureDirExistence();
-        EventName = PreferenceParser.ParseStringValue(preferences, "EventName", DefaultEventName);
-
-        _objAnnoGenerator = new BasicObjectAnnotationGenerator();
-        _regionAnnoGenerator = new BasicRegionAnnotationGenerator();
     }
 
     public override bool Initialize()
     {
-        var provider = _pipeline.Provider;
-
+        var provider = Pipeline.Provider;
         _densityEventPublisher = provider.GetRequiredService<IPublisher<DensityExceedThresholdEvent>>();
 
-        _snapshotManager = _pipeline.SnapshotManager;
-        _eventRepository = _pipeline.EventRepository;
-        _messagePoster = _pipeline.MessagePoster;
+        ObjectToBeCount = PreferenceParser.ParseStringValue(Preferences, "ObjectToBeCount", DefaultObjectToBeCount);
+        CountRegionName = PreferenceParser.ParseStringValue(Preferences, "CountRegionName", DefaultCountRegionName);
+        MaxCountThreshold = PreferenceParser.ParseIntValue(Preferences, "MaxCountThreshold", DefaultMaxCountThreshold);
 
-        return base.Initialize();
+        return base.Initialize(); ;
     }
 
     public override AnalysisResult Analyze(Frame frame)
     {
         frame.Retain();
 
-        var regionManager = _pipeline.RegionManagers.First(rm => rm.SourceId == frame.SourceId);
+        var regionManager = Pipeline.RegionManagers.First(rm => rm.SourceId == frame.SourceId);
         var definition = regionManager.RegionDefinition;
 
         var interestArea = definition.InterestAreas.FirstOrDefault(ia => ia.Name == CountRegionName);
@@ -203,7 +154,7 @@ public class Executor : AlgorithmBase
                         snapshot.SaveImage(imagePath);
 
                         string annotationPath = Path.Combine(savePath, $"objectDensity_{now}.json");
-                        File.WriteAllText(annotationPath, annotationJson);
+                        await File.WriteAllTextAsync(annotationPath, annotationJson);
 
                         densityEvent.ImageLocalPath = imagePath;
                         densityEvent.ImageJsonLocalPath = annotationPath;
@@ -213,14 +164,15 @@ public class Executor : AlgorithmBase
                     {
                         string videoPath = Path.Combine(savePath, $"objectDensity_{now}.mp4");
                         // Note: GenerateVideoClipAroundFrameAsync might be fire-and-forget or long running.
-                        _snapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
+                        await SnapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
 
                         densityEvent.VideoLocalPath = videoPath;
                     }
 
-                    await _eventRepository.SaveDomainEventAsync(densityEvent);
+                    await EventRepository.SaveDomainEventAsync(densityEvent);
+                    MessagePoster.PostDomainEventMessage(densityEvent);
 
-                    _messagePoster.PostDomainEventMessage(densityEvent);
+                    _densityEventPublisher.Publish(densityEvent);
                 }
             }
             catch (Exception ex)
@@ -230,37 +182,30 @@ public class Executor : AlgorithmBase
         });
     }
 
-    private bool CheckLocalEventInterval()
-    {
-        if ((DateTime.Now - _lastProcessTime).TotalSeconds < LocalEventIntervalSec)
-        {
-            return true;
-        }
-
-        _lastProcessTime = DateTime.Now;
-        return false;
-    }
-
-    public VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)
+    protected override VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)
     {
         var annotation = frame.Annotation;
 
         if (frame.HasProperty("ObjectDensityExceed") && frame.GetProperty<bool>("ObjectDensityExceed"))
         {
-            annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition, "#F44336"));
+            annotation.AddShapes(RegionAnnoGenerator.GenerateInterestAreas(regionDefinition, "#F44336"));
         }
         else
         {
-            annotation.AddShapes(_regionAnnoGenerator.GenerateInterestAreas(regionDefinition));
+            annotation.AddShapes(RegionAnnoGenerator.GenerateInterestAreas(regionDefinition));
         }
 
         // text annotation
+        var countArea = regionDefinition.InterestAreas.FirstOrDefault(ia => ia.Name == CountRegionName);
+        var objectNames = string.Join(',', countArea.RelativeTypes);
+
         int count = frame.GetProperty<int>("ObjectCount");
+        
         var text = new Shape()
         {
             Id = "text_count",
             Type = "text",
-            Content = $"count:{count}",
+            Content = $"{objectNames} count:{count}",
             Position = new Position()
             {
                 X = frame.Scene.Width - 250,
@@ -274,24 +219,6 @@ public class Executor : AlgorithmBase
         };
 
         annotation.AddShape(text);
-
-        return annotation;
-    }
-
-    public VisualAnnotation GenerateDetectedObjectAnnotation(Frame frame, DetectedObject detectedObject)
-    {
-        var annotation = frame.Annotation;
-
-        if (!detectedObject.IsUnderAnalysis)
-        {
-            return annotation;
-        }
-
-        var rect = _objAnnoGenerator.GenerateBBox(detectedObject);
-        annotation.Shapes.Add(rect);
-
-        // var text = _objAnnoGenerator.GenerateObjectText(detectedObject, fontSize: 30);
-        // annotation.Shapes.Add(text);
 
         return annotation;
     }

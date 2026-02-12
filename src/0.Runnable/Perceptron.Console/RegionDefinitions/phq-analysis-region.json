@@ -178,8 +178,8 @@
   "InterestAreas": [
     {
       "Name": "CountArea",
-      "Type": "",
-      "RelativeTypes": [],
+      "Type": "Counting",
+      "RelativeTypes": ["boat"],
       "Points": [
         {
           "NormalizedX": 0.2615638766519824,
