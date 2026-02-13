@@ -33,7 +33,8 @@ public class Frame : PropertiesBag, IDisposable
     {
         if (string.IsNullOrWhiteSpace(sourceId)) throw new ArgumentException("SourceId cannot be null or whitespace.", nameof(sourceId));
         if (frameId < 0) throw new ArgumentOutOfRangeException(nameof(frameId), "FrameId must be >= 0.");
-        if (offsetMilliSec < 0) throw new ArgumentOutOfRangeException(nameof(offsetMilliSec), "Offset must be >= 0.");
+        //if (offsetMilliSec < 0) throw new ArgumentOutOfRangeException(nameof(offsetMilliSec), "Offset must be >= 0.");
+        if (offsetMilliSec < 0) offsetMilliSec = 0;
         if (scene == null) throw new ArgumentNullException(nameof(scene));
         if (scene.Empty()) throw new ArgumentException("Scene cannot be empty.", nameof(scene));
 

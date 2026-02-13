@@ -283,8 +283,19 @@ public class VideoLoader : ComponentBase, IVideoLoader
                             Thread.Sleep(RetryDelayMs);
                         }
 
+                        var lastFrameIndex = _frameIndex;
                         if (CreateVideoCapture(VideoUri))
                         {
+                            // CreateVideoCapture resets State to Opened, restore it to Running to keep the loop alive.
+                            State = VideoLoaderState.Running;
+                            
+                            // Restore the position for local video files.
+                            if (_isLocalVideoFile)
+                            {
+                                Log.Warning("Recovering from error at frame {FrameIndex}. Skipping to next frame.", lastFrameIndex);
+                                Seek(lastFrameIndex);
+                            }
+
                             continue;   // re-grab
                         }
                         else

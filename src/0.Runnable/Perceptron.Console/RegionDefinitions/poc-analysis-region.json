@@ -1,0 +1,184 @@
+{
+  "Name": "poc-analysis-zone",
+  "IsObjectAnalyzableRetain": false,
+  "IsDoubleLineCounting": false,
+  "AnalysisAreas": [
+    {
+      "Name": "AnalysisArea1",
+      "Points": [
+        {
+          "NormalizedX": 0.5071585903083701,
+          "NormalizedY": 0.34068627450980393
+        },
+        {
+          "NormalizedX": 0.6115088105726872,
+          "NormalizedY": 0.34068627450980393
+        },
+        {
+          "NormalizedX": 0.6115088105726872,
+          "NormalizedY": 0.4375
+        },
+        {
+          "NormalizedX": 0.5071585903083701,
+          "NormalizedY": 0.4375
+        }
+      ]
+    },
+    {
+      "Name": "AnalysisArea2",
+      "Points": [
+        {
+          "NormalizedX": 0.6932819383259912,
+          "NormalizedY": 0.3547794117647059
+        },
+        {
+          "NormalizedX": 0.7802863436123348,
+          "NormalizedY": 0.3547794117647059
+        },
+        {
+          "NormalizedX": 0.7802863436123348,
+          "NormalizedY": 0.4528186274509804
+        },
+        {
+          "NormalizedX": 0.6932819383259912,
+          "NormalizedY": 0.4528186274509804
+        }
+      ]
+    }
+  ],
+  "ExcludedAreas": [
+    {
+      "Name": "ExclusionArea1",
+      "Points": [
+        {
+          "NormalizedX": 0.5134911894273128,
+          "NormalizedY": 0.3645833333333333
+        },
+        {
+          "NormalizedX": 0.5289096916299559,
+          "NormalizedY": 0.37745098039215685
+        },
+        {
+          "NormalizedX": 0.5459801762114538,
+          "NormalizedY": 0.38480392156862747
+        },
+        {
+          "NormalizedX": 0.5696585903083701,
+          "NormalizedY": 0.3897058823529412
+        },
+        {
+          "NormalizedX": 0.587830396475771,
+          "NormalizedY": 0.3700980392156863
+        },
+        {
+          "NormalizedX": 0.6029735682819384,
+          "NormalizedY": 0.3743872549019608
+        },
+        {
+          "NormalizedX": 0.6192180616740088,
+          "NormalizedY": 0.3645833333333333
+        },
+        {
+          "NormalizedX": 0.6473017621145375,
+          "NormalizedY": 0.3547794117647059
+        },
+        {
+          "NormalizedX": 0.6671255506607929,
+          "NormalizedY": 0.36764705882352944
+        },
+        {
+          "NormalizedX": 0.6836453744493393,
+          "NormalizedY": 0.3946078431372549
+        },
+        {
+          "NormalizedX": 0.7056718061674009,
+          "NormalizedY": 0.41605392156862747
+        },
+        {
+          "NormalizedX": 0.7202643171806168,
+          "NormalizedY": 0.40012254901960786
+        },
+        {
+          "NormalizedX": 0.7406387665198237,
+          "NormalizedY": 0.40870098039215685
+        },
+        {
+          "NormalizedX": 0.7588105726872246,
+          "NormalizedY": 0.42034313725490197
+        },
+        {
+          "NormalizedX": 0.773953744493392,
+          "NormalizedY": 0.4270833333333333
+        },
+        {
+          "NormalizedX": 0.7830396475770925,
+          "NormalizedY": 0.42463235294117646
+        },
+        {
+          "NormalizedX": 0.7830396475770925,
+          "NormalizedY": 0.48590686274509803
+        },
+        {
+          "NormalizedX": 0.5005506607929515,
+          "NormalizedY": 0.49019607843137253
+        }
+      ]
+    }
+  ],
+  "Lanes": [
+    {
+      "Name": "ia1",
+      "Index": 0,
+      "Type": "",
+      "ForbiddenTypes": [],
+      "Points": [
+        {
+          "NormalizedX": 0.5044052863436124,
+          "NormalizedY": 0.4111519607843137
+        },
+        {
+          "NormalizedX": 0.510737885462555,
+          "NormalizedY": 0.3474264705882353
+        },
+        {
+          "NormalizedX": 0.6764867841409692,
+          "NormalizedY": 0.3584558823529412
+        },
+        {
+          "NormalizedX": 0.7797356828193832,
+          "NormalizedY": 0.40012254901960786
+        },
+        {
+          "NormalizedX": 0.7789096916299559,
+          "NormalizedY": 0.44424019607843135
+        }
+      ]
+    }
+  ],
+  "InterestAreas": [
+    {
+      "Name": "CountArea",
+      "Type": "",
+      "RelativeTypes": [],
+      "Points": [
+        {
+          "NormalizedX": 0.5033039647577092,
+          "NormalizedY": 0.2977941176470588
+        },
+        {
+          "NormalizedX": 0.7849669603524229,
+          "NormalizedY": 0.2977941176470588
+        },
+        {
+          "NormalizedX": 0.7849669603524229,
+          "NormalizedY": 0.4632352941176471
+        },
+        {
+          "NormalizedX": 0.5033039647577092,
+          "NormalizedY": 0.4632352941176471
+        }
+      ]
+    }
+  ],
+  "CountLines": []
+}

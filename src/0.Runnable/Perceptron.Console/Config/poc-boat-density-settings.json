@@ -9,15 +9,15 @@
     "AnnotationUdpHost": "192.168.1.100",
     "AnnotationUdpPort": 9090,
     "RealtimeDisplayWidth": 2400,
-    "RealtimeDisplayTitle": "2026 Chinese New Year Fireworks Display (PHQ)"
+    "RealtimeDisplayTitle": "2026 Chinese New Year Fireworks Display (POC)"
   },
   "VideoLoaders": [
     {
       "AssemblyFile": "MediaLoader.OpenCV.dll",
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
-        "SourceId": "PHQ-FixCam-001",
-        "VideoUri": "D:\\Video\\Ship\\PHQ-Profile_201-20260212200000_20260212201000.mp4",
+        "SourceId": "POC-FixCam-001",
+        "VideoUri": "D:\\Video\\Ship\\POC-Profile_201-20260213091938_20260213093538.mp4",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -48,8 +48,8 @@
       "AssemblyFile": "RegionManager.DefinitionBased.dll",
       "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
       "Preferences": {
-        "SourceId": "PHQ-FixCam-001",
-        "RegionDefinitionFile": "RegionDefinitions/phq-analysis-region.json"
+        "SourceId": "POC-FixCam-001",
+        "RegionDefinitionFile": "RegionDefinitions/poc-analysis-region.json"
       }
     }
     //{
@@ -94,8 +94,8 @@
       "MinBboxWidth": 80,
       "MinBboxHeight": 50,
       "FilterLargeObject": true,
-      "MaxBboxWidth": 150,
-      "MaxBboxHeight": 150,
+      "MaxBboxWidth": 200,
+      "MaxBboxHeight": 200,
       "TileDetectionEnabled": false,
       "TileDetectionSize": "1, 2",
       "MaxStitchGapPixel": 3,
@@ -103,7 +103,7 @@
       "WillSuppressInnerSameObject": false,
       "InnerObjectOverlapRatio": 0.7,
       "WillMapObjectTypes": true,
-      "SourceObjectTypeNames": "person,bird,airplane",
+      "SourceObjectTypeNames": "person,bird,airplane,car",
       "DestinationObjectTypeName": "boat",
       "Names": "Alice,Bob,Charlie,David,Eve"
     }
@@ -184,7 +184,7 @@
     //    "ObjTextShowLabel": true,
     //    "ObjTextShowTrackingId": true,
     //    "ObjTextShowConfidence": false,
-    //    "GenerateAnalysisAreas": false,
+    //    "GenerateAnalysisAreas": true,
     //    "AnalysisAreaStrokeColor": "#7dda58",
     //    "GenerateExcludeAreas": true,
     //    "ExcludeAreaStrokeColor": "#e36667",

@@ -73,6 +73,7 @@
   <Folder Name="/src/5.Component/Detector/">
     <Project Path="src/5.Component/Detector.Common/Detector.Common.csproj" Id="d9b723f8-b6d9-4d49-ba97-9ed2489bed75" />
     <Project Path="src/5.Component/Detector.YoloDotNet/Detector.YoloDotNet.csproj" Id="186d35f6-e967-4572-94aa-140aa951d897" />
+    <Project Path="src/5.Component/Detector.YoloV11Onnx/Detector.YoloV11Onnx.csproj" Id="33b5fad4-df96-4a8a-88a7-b9284809b5cc" />
   </Folder>
   <Folder Name="/src/5.Component/FrameBuffer/">
     <Project Path="src/5.Component/FrameBuffer.TwoModes/FrameBuffer.TwoModes.csproj" Id="41be8e52-5230-4582-820f-8b564e4c68a8" />

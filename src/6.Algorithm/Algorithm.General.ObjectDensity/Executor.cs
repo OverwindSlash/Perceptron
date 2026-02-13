@@ -27,6 +27,8 @@ public class Executor : AlgorithmBase
     public string CountRegionName { get; private set; }
     public int MaxCountThreshold { get; private set; }
 
+    private int _maxCount = 0;
+
     private IPublisher<DensityExceedThresholdEvent> _densityEventPublisher;
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences) 
@@ -89,7 +91,13 @@ public class Executor : AlgorithmBase
             count++;
         }
 
+        if (count > _maxCount)
+        {
+            _maxCount = count;
+        }
+
         frame.SetProperty("ObjectCount", count);
+        frame.SetProperty("MaxObjectCount", _maxCount);
 
         if (count > MaxCountThreshold)
         {
@@ -186,14 +194,16 @@ public class Executor : AlgorithmBase
     {
         var annotation = frame.Annotation;
 
-        if (frame.HasProperty("ObjectDensityExceed") && frame.GetProperty<bool>("ObjectDensityExceed"))
-        {
-            annotation.AddShapes(RegionAnnoGenerator.GenerateInterestAreas(regionDefinition, "#F44336"));
-        }
-        else
-        {
-            annotation.AddShapes(RegionAnnoGenerator.GenerateInterestAreas(regionDefinition));
-        }
+        // if (frame.HasProperty("ObjectDensityExceed") && frame.GetProperty<bool>("ObjectDensityExceed"))
+        // {
+        //     annotation.AddShapes(RegionAnnoGenerator.GenerateInterestAreas(regionDefinition, "#F44336"));
+        // }
+        // else
+        // {
+        //     annotation.AddShapes(RegionAnnoGenerator.GenerateInterestAreas(regionDefinition));
+        // }
+
+        base.GenerateRegionAnnotation(frame, regionDefinition);
 
         // text annotation
         var countArea = regionDefinition.InterestAreas.FirstOrDefault(ia => ia.Name == CountRegionName);
@@ -201,24 +211,41 @@ public class Executor : AlgorithmBase
 
         int count = frame.GetProperty<int>("ObjectCount");
         
-        var text = new Shape()
+        var realtimeText = new Shape()
         {
-            Id = "text_count",
+            Id = "text_realtimeCount",
             Type = "text",
-            Content = $"{objectNames} count:{count}",
+            Content = $"Live {ObjectToBeCount} count:{count}",
             Position = new Position()
             {
-                X = frame.Scene.Width - 250,
+                X = frame.Scene.Width - 350,
                 Y = 50
             },
             Style = new Style()
             {
                 Color = "#FFFF33",
-                FontSize = 50,
+                FontSize = 40,
             }
         };
+        annotation.AddShape(realtimeText);
 
-        annotation.AddShape(text);
+        var maxText = new Shape()
+        {
+            Id = "text_maxCount",
+            Type = "text",
+            Content = $"Max {ObjectToBeCount} count:{_maxCount}",
+            Position = new Position()
+            {
+                X = frame.Scene.Width - 350,
+                Y = 120
+            },
+            Style = new Style()
+            {
+                Color = "#FFFF33",
+                FontSize = 40,
+            }
+        };
+        annotation.AddShape(maxText);
 
         return annotation;
     }
