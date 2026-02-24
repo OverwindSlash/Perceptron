@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\5.Component\SnapshotManager.InMemory\SnapshotManager.InMemory.csproj" />
     <ProjectReference Include="..\..\5.Component\Tracker.DeepSort\Tracker.DeepSort.csproj" />
     <ProjectReference Include="..\..\5.Component\Tracker.Sort\Tracker.Sort.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.Classify\Algorithm.General.Classify.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectDensity\Algorithm.General.ObjectDensity.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrence\Algorithm.General.ObjectOccurrence.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.RegionAccess\Algorithm.General.RegionAccess.csproj" />

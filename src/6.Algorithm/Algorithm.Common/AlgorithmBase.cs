@@ -191,7 +191,7 @@ public abstract class AlgorithmBase : IAlgorithmModule
         return annotation;
     }
 
-    protected virtual VisualAnnotation GenerateLabelAnnotation(Frame frame)
+    protected virtual VisualAnnotation GenerateObjectLabelAnnotation(Frame frame, DetectedObject detectedObject)
     {
         // TODO: Implement a debug annotation that adds a label to the frame.
 
