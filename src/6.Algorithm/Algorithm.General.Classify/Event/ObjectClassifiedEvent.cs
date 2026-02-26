@@ -15,7 +15,7 @@ public class ObjectClassifiedEvent : DomainEvent
 
     public ObjectClassifiedEvent(string sourceId, string eventName, string algorithmName,
         string objectId, string label, double conf) 
-        : base(sourceId, eventName, EventType, algorithmName)
+        : base(sourceId, EventType, eventName, algorithmName)
     {
         ObjectId = objectId;
         Label = label;

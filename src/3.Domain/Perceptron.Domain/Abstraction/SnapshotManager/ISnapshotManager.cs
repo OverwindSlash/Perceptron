@@ -21,7 +21,7 @@ public interface ISnapshotManager : IEventPublisher<ObjectBestSnapshotCreatedEve
     public int GetCachedSnapshotCount();
 
     Mat TakeSnapshot(Frame frame, BoundingBox bboxs);
-    void AddSnapshotOfObjectById(string objId, float score, Mat snapshot);
+    void AddSnapshotOfObject(Frame frame, DetectedObject detectedObject, float score, Mat snapshot);
 
     Mat GenerateBoxedScene(Mat scene, List<BoundingBox> boundingBoxes);
 

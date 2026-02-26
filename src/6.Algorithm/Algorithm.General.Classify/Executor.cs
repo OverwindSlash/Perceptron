@@ -8,6 +8,8 @@ using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event;
+using Perceptron.Domain.Event.Pipeline;
+using Perceptron.Domain.Event.SnapshotManager;
 using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
@@ -36,8 +38,12 @@ public class Executor : AlgorithmBase
     public int Stride { get; private set; }
     public bool WillGenerateObjLabelText { get; private set; }
 
-    private IPublisher<ObjectClassifiedEvent> _classifyEventPublisher;
     private Yolo _predictor;
+
+    private IPublisher<ObjectClassifiedEvent> _classifyEventPublisher;
+
+    private ISubscriber<ObjectBestSnapshotCreatedEvent> _objBeastSnapshotSubscriber;
+    private IDisposable _disposableObjSnapshotSubscriber;
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences) 
         : base(pipeline, preferences)
@@ -51,6 +57,9 @@ public class Executor : AlgorithmBase
     {
         var provider = Pipeline.Provider;
         _classifyEventPublisher = provider.GetRequiredService<IPublisher<ObjectClassifiedEvent>>();
+
+        _objBeastSnapshotSubscriber = provider.GetRequiredService<ISubscriber<ObjectBestSnapshotCreatedEvent>>();
+        _disposableObjSnapshotSubscriber = _objBeastSnapshotSubscriber.Subscribe(ProcessObjectBestSnapshotEvent);
 
         ModelPath = PreferenceParser.ParseStringValue(Preferences, "ModelPath", DefaultModelPath);
         ExecProvider = PreferenceParser.ParseStringValue(Preferences, "ExecutionProvider", DefaultExecutionProvider);
@@ -102,12 +111,12 @@ public class Executor : AlgorithmBase
             {
                 using SKBitmap snapshot = detectedObject.Snapshot.ToSKBitmap();
                 var classification = _predictor.RunClassification(snapshot, classes: 1);
+
                 detectedObject.SetProperty("classify_label", classification[0].Label);
                 detectedObject.SetProperty("classify_conf", classification[0].Confidence);
-
-                GenerateObjectLabelAnnotation(frame, detectedObject);
-                ProcessClassifyEvent(frame, detectedObject, classification);
             }
+
+            GenerateObjectLabelAnnotation(frame, detectedObject);
         }
 
         frame.Dispose();
@@ -169,7 +178,7 @@ public class Executor : AlgorithmBase
 
         if (CheckLocalEventInterval()) return;
 
-        Log.Information($"{detectedObject.Id} classify to '{classification[0].Label}' with conf:{classification[0].Confidence}");
+        Log.Information("{DetectedObjectId} classify to '{Label}' with conf:{Confidence:F4}", detectedObject.Id, classification[0].Label, classification[0].Confidence);
 
         // 1. Create event
         var classifyEvent = new ObjectClassifiedEvent(
@@ -230,8 +239,25 @@ public class Executor : AlgorithmBase
         });
     }
 
+    public void ProcessObjectBestSnapshotEvent(ObjectBestSnapshotCreatedEvent @event)
+    {
+        if (@event.ObjectSnapshot != null)
+        {
+            using SKBitmap snapshot = @event.ObjectSnapshot.ToSKBitmap();
+            var classification = _predictor.RunClassification(snapshot, classes: 1);
+            
+            @event.DetectedObject.SetProperty("classify_label", classification[0].Label);
+            @event.DetectedObject.SetProperty("classify_conf", classification[0].Confidence);
+
+            //Log.Warning("ObjId:{eventId} with detection conf: {score}, has classified to {label} with conf: {conf}", @event.DetectedObject.Id, @event.Score, classification[0].Label, classification[0].Confidence);
+            
+            ProcessClassifyEvent(@event.Frame, @event.DetectedObject, classification);
+        }
+    }
+
     public override void Dispose()
     {
+        _disposableObjSnapshotSubscriber?.Dispose();
         _predictor?.Dispose();
         base.Dispose();
     }

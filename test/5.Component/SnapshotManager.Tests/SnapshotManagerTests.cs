@@ -127,7 +127,7 @@ namespace SnapshotManager.Tests
             _snapshotManager.ProcessSnapshots(frame);
 
             // Assert
-            _mockPublisher.Verify(p => p.Publish(It.Is<ObjectBestSnapshotCreatedEvent>(e => e.ObjectId == detectedObject.Id)), Times.Once);
+            _mockPublisher.Verify(p => p.Publish(It.Is<ObjectBestSnapshotCreatedEvent>(e => e.DetectedObject.Id == detectedObject.Id)), Times.Once);
         }
 
         [Test]

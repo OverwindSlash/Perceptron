@@ -1,15 +1,21 @@
 ﻿using OpenCvSharp;
+using Perceptron.Domain.Entity.ObjectDetection;
+using Perceptron.Domain.Entity.VideoStream;
 
 namespace Perceptron.Domain.Event.SnapshotManager;
 
 public class ObjectBestSnapshotCreatedEvent : EventBase
 {
-    public string ObjectId { get; }
+    public Frame Frame { get; set; }
+    public DetectedObject DetectedObject { get; set; }
     public Mat ObjectSnapshot { get; }
+    public float Score { get; set; }
 
-    public ObjectBestSnapshotCreatedEvent(string detectdObjectId, Mat snapshot)
+    public ObjectBestSnapshotCreatedEvent(Frame frame, DetectedObject detectedObject, Mat snapshot, float score)
     {
-        ObjectId = detectdObjectId;
+        Frame = frame;
+        DetectedObject = detectedObject;
         ObjectSnapshot = snapshot;
+        Score = score;
     }
 }

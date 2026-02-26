@@ -70,7 +70,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         frame.Retain();
 
         AddSceneByFrameId(frame.FrameId, frame);
-        AddSnapshotOfObjectById(frame);
+        AddFrameObjectSnapshots(frame);
 
         frame.Dispose();
     }
@@ -83,7 +83,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         }
     }
 
-    private void AddSnapshotOfObjectById(Frame frame)
+    private void AddFrameObjectSnapshots(Frame frame)
     {
         foreach (var detectedObject in frame.DetectedObjects)
         {
@@ -94,7 +94,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
 
             Mat snapshot = TakeSnapshot(frame, detectedObject.Bbox.ScaleAboutCenter(_snapshotExpansionRatio, _snapshotExpansionRatio));
             detectedObject.AttachSnapshot(snapshot, false); // 重要：确保 detectedObject 中的 snapshot 与 _snapshotsByScore 中的 snapshot 有不同的生命周期
-            AddSnapshotOfObjectById(detectedObject.Id, CalculateFactor(detectedObject), snapshot);
+            AddSnapshotOfObject(frame, detectedObject, CalculateFactor(detectedObject), snapshot);
         }
     }
 
@@ -141,14 +141,14 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         return frame.Scene.SubMat(validRect);
     }
 
-    public void AddSnapshotOfObjectById(string objId, float score, Mat snapshot)
+    public void AddSnapshotOfObject(Frame frame, DetectedObject detectedObject, float score, Mat snapshot)
     {
-        if (!_snapshotsByScore.ContainsKey(objId))
+        if (!_snapshotsByScore.ContainsKey(detectedObject.Id))
         {
-            _snapshotsByScore.TryAdd(objId, new SortedList<float, Mat>());
+            _snapshotsByScore.TryAdd(detectedObject.Id, new SortedList<float, Mat>());
         }
 
-        SortedList<float, Mat> snapshotsOfId = _snapshotsByScore[objId];    // 获取对应对象ID的快照列表
+        SortedList<float, Mat> snapshotsOfId = _snapshotsByScore[detectedObject.Id];    // 获取对应对象ID的快照列表
         if (!snapshotsOfId.ContainsKey(score))
         {
             snapshotsOfId.Add(score, snapshot);
@@ -156,7 +156,10 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
             var maxScore = snapshotsOfId.Keys.Max();
             if (score == maxScore)
             {
-                ObjectBestSnapshotCreatedEvent bestSnapshotCreatedEvent = new ObjectBestSnapshotCreatedEvent(objId, snapshot);
+                // // 在一行内使用易于人阅读的方式，调试打印出 snapshotsOfId.Keys 中所有值
+                // Log.Warning($"ObjId:{detectedObject.Id}, Keys: {string.Join(", ", snapshotsOfId.Keys)}");
+
+                ObjectBestSnapshotCreatedEvent bestSnapshotCreatedEvent = new ObjectBestSnapshotCreatedEvent(frame, detectedObject, snapshot, score);
                 PublishEvent(bestSnapshotCreatedEvent);
             }
         }

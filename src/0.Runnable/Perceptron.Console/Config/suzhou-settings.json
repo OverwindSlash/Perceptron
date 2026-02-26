@@ -155,6 +155,7 @@
     "Preferences": {
       "WillPostMessage": true,
       "DestinationUrl": "http://127.0.0.1:5000/pipeline_event",
+      //"DestinationUrl": "http://192.168.1.232/api/marinemind/event/pipeline_warn",
       "CheckDuplicateEvent": true,
       "EventSuppressionIntervals": {
         "Suzhou-Cam-001_船舶处于警戒区": 30
@@ -165,6 +166,10 @@
     "AssemblyFile": "Repository.MinioMySQL.dll",
     "FullQualifiedClassName": "Repository.MinioMySQL.EventRepository",
     "Preferences": {
+      //"RdbConnectionString": "server=192.168.1.232;port=3306;uid=root;pwd=root;database=marinemind",
+      //"StorageUrl": "192.168.1.220:9002",
+      //"StorageUsername": "minioadmin",
+      //"StoragePassword": "minioadmin",
       "RdbConnectionString": "server=127.0.0.1;port=3306;uid=root;pwd=cs202304;database=perceptron",
       "StorageUrl": "127.0.0.1:9000",
       "StorageUsername": "admin",
@@ -244,7 +249,8 @@
         "DeviceId": 0,
         "Stride": 1,
         "GenerateObjText": false,
-        "WillGenerateObjLabelText": true
+        "WillGenerateObjLabelText": true,
+        "EventName": "船舶类型识别"
       }
     }
   ]
