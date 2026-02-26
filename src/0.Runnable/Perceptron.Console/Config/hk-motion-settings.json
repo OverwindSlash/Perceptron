@@ -129,7 +129,7 @@
     "AssemblyFile": "MessagePoster.RestfulJson.dll",
     "FullQualifiedClassName": "MessagePoster.RestfulJson.MessagePoster",
     "Preferences": {
-      "WillPostMessage": false,
+      "WillPostMessage": true,
       "DestinationUrl": "http://127.0.0.1:5000/pipeline_event",
       "CheckDuplicateEvent": true,
       "EventSuppressionIntervals": "人员聚集事件:30,其他事件:100"
@@ -143,8 +143,8 @@
       "StorageUrl": "127.0.0.1:9000",
       "StorageUsername": "admin",
       "StoragePassword": "cs202304",
-      "WillStoreSnapshot": false,
-      "WillStoreVideoClip": false
+      "WillStoreSnapshot": true,
+      "WillStoreVideoClip": true
     }
   },
   "AnnotationSender": {
@@ -196,7 +196,10 @@
       "AssemblyFile": "Algorithm.General.MotionDetection.dll",
       "FullQualifiedClassName": "Algorithm.General.MotionDetection.Executor",
       "Preferences": {
-
+        "LocalEventIntervalSec": 5,
+        "EventSnapshotDir": "Events/Motion",
+        "WillSaveEventSnapshot": true,
+        "WillSaveEventVideoClip": true
       }
     }
   ]

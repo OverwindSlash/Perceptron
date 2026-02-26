@@ -187,6 +187,8 @@ public class Executor : AlgorithmBase
 
     private void ProcessObjectOccurrenceEvent(Frame frame, double duration)
     {
+        if (!WillPublishEventMessage) return;
+
         if (CheckLocalEventInterval()) return;
 
         // TODO: 触发事件处理逻辑，例如发送通知或记录日志

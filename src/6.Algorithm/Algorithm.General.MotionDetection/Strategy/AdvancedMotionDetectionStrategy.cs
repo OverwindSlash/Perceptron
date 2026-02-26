@@ -1,5 +1,6 @@
 using OpenCvSharp;
 using Perceptron.Domain.Entity.VideoStream;
+using Serilog;
 
 namespace Algorithm.General.MotionDetection.Strategy;
 
@@ -12,25 +13,23 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
     public string StrategyName => "Advanced";
 
     #region 参数配置
-    // 形态学参数
-    private const int MORPH_KERNEL_SIZE = 3;
-    private const int MORPH_OPEN_ITER = 1;
-    private const int MORPH_CLOSE_ITER = 1;
-
-    // 热图参数
-    private const byte HEAT_ADD = 64;
-    private const byte HEAT_DECAY = 6;
-    private const byte HEAT_THRESHOLD = 48;
-
-    // 历史参数
-    private const int MOTION_HISTORY_DURATION_FRAMES = 240; // 8秒 * 30fps
-    private const int MAX_CONTOURS_TO_PROCESS = 80;
-    private const double BOUNDING_BOX_MERGE_THRESHOLD = 0.28;
+    private readonly int _morphKernelSize;
+    private readonly int _morphOpenIter;
+    private readonly int _morphCloseIter;
+    private readonly byte _heatAdd;
+    private readonly byte _heatDecay;
+    private readonly byte _heatThreshold;
+    private readonly int _motionHistoryDurationFrames;
+    private readonly int _maxContoursToProcess;
+    private readonly double _boundingBoxMergeThreshold;
+    private readonly int _minRegionArea;
+    private readonly int _maxRegionArea;
+    private readonly double _aspectRatioThreshold;
     #endregion
 
     #region 状态变量
     private Size _frameSize = new Size(0, 0);
-    private int _motionDetectionMinArea = 400;
+    private int _processedFrameCount = 0;
 
     // 配置设置
     private readonly MotionDetectionSettings _settings;
@@ -48,6 +47,10 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
     // 工作缓冲区
     private Mat? _processedMask;
     private Mat? _heatMap;
+    private Mat? _tempMask;
+    private Mat? _labels;
+    private Mat? _stats;
+    private Mat? _centroids;
 
     // 形态学核
     private Mat? _morphKernel;
@@ -60,37 +63,48 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
     public AdvancedMotionDetectionStrategy(MotionDetectionSettings settings)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        int kernelSize = Math.Max(1, _settings.MorphKernelSize);
+        if (kernelSize % 2 == 0) kernelSize++;
+        _morphKernelSize = kernelSize;
+        _morphOpenIter = Math.Max(1, _settings.MorphOpenIter);
+        _morphCloseIter = Math.Max(1, _settings.MorphCloseIter);
+        _heatAdd = (byte)Math.Clamp(_settings.HeatAdd, 1, 255);
+        _heatDecay = (byte)Math.Clamp(_settings.HeatDecay, 1, 255);
+        _heatThreshold = (byte)Math.Clamp(_settings.HeatThreshold, 1, 255);
+        _motionHistoryDurationFrames = Math.Max(1, _settings.MotionHistoryDurationFrames);
+        _maxContoursToProcess = Math.Max(1, _settings.MaxContoursToProcess);
+        _boundingBoxMergeThreshold = Math.Clamp(_settings.BoundingBoxMergeThreshold, 0.0, 1.0);
+        _minRegionArea = Math.Max(1, _settings.BaseMotionDetectionMinArea);
+        _maxRegionArea = Math.Max(_minRegionArea, _settings.BaseMotionDetectionMaxArea);
+        _aspectRatioThreshold = Math.Max(1.0, _settings.AspectRatioThreshold);
     }
 
     public bool Initialize(Size frameSize)
     {
         try
         {
+            if (frameSize.Width <= 0 || frameSize.Height <= 0) return false;
             _frameSize = frameSize;
-            
-            // 创建形态学核
             _morphKernel = Cv2.GetStructuringElement(
                 MorphShapes.Ellipse,
-                new Size(MORPH_KERNEL_SIZE, MORPH_KERNEL_SIZE)
+                new Size(_morphKernelSize, _morphKernelSize)
             );
-
-            // 初始化工作缓冲区
-            _processedMask = new Mat(frameSize, MatType.CV_8UC1);
-            _heatMap = Mat.Zeros(frameSize, MatType.CV_8UC1);
-
+            if (!EnsureBuffers(frameSize)) return false;
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Advanced motion detection strategy initialization failed: {ex.Message}");
+            Log.Error($"Advanced motion detection strategy initialization failed: {ex.Message}");
             return false;
         }
     }
 
     public List<Rect> DetectMotionRegions(Frame frame, Mat foregroundMask, int frameNumber)
     {
-        if (_morphKernel == null || _processedMask == null || _heatMap == null)
+        if (_morphKernel == null || foregroundMask == null || foregroundMask.Empty())
             return new List<Rect>();
+        if (!EnsureBuffers(foregroundMask.Size())) return new List<Rect>();
+        _processedFrameCount++;
 
         // 应用形态学操作 - Open -> Close
         ApplyMorphologicalOperations(foregroundMask);
@@ -115,23 +129,18 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
                 return new List<Rect>(_cachedHistoricalRois);
 
             var allRois = new List<Rect>();
-            
-            // 添加历史运动区域（这些是process-scale的）
             foreach (var historyFrame in _motionHistory)
                 allRois.AddRange(historyFrame.MotionRois);
 
-            // 从热图中提取额外的运动区域（这些也是process-scale的）
-            if (_heatMap != null)
+            if (_heatMap != null && _tempMask != null)
             {
-                using var heatBinary = new Mat();
-                Cv2.Threshold(_heatMap, heatBinary, HEAT_THRESHOLD, 255, ThresholdTypes.Binary);
-
-                Cv2.FindContours(heatBinary, out var heatContours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+                Cv2.Threshold(_heatMap, _tempMask, _heatThreshold, 255, ThresholdTypes.Binary);
+                Cv2.FindContours(_tempMask, out var heatContours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
                 
                 foreach (var contour in heatContours)
                 {
-                    var boundingRect = Cv2.BoundingRect(contour); // process-scale
-                    if (boundingRect.Width * boundingRect.Height >= _motionDetectionMinArea)
+                    var boundingRect = Cv2.BoundingRect(contour);
+                    if (boundingRect.Width * boundingRect.Height >= _minRegionArea)
                         allRois.Add(boundingRect);
                 }
             }
@@ -155,7 +164,7 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
             });
 
             while (_motionHistory.Count > 0 && 
-                   frameNumber - _motionHistory.Peek().FrameNumber > MOTION_HISTORY_DURATION_FRAMES)
+                   frameNumber - _motionHistory.Peek().FrameNumber > _motionHistoryDurationFrames)
             {
                 _motionHistory.Dequeue();
             }
@@ -168,38 +177,34 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
         if (_morphKernel == null || _processedMask == null) return;
 
         // Open -> Close 操作
-        Cv2.MorphologyEx(foregroundMask, _processedMask, MorphTypes.Open, _morphKernel, iterations: MORPH_OPEN_ITER);
-        Cv2.MorphologyEx(_processedMask, _processedMask, MorphTypes.Close, _morphKernel, iterations: MORPH_CLOSE_ITER);
+        Cv2.MorphologyEx(foregroundMask, _processedMask, MorphTypes.Open, _morphKernel, iterations: _morphOpenIter);
+        Cv2.MorphologyEx(_processedMask, _processedMask, MorphTypes.Close, _morphKernel, iterations: _morphCloseIter);
     }
 
     private List<Rect> GenerateMotionRois()
     {
-        if (_processedMask == null) return new List<Rect>();
+        if (_processedMask == null || _labels == null || _stats == null || _centroids == null) return new List<Rect>();
 
         var motionRois = new List<Rect>();
 
-        // 使用ConnectedComponents进行连通域分析
-        using var labels = new Mat();
-        using var stats = new Mat();
-        using var centroids = new Mat();
-
-        int numLabels = Cv2.ConnectedComponentsWithStats(_processedMask, labels, stats, centroids);
+        int numLabels = Cv2.ConnectedComponentsWithStats(_processedMask, _labels, _stats, _centroids);
 
         // 遍历每个连通域（跳过背景标签0）
-        for (int i = 1; i < numLabels && motionRois.Count < MAX_CONTOURS_TO_PROCESS; i++)
+        for (int i = 1; i < numLabels && motionRois.Count < _maxContoursToProcess; i++)
         {
             // 获取连通域的统计信息
-            int x = stats.At<int>(i, 0);      // CC_STAT_LEFT
-            int y = stats.At<int>(i, 1);      // CC_STAT_TOP
-            int width = stats.At<int>(i, 2);  // CC_STAT_WIDTH
-            int height = stats.At<int>(i, 3); // CC_STAT_HEIGHT
-            int area = stats.At<int>(i, 4);   // CC_STAT_AREA
+            int x = _stats.At<int>(i, 0);
+            int y = _stats.At<int>(i, 1);
+            int width = _stats.At<int>(i, 2);
+            int height = _stats.At<int>(i, 3);
+            int area = _stats.At<int>(i, 4);
 
-            // 过滤面积太小的区域
-            if (area >= _motionDetectionMinArea)
-            {
-                motionRois.Add(new Rect(x, y, width, height));
-            }
+            if (area < _minRegionArea || area > _maxRegionArea) continue;
+            int maxSide = Math.Max(width, height);
+            int minSide = Math.Max(1, Math.Min(width, height));
+            double ratio = maxSide / (double)minSide;
+            if (ratio > _aspectRatioThreshold) continue;
+            motionRois.Add(new Rect(x, y, width, height));
         }
 
         return motionRois;
@@ -209,8 +214,7 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
     {
         if (_heatMap == null) return;
 
-        // 热图衰减
-        Cv2.Subtract(_heatMap, new Scalar(HEAT_DECAY), _heatMap);
+        Cv2.Subtract(_heatMap, new Scalar(_heatDecay), _heatMap);
 
         // 在运动区域增加热度
         foreach (var roi in currentMotionRois)
@@ -219,7 +223,7 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
             if (r.Width <= 0 || r.Height <= 0) continue;
             
             using var roiHeat = new Mat(_heatMap, r);
-            Cv2.Add(roiHeat, Scalar.All(HEAT_ADD), roiHeat);
+            Cv2.Add(roiHeat, Scalar.All(_heatAdd), roiHeat);
         }
     }
 
@@ -241,7 +245,7 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
             {
                 if (used[j]) continue;
 
-                if (CalculateIoU(current, rects[j]) > BOUNDING_BOX_MERGE_THRESHOLD)
+                if (CalculateIoU(current, rects[j]) > _boundingBoxMergeThreshold)
                 {
                     current = UnionRects(current, rects[j]);
                     used[j] = true;
@@ -287,8 +291,38 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
 
     private int GetCurrentFrameNumber()
     {
-        // 简化实现，实际应该从外部传入
-        return Environment.TickCount / 33; // 假设30fps
+        return _processedFrameCount;
+    }
+    
+    private bool EnsureBuffers(Size size)
+    {
+        if (size.Width <= 0 || size.Height <= 0) return false;
+        if (_processedMask != null && _heatMap != null && _tempMask != null &&
+            _labels != null && _stats != null && _centroids != null &&
+            _processedMask.Size() == size && _heatMap.Size() == size)
+        {
+            _frameSize = size;
+            return true;
+        }
+
+        _processedMask?.Dispose();
+        _heatMap?.Dispose();
+        _tempMask?.Dispose();
+        _labels?.Dispose();
+        _stats?.Dispose();
+        _centroids?.Dispose();
+
+        _processedMask = new Mat(size, MatType.CV_8UC1);
+        _heatMap = Mat.Zeros(size, MatType.CV_8UC1);
+        _tempMask = new Mat(size, MatType.CV_8UC1);
+        _labels = new Mat(size, MatType.CV_32SC1);
+        _stats = new Mat();
+        _centroids = new Mat();
+
+        _frameSize = size;
+        _cachedHistoricalRois = new List<Rect>();
+        _lastMotionCacheFrame = -1;
+        return true;
     }
     #endregion
 
@@ -297,6 +331,10 @@ public class AdvancedMotionDetectionStrategy : IMotionDetectionStrategy, IDispos
         _morphKernel?.Dispose();
         _processedMask?.Dispose();
         _heatMap?.Dispose();
+        _tempMask?.Dispose();
+        _labels?.Dispose();
+        _stats?.Dispose();
+        _centroids?.Dispose();
 
         lock (_motionHistoryLock)
         {

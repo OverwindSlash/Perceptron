@@ -73,12 +73,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         AlgorithmVersion = "1.0.0";
         AlgorithmDescription = "Detects access to specific regions in the video stream.";
 
-
-        
-
-
-        
-
         _objLastInRegionStatus = new ConcurrentDictionary<string, bool>();
     }
 
@@ -411,6 +405,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         Action<TEvent, string, string>? extraPathSetter = null) 
         where TEvent : DomainEvent
     {
+        if (!WillPublishEventMessage) return;
+
         Log.Information("{DetectedObjectId} is {EventName} region: '{RegionName}' (stable for {StabilityCounter} frames)", detectedObject.Id, eventName, RegionName, stabilityCounter);
         
         // 1. Create Event

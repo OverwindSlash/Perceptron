@@ -1,3 +1,4 @@
+using Perceptron.Domain.Setting;
 using Serilog;
 
 namespace Algorithm.General.MotionDetection;
@@ -211,217 +212,244 @@ public class MotionDetectionSettings
     #region 解析方法
     private int ParseMog2History(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("Mog2History"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "Mog2History", DefaultMog2History);
+        if (value > 0)
             return value;
         return DefaultMog2History;
     }
 
     private double ParseMog2VarThreshold(Dictionary<string, string> preferences)
     {
-        if (double.TryParse(preferences.GetValueOrDefault("Mog2VarThreshold"), out double value) && value > 0)
+        var value = PreferenceParser.ParseValue(preferences, "Mog2VarThreshold", DefaultMog2VarThreshold, double.Parse);
+        if (value > 0)
             return value;
         return DefaultMog2VarThreshold;
     }
 
     private bool ParseMog2DetectShadows(Dictionary<string, string> preferences)
     {
-        if (bool.TryParse(preferences.GetValueOrDefault("Mog2DetectShadows"), out bool value))
-            return value;
-        return DefaultMog2DetectShadows;
+        return PreferenceParser.ParseBoolValue(preferences, "Mog2DetectShadows", DefaultMog2DetectShadows);
     }
 
     private double ParseMainLearningRate(Dictionary<string, string> preferences)
     {
-        if (double.TryParse(preferences.GetValueOrDefault("MainLearningRate"), out double value) && value > 0 && value <= 1)
+        var value = PreferenceParser.ParseValue(preferences, "MainLearningRate", DefaultMainLearningRate, double.Parse);
+        if (value > 0 && value <= 1)
             return value;
         return DefaultMainLearningRate;
     }
 
     private double ParseFastLearningRate(Dictionary<string, string> preferences)
     {
-        if (double.TryParse(preferences.GetValueOrDefault("FastLearningRate"), out double value) && value > 0 && value <= 1)
+        var value = PreferenceParser.ParseValue(preferences, "FastLearningRate", DefaultFastLearningRate, double.Parse);
+        if (value > 0 && value <= 1)
             return value;
         return DefaultFastLearningRate;
     }
 
     private int ParseMorphKernelSize(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MorphKernelSize"), out int value) && value > 0 && value % 2 == 1)
+        var value = PreferenceParser.ParseIntValue(preferences, "MorphKernelSize", DefaultMorphKernelSize);
+        if (value > 0 && value % 2 == 1)
             return value;
         return DefaultMorphKernelSize;
     }
 
     private int ParseMorphOpenIter(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MorphOpenIter"), out int value) && value >= 1)
+        var value = PreferenceParser.ParseIntValue(preferences, "MorphOpenIter", DefaultMorphOpenIter);
+        if (value >= 1)
             return value;
         return DefaultMorphOpenIter;
     }
 
     private int ParseMorphCloseIter(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MorphCloseIter"), out int value) && value >= 1)
+        var value = PreferenceParser.ParseIntValue(preferences, "MorphCloseIter", DefaultMorphCloseIter);
+        if (value >= 1)
             return value;
         return DefaultMorphCloseIter;
     }
 
     private int ParseHeatAdd(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("HeatAdd"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "HeatAdd", DefaultHeatAdd);
+        if (value > 0)
             return value;
         return DefaultHeatAdd;
     }
 
     private int ParseHeatDecay(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("HeatDecay"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "HeatDecay", DefaultHeatDecay);
+        if (value > 0)
             return value;
         return DefaultHeatDecay;
     }
 
     private int ParseHeatThreshold(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("HeatThreshold"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "HeatThreshold", DefaultHeatThreshold);
+        if (value > 0)
             return value;
         return DefaultHeatThreshold;
     }
 
     private int ParseBaselineFrameCount(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("BaselineFrameCount"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "BaselineFrameCount", DefaultBaselineFrameCount);
+        if (value > 0)
             return value;
         return DefaultBaselineFrameCount;
     }
 
     private int ParseBaselineExpiryFrames(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("BaselineExpiryFrames"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "BaselineExpiryFrames", DefaultBaselineExpiryFrames);
+        if (value > 0)
             return value;
         return DefaultBaselineExpiryFrames;
     }
 
     private int ParseMaxProcessWidth(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MaxProcessWidth"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "MaxProcessWidth", DefaultMaxProcessWidth);
+        if (value > 0)
             return value;
         return DefaultMaxProcessWidth;
     }
 
     private int ParseMaxProcessHeight(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MaxProcessHeight"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "MaxProcessHeight", DefaultMaxProcessHeight);
+        if (value > 0)
             return value;
         return DefaultMaxProcessHeight;
     }
 
     private int ParseMotionHistoryDurationFrames(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MotionHistoryDurationFrames"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "MotionHistoryDurationFrames", DefaultMotionHistoryDurationFrames);
+        if (value > 0)
             return value;
         return DefaultMotionHistoryDurationFrames;
     }
 
     private double ParseBoundingBoxMergeThreshold(Dictionary<string, string> preferences)
     {
-        if (double.TryParse(preferences.GetValueOrDefault("BoundingBoxMergeThreshold"), out double value) && value > 0)
+        var value = PreferenceParser.ParseValue(preferences, "BoundingBoxMergeThreshold", DefaultBoundingBoxMergeThreshold, double.Parse);
+        if (value > 0)
             return value;
         return DefaultBoundingBoxMergeThreshold;
     }
 
     private int ParseMaxContoursToProcess(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MaxContoursToProcess"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "MaxContoursToProcess", DefaultMaxContoursToProcess);
+        if (value > 0)
             return value;
         return DefaultMaxContoursToProcess;
     }
 
     private int ParseBaseMotionDetectionMinArea(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("BaseMotionDetectionMinArea"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "BaseMotionDetectionMinArea", DefaultBaseMotionDetectionMinArea);
+        if (value > 0)
             return value;
         return DefaultBaseMotionDetectionMinArea;
     }
 
     private int ParseBaseMotionDetectionMaxArea(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("BaseMotionDetectionMaxArea"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "BaseMotionDetectionMaxArea", DefaultBaseMotionDetectionMaxArea);
+        if (value > 0)
             return value;
         return DefaultBaseMotionDetectionMaxArea;
     }
 
     public double ParseAspectRatioThreshold(Dictionary<string, string> preferences)
     {
-        if (double.TryParse(preferences.GetValueOrDefault("AspectRatioThreshold"), out double value) && value > 0)
+        var value = PreferenceParser.ParseValue(preferences, "AspectRatioThreshold", DefaultAspectRatioThreshold, double.Parse);
+        if (value > 0)
             return value;
         return DefaultAspectRatioThreshold;
     }
 
     private int ParseBaseRoiExpansionPixels(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("BaseRoiExpansionPixels"), out int value) && value >= 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "BaseRoiExpansionPixels", DefaultBaseRoiExpansionPixels);
+        if (value >= 0)
             return value;
         return DefaultBaseRoiExpansionPixels;
     }
 
     private int ParseHighResWidthThreshold(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("HighResWidthThreshold"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "HighResWidthThreshold", DefaultHighResWidthThreshold);
+        if (value > 0)
             return value;
         return DefaultHighResWidthThreshold;
     }
 
     private int ParseHighResMaxActiveRois(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("HighResMaxActiveRois"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "HighResMaxActiveRois", DefaultHighResMaxActiveRois);
+        if (value > 0)
             return value;
         return DefaultHighResMaxActiveRois;
     }
 
     private int ParseNormalResMaxActiveRois(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("NormalResMaxActiveRois"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "NormalResMaxActiveRois", DefaultNormalResMaxActiveRois);
+        if (value > 0)
             return value;
         return DefaultNormalResMaxActiveRois;
     }
 
     private double ParsePerformanceHighThresholdMs(Dictionary<string, string> preferences)
     {
-        if (double.TryParse(preferences.GetValueOrDefault("PerformanceHighThresholdMs"), out double value) && value > 0)
+        var value = PreferenceParser.ParseValue(preferences, "PerformanceHighThresholdMs", DefaultPerformanceHighThresholdMs, double.Parse);
+        if (value > 0)
             return value;
         return DefaultPerformanceHighThresholdMs;
     }
 
     private double ParsePerformanceLowThresholdMs(Dictionary<string, string> preferences)
     {
-        if (double.TryParse(preferences.GetValueOrDefault("PerformanceLowThresholdMs"), out double value) && value > 0)
+        var value = PreferenceParser.ParseValue(preferences, "PerformanceLowThresholdMs", DefaultPerformanceLowThresholdMs, double.Parse);
+        if (value > 0)
             return value;
         return DefaultPerformanceLowThresholdMs;
     }
 
     private int ParseMinActiveRois(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MinActiveRois"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "MinActiveRois", DefaultMinActiveRois);
+        if (value > 0)
             return value;
         return DefaultMinActiveRois;
     }
 
     private int ParseMaxActiveRoisLimit(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MaxActiveRoisLimit"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "MaxActiveRoisLimit", DefaultMaxActiveRoisLimit);
+        if (value > 0)
             return value;
         return DefaultMaxActiveRoisLimit;
     }
 
     private double ParseEmaAlpha(Dictionary<string, string> preferences)
     {
-        if (double.TryParse(preferences.GetValueOrDefault("EmaAlpha"), out double value) && value > 0 && value <= 1)
+        var value = PreferenceParser.ParseValue(preferences, "EmaAlpha", DefaultEmaAlpha, double.Parse);
+        if (value > 0 && value <= 1)
             return value;
         return DefaultEmaAlpha;
     }
 
     private string ParseMotionDetectionStrategy(Dictionary<string, string> preferences)
     {
-        string strategy = preferences.GetValueOrDefault("MotionDetectionStrategy", DefaultMotionDetectionStrategy).ToLowerInvariant();
+        string strategy = PreferenceParser.ParseStringValue(preferences, "MotionDetectionStrategy", DefaultMotionDetectionStrategy).ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(strategy))
         {
             Log.Warning($"MotionDetectionStrategy must not be empty. Reset to default: {DefaultMotionDetectionStrategy}");
@@ -432,28 +460,32 @@ public class MotionDetectionSettings
 
     private int ParseFullFrameProbeInterval(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("FullFrameProbeInterval"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "FullFrameProbeInterval", DefaultFullFrameProbeInterval);
+        if (value > 0)
             return value;
         return DefaultFullFrameProbeInterval;
     }
 
     private bool ParseShowMotionRegions(Dictionary<string, string> preferences)
     {
-        if (bool.TryParse(preferences.GetValueOrDefault("ShowMotionRegions"), out bool value) && value)
+        var value = PreferenceParser.ParseBoolValue(preferences, "ShowMotionRegions", DefaultShowMotionRegions);
+        if (value)
             return value;
         return DefaultShowMotionRegions;
     }
 
     private int ParseMotionRoiLifetimeSec(Dictionary<string, string> preferences)
     {
-        if (int.TryParse(preferences.GetValueOrDefault("MotionRoiLifetimeSec"), out int value) && value > 0)
+        var value = PreferenceParser.ParseIntValue(preferences, "MotionRoiLifetimeSec", DefaultMotionRoiLifetimeSec);
+        if (value > 0)
             return value;
         return DefaultMotionRoiLifetimeSec;
     }
 
     private double ParseMotionRoiMergeOverlapRatio(Dictionary<string, string> preferences)
     {
-        if (double.TryParse(preferences.GetValueOrDefault("MotionRoiMergeOverlapRatio"), out double value) && value > 0 && value <= 1)
+        var value = PreferenceParser.ParseValue(preferences, "MotionRoiMergeOverlapRatio", DefaultMotionRoiMergeOverlapRatio, double.Parse);
+        if (value > 0 && value <= 1)
             return value;
         return DefaultMotionRoiMergeOverlapRatio;
     }

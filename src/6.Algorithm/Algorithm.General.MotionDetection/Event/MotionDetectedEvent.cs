@@ -10,6 +10,8 @@ public class MotionDetectedEvent : DomainEvent
 
     public List<Rect> MotionRects { get; }
 
+    public string Annotations { get; set; }
+
     public MotionDetectedEvent(string sourceId, string eventName, string algorithmName, List<Rect> motionRects) 
         : base(sourceId, EventType, eventName, algorithmName)
     {

@@ -61,6 +61,7 @@ public abstract class AlgorithmBase : IAlgorithmModule
     protected int LeaveLineStrokeWidth;
 
     // event generation preferences
+    protected bool WillPublishEventMessage;
     protected bool WillSaveEventSnapshot;
     protected bool WillSaveEventVideoClip;
     protected int LocalEventIntervalSec;
@@ -115,6 +116,7 @@ public abstract class AlgorithmBase : IAlgorithmModule
         LeaveLineStrokeColor = PreferenceParser.ParseStringValue(Preferences, "LeaveLineStrokeColor", AlgorithmConstants.DefaultLeaveLineStrokeColor);
         LeaveLineStrokeWidth = PreferenceParser.ParseIntValue(Preferences, "LeaveLineStrokeWidth", AlgorithmConstants.DefaultLeaveLineWidth);
 
+        WillPublishEventMessage = PreferenceParser.ParseBoolValue(Preferences, "WillPublishEventMessage", AlgorithmConstants.DefaultWillPublishEventMessage);
         WillSaveEventSnapshot = PreferenceParser.ParseBoolValue(Preferences, "WillSaveEventSnapshot", AlgorithmConstants.DefaultWillSaveEventSnapshot);
         WillSaveEventVideoClip = PreferenceParser.ParseBoolValue(Preferences, "WillSaveEventVideoClip", AlgorithmConstants.DefaultWillSaveEventVideoClip);
         LocalEventIntervalSec = PreferenceParser.ParseIntValue(Preferences, "LocalEventIntervalSec", AlgorithmConstants.DefaultLocalEventIntervalSec);

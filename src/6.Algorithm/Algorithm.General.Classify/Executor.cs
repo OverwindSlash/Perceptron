@@ -165,6 +165,8 @@ public class Executor : AlgorithmBase
 
     private void ProcessClassifyEvent(Frame frame, DetectedObject detectedObject, List<Classification> classification)
     {
+        if (!WillPublishEventMessage) return;
+
         if (CheckLocalEventInterval()) return;
 
         Log.Information($"{detectedObject.Id} classify to '{classification[0].Label}' with conf:{classification[0].Confidence}");

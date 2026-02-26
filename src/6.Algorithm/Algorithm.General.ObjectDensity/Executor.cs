@@ -116,6 +116,8 @@ public class Executor : AlgorithmBase
 
     private void ProcessDensityExceedEvent(Frame frame, int count)
     {
+        if (!WillPublishEventMessage) return;
+
         if (CheckLocalEventInterval()) return;
 
         Log.Warning($"{ObjectToBeCount} number: {count} in detection region, exceed max thresh: {MaxCountThreshold}.");

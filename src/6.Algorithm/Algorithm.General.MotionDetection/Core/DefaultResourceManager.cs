@@ -94,6 +94,7 @@ public class DefaultResourceManager : IResourceManager
     #region 私有方法
     private void InitializeBuffers(Size frameSize)
     {
+        _allocatedMemoryBytes = 0;
         // 创建前景掩码缓冲区
         ForegroundMask = new Mat(frameSize, MatType.CV_8UC1);
         _activeMatCount++;
@@ -123,9 +124,7 @@ public class DefaultResourceManager : IResourceManager
             _activeMatCount--;
         }
 
-        // 重新计算内存使用
-        _allocatedMemoryBytes = _currentSize.Width * _currentSize.Height * 
-                               (MorphKernel != null ? MorphKernel.ElemSize() : 0);
+        _allocatedMemoryBytes = 0;
     }
     #endregion
 

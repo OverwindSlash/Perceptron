@@ -1,12 +1,18 @@
-﻿using Algorithm.Common;
+using Algorithm.Common;
 using Algorithm.General.MotionDetection.Core;
+using Algorithm.General.MotionDetection.Event;
 using Algorithm.General.MotionDetection.Strategy;
+using MessagePipe;
+using Microsoft.Extensions.DependencyInjection;
 using OpenCvSharp;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
+using Perceptron.Domain.Event;
+using Perceptron.Domain.Extensions;
 using Perceptron.Service.Pipeline;
 using Serilog;
+using System.Text.Json;
 using Size = OpenCvSharp.Size;
 
 namespace Algorithm.General.MotionDetection;
@@ -18,6 +24,8 @@ public class Executor : AlgorithmBase
     private IFrameProcessor _frameProcessor;
     private IResourceManager _resourceManager;
     private IPerformanceMonitor _performanceMonitor;
+
+    private IPublisher<MotionDetectedEvent> _motionEventPublisher;
 
     // 状态管理
     private int _frameCount = 0;
@@ -33,6 +41,9 @@ public class Executor : AlgorithmBase
 
     public override bool Initialize()
     {
+        var provider = Pipeline.Provider;
+        _motionEventPublisher = provider.GetRequiredService<IPublisher<MotionDetectedEvent>>();
+
         // 从preferences解析配置
         _settings = new MotionDetectionSettings();
         _settings.ParsePreferences(Preferences);
@@ -81,13 +92,15 @@ public class Executor : AlgorithmBase
             return new AnalysisResult(false);
         }
 
-        // 更新性能监控
-        _performanceMonitor.UpdateMetrics(processResult.ProcessingTimeMs);
-
         // 将运动区域信息存储到Frame对象中
         StoreMotionRegionsInFrame(frame, processResult.MotionRegions);
 
         GenerateMotionAnnotation(frame, processResult.MotionRegions);
+
+        if (processResult.MotionRegions.Count != 0)
+        {
+            ProcessMotionDetectedEvent(frame, processResult.MotionRegions);
+        }
 
         frame.Dispose();
 
@@ -168,5 +181,80 @@ public class Executor : AlgorithmBase
         }
 
         return annotation;
+    }
+
+    private void ProcessMotionDetectedEvent(Frame frame, List<Rect> motionRois)
+    {
+        if (!WillPublishEventMessage) return;
+
+        if (CheckLocalEventInterval()) return;
+
+        // 构建事件消息并发布
+        Log.Information($"Motion detected for frame {frame.FrameId} with {motionRois.Count} motion regions.");
+
+        // 1. Create event
+        var motionDetectedEvent = new MotionDetectedEvent(
+            sourceId: frame.SourceId,
+            eventName: EventName,
+            algorithmName: AlgorithmName,
+            motionRects: motionRois);
+
+        // 2. Serialize Annotations (Synchronously)
+        var annotationJson = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
+        motionDetectedEvent.Annotations = annotationJson;
+
+        // 3. Prepare Snapshot (Synchronously - critical for thread safety)
+        Mat? snapshot = null;
+        if (WillSaveEventSnapshot)
+        {
+            // Clone the scene because frame.Scene might be disposed/reused in the main loop
+            snapshot = frame.Scene.Clone();
+        }
+
+        var frameId = frame.FrameId;
+
+        // 4. Async Saving
+        string now = DateTime.Now.ToString("yyyyMMddhhmmss");
+        Task.Run(async () =>
+        {
+            try
+            {
+                using (snapshot) // Ensure disposal of the cloned snapshot
+                {
+                    string savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"));
+                    savePath.EnsureDirExistence();
+
+                    if (snapshot != null && !snapshot.IsDisposed)
+                    {
+                        string imagePath = Path.Combine(savePath, $"objectDensity_{now}.jpg");
+                        snapshot.SaveImage(imagePath);
+
+                        string annotationPath = Path.Combine(savePath, $"objectDensity_{now}.json");
+                        await File.WriteAllTextAsync(annotationPath, annotationJson);
+
+                        motionDetectedEvent.ImageLocalPath = imagePath;
+                        motionDetectedEvent.ImageJsonLocalPath = annotationPath;
+                    }
+
+                    if (WillSaveEventVideoClip)
+                    {
+                        string videoPath = Path.Combine(savePath, $"objectDensity_{now}.mp4");
+                        // Note: GenerateVideoClipAroundFrameAsync might be fire-and-forget or long running.
+                        await SnapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
+
+                        motionDetectedEvent.VideoLocalPath = videoPath;
+                    }
+
+                    await EventRepository.SaveDomainEventAsync(motionDetectedEvent);
+                    MessagePoster.PostDomainEventMessage(motionDetectedEvent);
+
+                    _motionEventPublisher.Publish(motionDetectedEvent);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error processing object density event {EventName}", EventName);
+            }
+        });
     }
 }

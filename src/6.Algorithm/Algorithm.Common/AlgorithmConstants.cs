@@ -31,6 +31,7 @@ public class AlgorithmConstants
     public const int DefaultLeaveLineWidth = 1;
 
     // event
+    public const bool DefaultWillPublishEventMessage = true;
     public const bool DefaultWillSaveEventSnapshot = true;
     public const bool DefaultWillSaveEventVideoClip = false;
     public const int DefaultLocalEventIntervalSec = 1;

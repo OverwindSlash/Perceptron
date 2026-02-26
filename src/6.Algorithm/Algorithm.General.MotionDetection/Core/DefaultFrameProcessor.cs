@@ -22,6 +22,7 @@ public class DefaultFrameProcessor : IFrameProcessor
     private double _scaleFactor = 1.0;
     
     private int _currentFrameCount = 0;
+    private int _baselineFrameCount = 0;
     private bool _baselineEstablished = false;
     private readonly Stopwatch _frameStopwatch = new();
     
@@ -54,6 +55,7 @@ public class DefaultFrameProcessor : IFrameProcessor
 
             // 计算处理尺寸和缩放因子
             InitializeScaleAndBuffers(frameSize);
+            _resourceManager.ReinitializeBuffers(_processSize);
 
             // 初始化运动检测策略
             if (!_strategy.Initialize(_processSize))
@@ -93,12 +95,16 @@ public class DefaultFrameProcessor : IFrameProcessor
         {
             _frameStopwatch.Restart();
             _currentFrameCount++;
+            _baselineFrameCount++;
 
             // 检查尺寸变化
             if (frame.Scene.Size() != _originalSize)
             {
                 InitializeScaleAndBuffers(frame.Scene.Size());
                 _resourceManager.ReinitializeBuffers(_processSize);
+                _strategy.Initialize(_processSize);
+                _baselineEstablished = false;
+                _baselineFrameCount = 0;
             }
 
             // 基线期处理
@@ -179,7 +185,7 @@ public class DefaultFrameProcessor : IFrameProcessor
         var workingFrame = GetWorkingFrame(frame.Scene);
         _resourceManager.BackgroundSubtractor.Apply(workingFrame, _resourceManager.ForegroundMask, _settings.FastLearningRate);
 
-        if (_currentFrameCount >= _settings.BaselineFrameCount)
+        if (_baselineFrameCount >= _settings.BaselineFrameCount)
         {
             _baselineEstablished = true;
             Log.Information($"Motion detection baseline established after {_currentFrameCount} frames");
@@ -250,19 +256,23 @@ public class DefaultFrameProcessor : IFrameProcessor
     {
         var allRegions = new List<Rect>(currentRegions);
         allRegions.AddRange(historicalRegions);
-        
-        // 合并重叠区域
         var mergedRegions = MergeOverlappingRects(allRegions);
-        
         int totalMotionArea = mergedRegions.Sum(roi => roi.Width * roi.Height);
-        double motionCoverageRatio = (double)totalMotionArea / (_originalSize.Width * _originalSize.Height);
-
+        double motionCoverageRatio = _originalSize.Width > 0 && _originalSize.Height > 0
+            ? (double)totalMotionArea / (_originalSize.Width * _originalSize.Height)
+            : 0.0;
+        double averageRegionSize = mergedRegions.Count > 0
+            ? mergedRegions.Average(r => r.Width * r.Height)
+            : 0.0;
+        double motionConsistency = CalculateConsistency(currentRegions, historicalRegions);
         return new MotionStatistics
         {
             TotalMotionArea = totalMotionArea,
             MotionCoverageRatio = motionCoverageRatio,
             ActiveRegionCount = mergedRegions.Count,
-            StrategyUsed = _strategy.StrategyName
+            StrategyUsed = _strategy.StrategyName,
+            AverageRegionSize = averageRegionSize,
+            MotionConsistency = motionConsistency
         };
     }
 
@@ -316,6 +326,22 @@ public class DefaultFrameProcessor : IFrameProcessor
         int y2 = Math.Max(rect1.Y + rect1.Height, rect2.Y + rect2.Height);
 
         return new Rect(x1, y1, x2 - x1, y2 - y1);
+    }
+    
+    private double CalculateConsistency(List<Rect> current, List<Rect> historical)
+    {
+        if (current.Count == 0 || historical.Count == 0) return 0.0;
+        double totalIoU = 0.0;
+        int comparisons = 0;
+        for (int i = 0; i < current.Count; i++)
+        {
+            for (int j = 0; j < historical.Count; j++)
+            {
+                totalIoU += CalculateIoU(current[i], historical[j]);
+                comparisons++;
+            }
+        }
+        return comparisons > 0 ? totalIoU / comparisons : 0.0;
     }
     #endregion
 
