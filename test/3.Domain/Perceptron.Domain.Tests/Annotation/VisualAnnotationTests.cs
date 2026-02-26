@@ -199,18 +199,18 @@ public class VisualAnnotationTests
         var style = new Style();
         Assert.Multiple(() =>
         {
-            Assert.That(style.StrokeColor, Is.EqualTo("#000000"));
-            Assert.That(style.FillColor, Is.Empty);
-            Assert.That(style.StrokeWidth, Is.EqualTo(0));
-            Assert.That(style.Opacity, Is.EqualTo(1.0f));
-            Assert.That(style.Dash, Is.Empty);
-            Assert.That(style.Visible, Is.True);
-            Assert.That(style.ZIndex, Is.EqualTo(0));
-            Assert.That(style.Color, Is.EqualTo("#000000"));
-            Assert.That(style.FontSize, Is.EqualTo(0));
-            Assert.That(style.FontFamily, Is.EqualTo("Microsoft YaHei"));
-            Assert.That(style.FontWeight, Is.EqualTo("normal"));
-            Assert.That(style.BackgroundColor, Is.EqualTo(string.Empty));
+            Assert.That(style.StrokeColor, Is.Null);
+            Assert.That(style.FillColor, Is.Null);
+            Assert.That(style.StrokeWidth, Is.Null);
+            Assert.That(style.Opacity, Is.Null);
+            Assert.That(style.Dash, Is.Null);
+            Assert.That(style.Visible, Is.Null);
+            Assert.That(style.ZIndex, Is.Null);
+            Assert.That(style.Color, Is.Null);
+            Assert.That(style.FontSize, Is.Null);
+            Assert.That(style.FontFamily, Is.Null);
+            Assert.That(style.FontWeight, Is.Null);
+            Assert.That(style.BackgroundColor, Is.Null);
         });
     }
 

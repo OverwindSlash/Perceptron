@@ -1,4 +1,4 @@
-﻿using ComponentCommon;
+using ComponentCommon;
 using OpenCvSharp;
 using Perceptron.Domain.Abstraction.Annotation;
 using Perceptron.Domain.Entity.Annotation;
@@ -55,7 +55,7 @@ public class Render : ComponentBase, IAnnotationRender
 
             foreach (var shape in sortedShapes)
             {
-                if (shape.Style != null && !shape.Style.Visible) continue;
+                if (shape.Style?.Visible == false) continue;
 
                 switch (shape.Type)
                 {
@@ -95,13 +95,13 @@ public class Render : ComponentBase, IAnnotationRender
         {
             StrokeColor = user.StrokeColor ?? def.StrokeColor,
             FillColor = user.FillColor ?? def.FillColor,
-            StrokeWidth = user.StrokeWidth > 0 ? user.StrokeWidth : def.StrokeWidth,
-            Opacity = user.Opacity != 1.0f ? user.Opacity : def.Opacity,
+            StrokeWidth = user.StrokeWidth ?? def.StrokeWidth,
+            Opacity = user.Opacity ?? def.Opacity,
             Dash = user.Dash ?? def.Dash,
-            ZIndex = user.ZIndex != 0 ? user.ZIndex : def.ZIndex,
-            Visible = user.Visible,
+            ZIndex = user.ZIndex ?? def.ZIndex,
+            Visible = user.Visible ?? def.Visible,
             Color = user.Color ?? def.Color,
-            FontSize = user.FontSize > 0 ? user.FontSize : def.FontSize,
+            FontSize = user.FontSize ?? def.FontSize,
             FontFamily = user.FontFamily ?? def.FontFamily,
             FontWeight = user.FontWeight ?? def.FontWeight,
             BackgroundColor = user.BackgroundColor ?? def.BackgroundColor
@@ -170,14 +170,16 @@ public class Render : ComponentBase, IAnnotationRender
 
     private void DrawCircle(Mat image, Shape shape)
     {
-        if (shape.Center == null) return;
+        if (shape.Center == null || shape.Radius == null) return;
 
         var Style = GetMergedStyle("circle", shape.Style);
+        var radius = shape.Radius.Value;
+        var opacity = Style.Opacity ?? 1.0f;
 
         if (!string.IsNullOrEmpty(Style.FillColor))
         {
             var pad = 1;
-            var roi = new OpenCvSharp.Rect(shape.Center.X - shape.Radius - pad, shape.Center.Y - shape.Radius - pad, shape.Radius * 2 + pad * 2, shape.Radius * 2 + pad * 2);
+            var roi = new OpenCvSharp.Rect(shape.Center.X - radius - pad, shape.Center.Y - radius - pad, radius * 2 + pad * 2, radius * 2 + pad * 2);
             roi = ClipRectToImage(image, roi);
             if (roi.Width > 0 && roi.Height > 0)
             {
@@ -186,17 +188,17 @@ public class Render : ComponentBase, IAnnotationRender
                 var Color = ParseColorToScalar(Style.FillColor);
                 var cx = shape.Center.X - roi.X;
                 var cy = shape.Center.Y - roi.Y;
-                Cv2.Circle(overlay, new OpenCvSharp.Point(cx, cy), shape.Radius, Color, -1, LineTypes.AntiAlias);
-                var alpha = ParseAlpha(Style.FillColor, Style.Opacity);
+                Cv2.Circle(overlay, new OpenCvSharp.Point(cx, cy), radius, Color, -1, LineTypes.AntiAlias);
+                var alpha = ParseAlpha(Style.FillColor, opacity);
                 Cv2.AddWeighted(overlay, alpha, roiMat, 1.0 - alpha, 0, roiMat);
             }
         }
 
         if (!string.IsNullOrEmpty(Style.StrokeColor))
         {
-            var thickness = Style.StrokeWidth > 0 ? Style.StrokeWidth : 1;
+            var thickness = (Style.StrokeWidth ?? 0) > 0 ? Style.StrokeWidth!.Value : 1;
             var pad = thickness + 1;
-            var roi = new OpenCvSharp.Rect(shape.Center.X - shape.Radius - pad, shape.Center.Y - shape.Radius - pad, shape.Radius * 2 + pad * 2, shape.Radius * 2 + pad * 2);
+            var roi = new OpenCvSharp.Rect(shape.Center.X - radius - pad, shape.Center.Y - radius - pad, radius * 2 + pad * 2, radius * 2 + pad * 2);
             roi = ClipRectToImage(image, roi);
             if (roi.Width > 0 && roi.Height > 0)
             {
@@ -205,8 +207,8 @@ public class Render : ComponentBase, IAnnotationRender
                 var Color = ParseColorToScalar(Style.StrokeColor);
                 var cx = shape.Center.X - roi.X;
                 var cy = shape.Center.Y - roi.Y;
-                Cv2.Circle(overlay, new OpenCvSharp.Point(cx, cy), shape.Radius, Color, thickness, LineTypes.AntiAlias);
-                var alpha = ParseAlpha(Style.StrokeColor, Style.Opacity);
+                Cv2.Circle(overlay, new OpenCvSharp.Point(cx, cy), radius, Color, thickness, LineTypes.AntiAlias);
+                var alpha = ParseAlpha(Style.StrokeColor, opacity);
                 Cv2.AddWeighted(overlay, alpha, roiMat, 1.0 - alpha, 0, roiMat);
             }
         }
@@ -217,11 +219,12 @@ public class Render : ComponentBase, IAnnotationRender
         if (shape.Points == null || shape.Points.Length < 2) return;
 
         var Style = GetMergedStyle("polyline", shape.Style);
+        var opacity = Style.Opacity ?? 1.0f;
 
         if (!string.IsNullOrEmpty(Style.StrokeColor))
         {
             var Color = ParseColorToScalar(Style.StrokeColor);
-            var thickness = Style.StrokeWidth > 0 ? Style.StrokeWidth : 1;
+            var thickness = (Style.StrokeWidth ?? 0) > 0 ? Style.StrokeWidth!.Value : 1;
             var pad = thickness + 1;
             var pts = shape.Points.Select(p => new OpenCvSharp.Point(p.X, p.Y)).ToArray();
             var minX = pts.Min(p => p.X) - pad;
@@ -247,7 +250,7 @@ public class Render : ComponentBase, IAnnotationRender
                 Cv2.Polylines(overlay, new[] { oPts }, false, Color, thickness, LineTypes.AntiAlias);
             }
 
-            var alpha = ParseAlpha(Style.StrokeColor, Style.Opacity);
+            var alpha = ParseAlpha(Style.StrokeColor, opacity);
             Cv2.AddWeighted(overlay, alpha, roiMat, 1.0 - alpha, 0, roiMat);
         }
     }
@@ -257,6 +260,7 @@ public class Render : ComponentBase, IAnnotationRender
         if (shape.Points == null || shape.Points.Length < 3) return;
 
         var Style = GetMergedStyle("polygon", shape.Style);
+        var opacity = Style.Opacity ?? 1.0f;
         var pts = shape.Points.Select(p => new OpenCvSharp.Point(p.X, p.Y)).ToArray();
         var minX = pts.Min(p => p.X);
         var minY = pts.Min(p => p.Y);
@@ -273,7 +277,7 @@ public class Render : ComponentBase, IAnnotationRender
                 var Color = ParseColorToScalar(Style.FillColor);
                 var oPts = pts.Select(p => new OpenCvSharp.Point(p.X - roiFill.X, p.Y - roiFill.Y)).ToArray();
                 Cv2.FillPoly(overlay, new[] { oPts }, Color, LineTypes.AntiAlias);
-                var alpha = ParseAlpha(Style.FillColor, Style.Opacity);
+                var alpha = ParseAlpha(Style.FillColor, opacity);
                 Cv2.AddWeighted(overlay, alpha, roiMat, 1.0 - alpha, 0, roiMat);
             }
         }
@@ -281,7 +285,7 @@ public class Render : ComponentBase, IAnnotationRender
         if (!string.IsNullOrEmpty(Style.StrokeColor))
         {
             var Color = ParseColorToScalar(Style.StrokeColor);
-            var thickness = Style.StrokeWidth > 0 ? Style.StrokeWidth : 1;
+            var thickness = (Style.StrokeWidth ?? 0) > 0 ? Style.StrokeWidth!.Value : 1;
             var pad = thickness + 1;
             var roiStroke = ClipRectToImage(image, new OpenCvSharp.Rect(minX - pad, minY - pad, Math.Max(1, (maxX - minX) + pad * 2), Math.Max(1, (maxY - minY) + pad * 2)));
             if (roiStroke.Width <= 0 || roiStroke.Height <= 0) return;
@@ -301,7 +305,7 @@ public class Render : ComponentBase, IAnnotationRender
             {
                 Cv2.Polylines(overlay, new[] { oPts }, true, Color, thickness, LineTypes.AntiAlias);
             }
-            var alpha = ParseAlpha(Style.StrokeColor, Style.Opacity);
+            var alpha = ParseAlpha(Style.StrokeColor, opacity);
             Cv2.AddWeighted(overlay, alpha, roiMat, 1.0 - alpha, 0, roiMat);
         }
     }
@@ -311,12 +315,14 @@ public class Render : ComponentBase, IAnnotationRender
         if (shape.Origin == null || shape.Size == null) return;
 
         var Style = GetMergedStyle("rect", shape.Style);
+        var rotation = shape.Rotation ?? 0;
+        var opacity = Style.Opacity ?? 1.0f;
 
-        if (Math.Abs(shape.Rotation) > 0.1)
+        if (Math.Abs(rotation) > 0.1)
         {
             var center = new Point2f(shape.Origin.X + shape.Size.Width / 2.0f, shape.Origin.Y + shape.Size.Height / 2.0f);
             var size = new Size2f(shape.Size.Width, shape.Size.Height);
-            var rotatedRect = new RotatedRect(center, size, shape.Rotation);
+            var rotatedRect = new RotatedRect(center, size, rotation);
             var pts = rotatedRect.Points().Select(p => new OpenCvSharp.Point((int)Math.Round(p.X), (int)Math.Round(p.Y))).ToArray();
 
             var minX = pts.Min(p => p.X);
@@ -334,7 +340,7 @@ public class Render : ComponentBase, IAnnotationRender
                     var Color = ParseColorToScalar(Style.FillColor);
                     var oPts = pts.Select(p => new OpenCvSharp.Point(p.X - roiFill.X, p.Y - roiFill.Y)).ToArray();
                     Cv2.FillPoly(overlay, new[] { oPts }, Color, LineTypes.AntiAlias);
-                    var alpha = ParseAlpha(Style.FillColor, Style.Opacity);
+                    var alpha = ParseAlpha(Style.FillColor, opacity);
                     Cv2.AddWeighted(overlay, alpha, roiMat, 1.0 - alpha, 0, roiMat);
                 }
             }
@@ -342,7 +348,7 @@ public class Render : ComponentBase, IAnnotationRender
             if (!string.IsNullOrEmpty(Style.StrokeColor))
             {
                 var Color = ParseColorToScalar(Style.StrokeColor);
-                var thickness = Style.StrokeWidth > 0 ? Style.StrokeWidth : 1;
+                var thickness = (Style.StrokeWidth ?? 0) > 0 ? Style.StrokeWidth!.Value : 1;
                 var pad = thickness + 1;
                 var roiStroke = ClipRectToImage(image, new OpenCvSharp.Rect(minX - pad, minY - pad, Math.Max(1, (maxX - minX) + pad * 2), Math.Max(1, (maxY - minY) + pad * 2)));
                 if (roiStroke.Width > 0 && roiStroke.Height > 0)
@@ -361,7 +367,7 @@ public class Render : ComponentBase, IAnnotationRender
                     {
                         Cv2.Polylines(overlay, new[] { oPts }, true, Color, thickness, LineTypes.AntiAlias);
                     }
-                    var alpha = ParseAlpha(Style.StrokeColor, Style.Opacity);
+                    var alpha = ParseAlpha(Style.StrokeColor, opacity);
                     Cv2.AddWeighted(overlay, alpha, roiMat, 1.0 - alpha, 0, roiMat);
                 }
             }
@@ -379,7 +385,7 @@ public class Render : ComponentBase, IAnnotationRender
                 using var overlay = roiMat.Clone();
                 var Color = ParseColorToScalar(Style.FillColor);
                 Cv2.Rectangle(overlay, new Rect(0, 0, roi.Width, roi.Height), Color, -1, LineTypes.AntiAlias);
-                var alpha = ParseAlpha(Style.FillColor, Style.Opacity);
+                var alpha = ParseAlpha(Style.FillColor, opacity);
                 Cv2.AddWeighted(overlay, alpha, roiMat, 1.0 - alpha, 0, roiMat);
             }
         }
@@ -387,7 +393,7 @@ public class Render : ComponentBase, IAnnotationRender
         if (!string.IsNullOrEmpty(Style.StrokeColor))
         {
             var Color = ParseColorToScalar(Style.StrokeColor);
-            var thickness = Style.StrokeWidth > 0 ? Style.StrokeWidth : 1;
+            var thickness = (Style.StrokeWidth ?? 0) > 0 ? Style.StrokeWidth!.Value : 1;
             var pad = thickness + 1;
             var roi = ClipRectToImage(image, new Rect(rect.X - pad, rect.Y - pad, rect.Width + pad * 2, rect.Height + pad * 2));
             if (roi.Width <= 0 || roi.Height <= 0) return;
@@ -413,7 +419,7 @@ public class Render : ComponentBase, IAnnotationRender
             {
                 Cv2.Rectangle(overlay, new Rect(offsetX, offsetY, rect.Width, rect.Height), Color, thickness, LineTypes.AntiAlias);
             }
-            var alpha = ParseAlpha(Style.StrokeColor, Style.Opacity);
+            var alpha = ParseAlpha(Style.StrokeColor, opacity);
             Cv2.AddWeighted(overlay, alpha, roiMat, 1.0 - alpha, 0, roiMat);
         }
     }
@@ -425,11 +431,11 @@ public class Render : ComponentBase, IAnnotationRender
         var Style = GetMergedStyle("text", shape.Style);
         var ColorStr = Style.Color ?? "#000000";
         var Color = ParseColorToScalar(ColorStr);
-        var alpha = ParseAlpha(ColorStr, Style.Opacity);
+        var alpha = ParseAlpha(ColorStr, Style.Opacity ?? 1.0f);
 
         var fontFace = HersheyFonts.HersheySimplex;
-        var fontScale = Style.FontSize > 0 ? Style.FontSize / 24.0 : 0.5;
-        var thickness = Style.StrokeWidth > 0 ? Style.StrokeWidth : 1;
+        var fontScale = (Style.FontSize ?? 0) > 0 ? Style.FontSize!.Value / 24.0 : 0.5;
+        var thickness = (Style.StrokeWidth ?? 0) > 0 ? Style.StrokeWidth!.Value : 1;
 
         var text = shape.Content;
         int baseline;
@@ -485,7 +491,7 @@ public class Render : ComponentBase, IAnnotationRender
                 using var overlay = roiMat.Clone();
                 var BgColor = ParseColorToScalar(bgColorStr);
                 Cv2.Rectangle(overlay, new OpenCvSharp.Rect(0, 0, bgRoi.Width, bgRoi.Height), BgColor, -1, LineTypes.AntiAlias);
-                var bgAlpha = ParseAlpha(bgColorStr, Style.Opacity);
+                var bgAlpha = ParseAlpha(bgColorStr, Style.Opacity ?? 1.0f);
                 Cv2.AddWeighted(overlay, bgAlpha, roiMat, 1.0 - bgAlpha, 0, roiMat);
             }
         }

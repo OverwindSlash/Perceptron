@@ -226,10 +226,10 @@ public class Executor : AlgorithmBase
 
                     if (snapshot != null && !snapshot.IsDisposed)
                     {
-                        string imagePath = Path.Combine(savePath, $"objectDensity_{now}.jpg");
+                        string imagePath = Path.Combine(savePath, $"motion_{now}.jpg");
                         snapshot.SaveImage(imagePath);
 
-                        string annotationPath = Path.Combine(savePath, $"objectDensity_{now}.json");
+                        string annotationPath = Path.Combine(savePath, $"motion_{now}.json");
                         await File.WriteAllTextAsync(annotationPath, annotationJson);
 
                         motionDetectedEvent.ImageLocalPath = imagePath;
@@ -238,7 +238,7 @@ public class Executor : AlgorithmBase
 
                     if (WillSaveEventVideoClip)
                     {
-                        string videoPath = Path.Combine(savePath, $"objectDensity_{now}.mp4");
+                        string videoPath = Path.Combine(savePath, $"motion_{now}.mp4");
                         // Note: GenerateVideoClipAroundFrameAsync might be fire-and-forget or long running.
                         await SnapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
 
@@ -253,7 +253,7 @@ public class Executor : AlgorithmBase
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error processing object density event {EventName}", EventName);
+                Log.Error(ex, "Error processing motion event {EventName}", EventName);
             }
         });
     }

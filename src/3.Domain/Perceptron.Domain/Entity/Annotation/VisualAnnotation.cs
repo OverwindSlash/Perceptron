@@ -1,4 +1,4 @@
-﻿namespace Perceptron.Domain.Entity.Annotation;
+namespace Perceptron.Domain.Entity.Annotation;
 
 public class VisualAnnotation
 {
@@ -88,16 +88,16 @@ public class Shape
 {
     public string Id { get; set; } = string.Empty;
     public string Type { get; set; } = "rect";
-    public Center Center { get; set; } = new Center();
-    public int Radius { get; set; }
-    public Style Style { get; set; } = new Style(); 
-    public Point[] Points { get; set; } = [];
-    public Origin Origin { get; set; } = new Origin();
-    public Size Size { get; set; } = new Size();
-    public int Rotation { get; set; }
-    public Position Position { get; set; } = new Position();
-    public string Content { get; set; } = string.Empty;
-    public Align Align { get; set; } = new Align();
+    public Center? Center { get; set; }
+    public int? Radius { get; set; }
+    public Style? Style { get; set; }
+    public Point[]? Points { get; set; }
+    public Origin? Origin { get; set; }
+    public Size? Size { get; set; }
+    public int? Rotation { get; set; }
+    public Position? Position { get; set; }
+    public string? Content { get; set; }
+    public Align? Align { get; set; }
 }
 
 public class Center
@@ -108,18 +108,18 @@ public class Center
 
 public class Style
 {
-    public string StrokeColor { get; set; } = "#000000";
-    public string FillColor { get; set; } = string.Empty;
-    public int StrokeWidth { get; set; }
-    public float Opacity { get; set; } = 1.0f;
-    public int[] Dash { get; set; } = [];
-    public int ZIndex { get; set; }
-    public bool Visible { get; set; } = true;
-    public string Color { get; set; } = "#000000";
-    public int FontSize { get; set; }
-    public string FontFamily { get; set; } = "Microsoft YaHei";
-    public string FontWeight { get; set; } = "normal";
-    public object BackgroundColor { get; set; } = string.Empty;
+    public string? StrokeColor { get; set; }
+    public string? FillColor { get; set; }
+    public int? StrokeWidth { get; set; }
+    public float? Opacity { get; set; }
+    public int[]? Dash { get; set; }
+    public int? ZIndex { get; set; }
+    public bool? Visible { get; set; }
+    public string? Color { get; set; }
+    public int? FontSize { get; set; }
+    public string? FontFamily { get; set; }
+    public string? FontWeight { get; set; }
+    public object? BackgroundColor { get; set; }
 }
 
 public class Origin

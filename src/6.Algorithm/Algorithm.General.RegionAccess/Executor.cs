@@ -514,6 +514,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         if (detectedObject.HasProperty("EnterRegion") && detectedObject.GetProperty<bool>("EnterRegion"))
         {
             text.Content = $"{detectedObject.LocalId} Entering";
+            text.Style ??= new Style();
+            rect.Style ??= new Style();
             text.Style.Color = EnteringAnnotationColor;
             rect.Style.StrokeColor = EnteringAnnotationColor;
         }
@@ -521,6 +523,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         if (detectedObject.HasProperty("InRegion") && detectedObject.GetProperty<bool>("InRegion"))
         {
             text.Content = $"{detectedObject.LocalId} In Region";
+            text.Style ??= new Style();
+            rect.Style ??= new Style();
             text.Style.Color = InAnnotationColor;
             rect.Style.StrokeColor = InAnnotationColor;
         }
@@ -528,6 +532,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         if (detectedObject.HasProperty("LeaveRegion") && detectedObject.GetProperty<bool>("LeaveRegion"))
         {
             text.Content = $"{detectedObject.LocalId} Leaving";
+            text.Style ??= new Style();
+            rect.Style ??= new Style();
             text.Style.Color = LeavingAnnotationColor;
             rect.Style.StrokeColor = LeavingAnnotationColor;
         }
