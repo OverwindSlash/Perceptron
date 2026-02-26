@@ -97,6 +97,7 @@
   <Folder Name="/src/6.Algorithm/">
     <Project Path="src/6.Algorithm/Algorithm.Common/Algorithm.Common.csproj" Id="5c770453-4618-400f-816f-b25fabd34a23" />
     <Project Path="src/6.Algorithm/Algorithm.General.Classify/Algorithm.General.Classify.csproj" Id="c42bad2d-98fc-42a5-a521-ffc3afdcdfdf" />
+    <Project Path="src/6.Algorithm/Algorithm.General.MotionDetection/Algorithm.General.MotionDetection.csproj" Id="5f155014-a8ff-4f21-9874-d16f929eea34" />
     <Project Path="src/6.Algorithm/Algorithm.General.ObjectDensity/Algorithm.General.ObjectDensity.csproj" Id="22c17cce-e1a8-40bf-b693-4b71259cd9d3" />
     <Project Path="src/6.Algorithm/Algorithm.General.ObjectOccurrence/Algorithm.General.ObjectOccurrence.csproj" Id="72129c5d-aed6-491b-a072-e385c0476d16" />
     <Project Path="src/6.Algorithm/Algorithm.General.RegionAccess/Algorithm.General.RegionAccess.csproj" Id="b5f42d95-46bf-4a91-bbc8-ee9e7e6072cd" />
@@ -121,5 +122,8 @@
     <Project Path="test/5.Component/RegionManager.Tests/RegionManager.Tests.csproj" Id="14433db4-7879-4f05-ac89-a64c2585a735" />
     <Project Path="test/5.Component/SnapshotManager.Tests/SnapshotManager.Tests.csproj" Id="b1d3bbdf-18d9-44db-ae8c-236cc5ec8b44" />
     <Project Path="test/5.Component/Tracker.Tests/Tracker.Tests.csproj" Id="cedb81dc-00cb-405d-b224-39dc91c52140" />
+  </Folder>
+  <Folder Name="/test/6.Algorithm/">
+    <Project Path="test/6.Algorithm/MotionDetection.Tests/MotionDetection.Tests.csproj" Id="8c7d8fbb-f834-4751-a16c-9715ec10f6db" />
   </Folder>
 </Solution>

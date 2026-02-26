@@ -33,6 +33,7 @@
     <ProjectReference Include="..\..\5.Component\Tracker.DeepSort\Tracker.DeepSort.csproj" />
     <ProjectReference Include="..\..\5.Component\Tracker.Sort\Tracker.Sort.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.Classify\Algorithm.General.Classify.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.MotionDetection\Algorithm.General.MotionDetection.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectDensity\Algorithm.General.ObjectDensity.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrence\Algorithm.General.ObjectOccurrence.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.RegionAccess\Algorithm.General.RegionAccess.csproj" />
@@ -40,6 +41,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Config\hk-motion-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Config\fire-smoke-settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
