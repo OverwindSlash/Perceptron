@@ -7,11 +7,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Algorithm.Common\Algorithm.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Models\" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.23.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\3.Domain\Perceptron.Domain\Perceptron.Domain.csproj" />
+    <None Update="Models\ship_labels_atc.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

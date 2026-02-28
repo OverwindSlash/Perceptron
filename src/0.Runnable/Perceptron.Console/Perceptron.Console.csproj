@@ -38,6 +38,7 @@
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrence\Algorithm.General.ObjectOccurrence.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.RegionAccess\Algorithm.General.RegionAccess.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.Ship.Labels\Algorithm.Ship.Labels.csproj" />
   </ItemGroup>
 
   <ItemGroup>

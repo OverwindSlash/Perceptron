@@ -200,6 +200,8 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
         // 获取事件订阅器
         var objectExpiredSubscriber = Provider.GetRequiredService<ISubscriber<ObjectExpiredEvent>>();
         var frameExpiredSubscriber = Provider.GetRequiredService<ISubscriber<FrameExpiredEvent>>();
+        this.SetSubscriber(objectExpiredSubscriber);
+        this.SetSubscriber(frameExpiredSubscriber);
 
         // 耗时组件优先于视频加载器初始化，以防止视频解码被延迟导致错误.
         ObjectDetector = Provider.GetRequiredService<IObjectDetector>();
@@ -259,9 +261,6 @@ public class AnalysisPipeline : FrameAndObjectExpiredSubscriber
                 Log.Warning("AlgorithmModules {AlgorithmModuleAlgorithmName} initialization failed.", algorithmModule.AlgorithmName);
             }
         }
-
-        this.SetSubscriber(objectExpiredSubscriber);
-        this.SetSubscriber(frameExpiredSubscriber);
 
         _slideWindow.SetPublisher(Provider.GetRequiredService<IPublisher<FrameExpiredEvent>>());
         _slideWindow.SetPublisher(Provider.GetRequiredService<IPublisher<ObjectExpiredEvent>>());

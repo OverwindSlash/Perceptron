@@ -8,7 +8,6 @@ using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event;
-using Perceptron.Domain.Event.Pipeline;
 using Perceptron.Domain.Event.SnapshotManager;
 using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
@@ -18,8 +17,6 @@ using SkiaSharp;
 using System.Text.Json;
 using YoloDotNet;
 using YoloDotNet.Enums;
-using YoloDotNet.ExecutionProvider.CoreML;
-using YoloDotNet.ExecutionProvider.Cpu;
 using YoloDotNet.ExecutionProvider.Cuda;
 using YoloDotNet.Models;
 
@@ -77,16 +74,14 @@ public class Executor : AlgorithmBase
         switch (ExecProvider.ToLower())
         {
             case "cpu":
-                yoloOptions.ExecutionProvider = new CpuExecutionProvider(ModelPath);
-                break;
             case "cuda":
                 yoloOptions.ExecutionProvider = new CudaExecutionProvider(ModelPath, DeviceId);
                 break;
-            case "coreML":
-                yoloOptions.ExecutionProvider = new CoreMLExecutionProvider(ModelPath);
-                break;
+            // case "coreML":
+            //     yoloOptions.ExecutionProvider = new CoreMLExecutionProvider(ModelPath);
+            //     break;
             default:
-                yoloOptions.ExecutionProvider = new CpuExecutionProvider(ModelPath);
+                yoloOptions.ExecutionProvider = new CudaExecutionProvider(ModelPath, DeviceId);
                 break;
         }
 

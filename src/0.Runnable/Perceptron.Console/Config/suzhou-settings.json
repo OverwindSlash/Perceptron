@@ -240,17 +240,33 @@
         "WillSaveEventVideoClip": false
       }
     },
+    //{
+    //  "AssemblyFile": "Algorithm.General.Classify.dll",
+    //  "FullQualifiedClassName": "Algorithm.General.Classify.Executor",
+    //  "Preferences": {
+    //    "ModelPath": "Models/ship_cls_l.onnx",
+    //    "ExecutionProvider": "cuda",
+    //    "DeviceId": 0,
+    //    "Stride": 1,
+    //    "GenerateObjText": false,
+    //    "WillGenerateObjLabelText": true,
+    //    "EventName": "船舶类型识别"
+    //  }
+    //},
     {
-      "AssemblyFile": "Algorithm.General.Classify.dll",
-      "FullQualifiedClassName": "Algorithm.General.Classify.Executor",
+      "AssemblyFile": "Algorithm.Ship.Labels.dll",
+      "FullQualifiedClassName": "Algorithm.Ship.Labels.Executor",
       "Preferences": {
-        "ModelPath": "Models/ship_cls_l.onnx",
+        "ModelPath": "Models/ship_labels_atc.onnx",
         "ExecutionProvider": "cuda",
         "DeviceId": 0,
-        "Stride": 1,
+        "Stride": 5,
         "GenerateObjText": false,
         "WillGenerateObjLabelText": true,
-        "EventName": "船舶类型识别"
+        "ObjTextColor": "#FFFF33",
+        "ObjTextFontSize": 30,
+        "EventName": "船舶属性识别",
+        "EventSnapshotDir": "Events/ShipLabels"
       }
     }
   ]
