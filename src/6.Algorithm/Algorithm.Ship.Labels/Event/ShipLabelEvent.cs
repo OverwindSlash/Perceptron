@@ -8,6 +8,7 @@ public class ShipLabelEvent : DomainEvent
     public const string EventType = "Ship Label Event";
 
     public string ObjectId { get; }
+    public string ObjectLoacalId { get; }
     public float Confidence { get; }
     public ShipLabel Labels { get; }
 
@@ -15,10 +16,11 @@ public class ShipLabelEvent : DomainEvent
 
 
     public ShipLabelEvent(string sourceId, string eventName, string algorithmName,
-        string objectId, float confidence, ShipLabel labels) 
+        string objectId, string objectLoacalId, float confidence, ShipLabel labels) 
         : base(sourceId, EventType, eventName, algorithmName)
     {
         ObjectId = objectId;
+        ObjectLoacalId = objectLoacalId;
         Confidence = confidence;
         Labels = labels;
         Message = $"{ObjectId} labels -> Type:{Labels.ShipType}, Colors:{string.Join(',', Labels.ShipColor)}, Draught:{Labels.ShipDraught}";

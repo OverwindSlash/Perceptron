@@ -8,6 +8,7 @@ using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
+using Perceptron.Domain.Event;
 using Perceptron.Domain.Event.Pipeline;
 using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
@@ -31,6 +32,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     public int Stride { get; private set; }
 
     public bool WillGenerateObjLabelText { get; private set; }
+    public int MinImageAreaOfLabelEvent { get; private set; }
 
     private ShipLabelPredictor _predictor;
 
@@ -67,6 +69,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         DeviceId = PreferenceParser.ParseIntValue(Preferences, "DeviceId", DefaultDeviceId);
         Stride = PreferenceParser.ParseIntValue(Preferences, "Stride", DefaultStride);
         WillGenerateObjLabelText = PreferenceParser.ParseBoolValue(Preferences, "WillGenerateObjLabelText", true);
+        MinImageAreaOfLabelEvent = PreferenceParser.ParseIntValue(Preferences, "MinImageAreaOfLabelEvent", 50000);
 
         _predictor = new ShipLabelPredictor(ModelPath, ExecProvider, DeviceId);
 
@@ -97,6 +100,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 var labels = _predictor.Run(detectedObject.Snapshot);
                 var shipLabel = JsonSerializer.Deserialize<ShipLabel>(labels);
                 shipLabel.Confidence = detectedObject.Confidence;
+                shipLabel.Frame = frame;
                 shipLabel.Snapshot = detectedObject.Snapshot.Clone(); // Clone snapshot for event use
                 shipLabel.JsonLabel = labels;
 
@@ -119,6 +123,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                     var labels = _predictor.Run(detectedObject.Snapshot);
                     var shipLabel = JsonSerializer.Deserialize<ShipLabel>(labels);
                     shipLabel.Confidence = detectedObject.Confidence;
+                    shipLabel.Frame = frame;
                     shipLabel.Snapshot = detectedObject.Snapshot.Clone(); // Clone snapshot for event use
                     shipLabel.JsonLabel = labels;
 
@@ -166,20 +171,20 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         {
             var bbox = detectedObject.Bbox;
 
-            var label = detectedObject.GetProperty<string>("Labels");
+            var labels = detectedObject.GetProperty<string>("Labels");
 
-            var shipLabel = JsonSerializer.Deserialize<ShipLabel>(label);
+            var shipLabels = JsonSerializer.Deserialize<ShipLabel>(labels);
 
             // text annotation
             var text = new Shape()
             {
                 Id = "text_label_" + detectedObject.Id,
                 Type = "text",
-                Content = $"T:{shipLabel.ShipType},C:{string.Join(',', shipLabel.ShipColor)},D:{shipLabel.ShipDraught}",
+                Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
                 Position = new Position()
                 {
                     X = bbox.X,
-                    Y = bbox.Y + base.ObjTextFontSize
+                    Y = bbox.Y - base.ObjTextFontSize
                 },
                 Style = new Style()
                 {
@@ -210,6 +215,9 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     {
         if (!WillPublishEventMessage) return;
 
+        var snapshotArea = shipLabels.Snapshot.Width * shipLabels.Snapshot.Height;
+        if (snapshotArea < MinImageAreaOfLabelEvent) return;
+
         Log.Information("{ShipId} labels -> Type:{ShipType}, Colors:{ShipColors}, Draught:{ShipDraught}",
             @event.Id, shipLabels.ShipType, string.Join(',', shipLabels.ShipColor), shipLabels.ShipDraught);
 
@@ -219,16 +227,44 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             eventName: EventName,
             algorithmName: AlgorithmName,
             objectId: @event.Id,
+            objectLoacalId: @event.LocalId,
             confidence: shipLabels.Confidence,
             labels: shipLabels);
 
-        // 2. Prepare Snapshot (Synchronously - critical for thread safety)
+        // 2. Generate text annotation for detected object
+        var frame = shipLabels.Frame;
+        var visualAnnotation = new VisualAnnotation(@event.SourceId, frame.UtcTimeStamp, frame.FrameId, shipLabels.Snapshot.Width,
+            shipLabels.Snapshot.Height);
+
+        var text = new Shape()
+        {
+            Id = "text_label_" + @event.Id,
+            Type = "text",
+            Content = $"Id:{@event.LocalId}, T:{shipLabels.ShipType}\nC:{string.Join(',', shipLabels.ShipColor)}\nD:{shipLabels.ShipDraught}",
+            Position = new Position()
+            {
+                X = 10,
+                Y = 10
+            },
+            Style = new Style()
+            {
+                Color = base.ObjTextColor,
+                FontSize = base.ObjTextFontSize,
+            }
+        };
+
+        visualAnnotation.AddShape(text);
+        shipLabelEvent.Annotations = JsonSerializer.Serialize(visualAnnotation, DomainEvent.JsonOptions);
+
+        // 3. Prepare Snapshot (Synchronously - critical for thread safety)
         Mat? snapshot = null;
         if (WillSaveEventSnapshot)
         {
             snapshot = shipLabels.Snapshot;
         }
 
+        // 4. Async Saving
+        string now = DateTime.Now.ToString("yyyyMMddhhmmss");
         Task.Run(async () =>
         {
             try
@@ -240,13 +276,14 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
                     if (snapshot != null && !snapshot.IsDisposed)
                     {
-                        string imagePath = Path.Combine(savePath, $"shipLabel_{@event.Id}.jpg");
+                        string imagePath = Path.Combine(savePath, $"{@event.Id}_{now}.jpg");
                         snapshot.SaveImage(imagePath);
 
-                        shipLabelEvent.ImageLocalPath = imagePath;
-                        shipLabelEvent.Annotations = "{}";
+                        string annotationPath = Path.Combine(savePath, $"{@event.Id}_{now}.json");
+                        await File.WriteAllTextAsync(annotationPath, shipLabelEvent.Annotations);
 
-                        // TODO: Add annotation details to shipLabelEvent.Annotations if needed
+                        shipLabelEvent.ImageLocalPath = imagePath;
+                        shipLabelEvent.ImageJsonLocalPath = annotationPath;
                     }
 
                     await EventRepository.SaveDomainEventAsync(shipLabelEvent);
