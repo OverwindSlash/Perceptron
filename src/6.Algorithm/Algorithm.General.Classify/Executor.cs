@@ -148,11 +148,11 @@ public class Executor : AlgorithmBase
             {
                 Id = "text_label_" + detectedObject.Id,
                 Type = "text",
-                Content = $"{label}:{conf:F2}",
+                Content = $"Id:{detectedObject.LocalId},C:{label}:{conf:F2}",
                 Position = new Position()
                 {
                     X = bbox.X,
-                    Y = bbox.Y + base.ObjTextFontSize
+                    Y = bbox.Y - base.ObjTextFontSize
                 },
                 Style = new Style()
                 {

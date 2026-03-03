@@ -1,0 +1,239 @@
+﻿{
+  "Pipeline": {
+    "FrameLifetime": 200,
+    "EnableDebugDisplay": true,
+    "EnableDetectionRegionDisplay": true,
+    "EnableAnnotationServer": true,
+    "AnnotationServerPrefix": "/perceptron",
+    "EnableAnnotationUdp": true,
+    "AnnotationUdpHost": "192.168.1.100",
+    "AnnotationUdpPort": 9090,
+    "RealtimeDisplayWidth": 1280,
+    "RealtimeDisplayTitle": "Perceptron Realtime Display"
+  },
+  "VideoLoaders": [
+    {
+      "AssemblyFile": "MediaLoader.OpenCV.dll",
+      "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
+      "Preferences": {
+        "SourceId": "Suzhou-Cam-001",
+        "VideoUri": "D:\\Video\\Ship\\suzhou.ts",
+        "VideoCaptureAPI": "FFMPEG",
+        "VideoAccelerationType": "None",
+        "VideoAccelerationDeviceId": 0,
+        "VideoStride": 1,
+        "MaxRetries": 5,
+        "RetryDelayMs": 500,
+        "Loop": false
+      }
+    }
+    //{
+    // "AssemblyFile": "MediaLoader.OpenCV.dll",
+    // "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
+    // "Preferences": {
+    //   "SourceId": "Sea-Cam-002",
+    //   "VideoUri": "D:\\Video\\Ship\\test.mp4",
+    //   "VideoCaptureAPI": "FFMPEG",
+    //   "VideoAccelerationType": "D3D11",
+    //   "VideoAccelerationDeviceId": 0,
+    //   "VideoStride": 1,
+    //   "MaxRetries": 3,
+    //   "RetryDelayMs": 1000,
+    //   "Loop": false
+    // }
+    //}
+  ],
+  "RegionManager": [
+    {
+      "AssemblyFile": "RegionManager.DefinitionBased.dll",
+      "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
+      "Preferences": {
+        "SourceId": "Suzhou-Cam-001",
+        "RegionDefinitionFile": "RegionDefinitions/suzhou-region.json"
+      }
+    }
+    //{
+    //  "AssemblyFile": "RegionManager.DefinitionBased.dll",
+    //  "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
+    //  "Preferences": {
+    //    "SourceId": "Sea-Cam-002",
+    //    "RegionDefinitionFile": "Pipeline/test-region.json"
+    //  }
+    //}
+  ],
+  "InputFrameBuffer": {
+    "AssemblyFile": "FrameBuffer.TwoModes.dll",
+    "FullQualifiedClassName": "FrameBuffer.TwoModes.VideoFrameBuffer",
+    "Preferences": {
+      "BufferName": "InputFrameBuffer",
+      "BufferSize": 100,
+      "Mode": "BlockingWait"
+    }
+  },
+  "OutputFrameBuffer": {
+    "AssemblyFile": "FrameBuffer.TwoModes.dll",
+    "FullQualifiedClassName": "FrameBuffer.TwoModes.VideoFrameBuffer",
+    "Preferences": {
+      "BufferName": "OutputFrameBuffer",
+      "BufferSize": 100,
+      "Mode": "BlockingWait"
+    }
+  },
+  "Detector": {
+    "AssemblyFile": "Detector.YoloDotNet.dll",
+    "FullQualifiedClassName": "Detector.YoloDotNet.YoloDetector",
+    "Preferences": {
+      "ModelPath": "Models/yolo11x.onnx",
+      "ModelConfig": "Models/yolo11.json",
+      "ExecutionProvider": "cuda",
+      "DeviceId": 0,
+      "ClassNum": 80,
+      "ConfThresh": 0.5,
+      "TargetTypes": "person,boat",
+      "DetectionStride": 2,
+      "FilterSmallObject": false,
+      "MinBboxWidth": 80,
+      "MinBboxHeight": 50,
+      "FilterLargeObject": false,
+      "MaxBboxWidth": 500,
+      "MaxBboxHeight": 400,
+      "TileDetectionEnabled": false,
+      "TileDetectionSize": "1, 2",
+      "MaxStitchGapPixel": 3,
+      "MinVerticalOverlapRatio": 0.8,
+      "WillSuppressInnerSameObject": true,
+      "InnerObjectOverlapRatio": 0.7,
+      "WillMapObjectTypes": false,
+      "SourceObjectTypeNames": "truck,bus",
+      "DestinationObjectTypeName": "car",
+      "Names": "Alice,Bob,Charlie,David,Eve"
+    }
+  },
+  "Tracker": {
+    "AssemblyFile": "Tracker.Sort.dll",
+    "FullQualifiedClassName": "Tracker.Sort.SortTracker",
+    "Preferences": {
+      "IouThreshold": 0.1,
+      "MaxMisses": 30
+    }
+  },
+  //"Tracker": {
+  //  "AssemblyFile": "Tracker.DeepSort.dll",
+  //  "FullQualifiedClassName": "Tracker.DeepSort.DeepSortTracker",
+  //  "Preferences": {
+  //    "SessionDevice": "cuda",
+  //    "IouThreshold": 0.3,
+  //    "TargetConfidence": 0.4,
+  //    "MaxMisses": 30,
+  //    "AppearanceExtractorVersion": 0,
+  //    "AppearanceExtractorFilePath": "Models/osnet_x1_0_msmt17.onnx",
+  //    "AppearanceWeight": 0.775,
+  //    "FramesToAppearanceSmooth": 40,
+  //    "SmoothAppearanceWeight": 0.875,
+  //    "MinStreak": 8
+  //  }
+  //},
+  "Snapshot": {
+    "AssemblyFile": "SnapshotManager.InMemory.dll",
+    "FullQualifiedClassName": "SnapshotManager.InMemory.SnapshotManager",
+    "Preferences": {
+      "SnapshotsDir": "Snapshots",
+      "SaveBestSnapshot": true,
+      "BestSnapshotBy": "confidence", // "confidence" | "area" | "width" | "height"
+      "SnapshotExpansionRatio": 1.2,
+      "MaxSnapshots": 10,
+      "MinSnapshotWidth": 50,
+      "MinSnapshotHeight": 50,
+      "SnapshotRetentionDays": 1,
+      "VideoClipDurationSeconds": 4,
+      "VideoFrameRate": 25
+    }
+  },
+  "MessagePoster": {
+    "AssemblyFile": "MessagePoster.RestfulJson.dll",
+    "FullQualifiedClassName": "MessagePoster.RestfulJson.MessagePoster",
+    "Preferences": {
+      "WillPostMessage": true,
+      "DestinationUrl": "http://127.0.0.1:5000/pipeline_event",
+      //"DestinationUrl": "http://192.168.1.232/api/marinemind/event/pipeline_warn",
+      "CheckDuplicateEvent": true,
+      "EventSuppressionIntervals": {
+        "Suzhou-Cam-001_船舶处于警戒区": 30
+      }
+    }
+  },
+  "EventRepository": {
+    "AssemblyFile": "Repository.MinioMySQL.dll",
+    "FullQualifiedClassName": "Repository.MinioMySQL.EventRepository",
+    "Preferences": {
+      //"RdbConnectionString": "server=192.168.1.232;port=3306;uid=root;pwd=root;database=marinemind",
+      //"StorageUrl": "192.168.1.220:9002",
+      //"StorageUsername": "minioadmin",
+      //"StoragePassword": "minioadmin",
+      "RdbConnectionString": "server=127.0.0.1;port=3306;uid=root;pwd=cs202304;database=perceptron",
+      "StorageUrl": "127.0.0.1:9000",
+      "StorageUsername": "admin",
+      "StoragePassword": "cs202304",
+      "WillStoreSnapshot": true,
+      "WillStoreVideoClip": false
+    }
+  },
+  "AnnotationSender": {
+    "AssemblyFile": "AnnotationSender.Udp.dll",
+    "FullQualifiedClassName": "AnnotationSender.Udp.AnnotationUdpSender",
+    "Preferences": {
+      "EnableAnnotationUdpSender": true,
+      "AnnotationUdpDestinationHost": "127.0.0.1",
+      "AnnotationUdpDestinationPort": 9999
+    }
+  },
+  "AnnotationRender": {
+    "AssemblyFile": "AnnotationRender.OpenCV.dll",
+    "FullQualifiedClassName": "AnnotationRender.OpenCV.Render",
+    "Preferences": {
+      "DefaultStyleFile": "default-style.json"
+    }
+  },
+  "Algorithms": [
+    //{
+    //  "AssemblyFile": "Algorithm.GenerateDebugAnnotations.dll",
+    //  "FullQualifiedClassName": "Algorithm.GenerateDebugAnnotations.Executor",
+    //  "Preferences": {
+    //    "GenerateBBox": true,
+    //    "BBoxStrokeColor": "#8fce00",
+    //    "BBoxStrokeWidth": 2,
+    //    "GenerateObjText": true,
+    //    "ObjTextColor": "#ffff00",
+    //    "ObjTextFontSize": 30,
+    //    "ObjTextShowLabel": true,
+    //    "ObjTextShowTrackingId": true,
+    //    "ObjTextShowConfidence": false,
+    //    "GenerateAnalysisAreas": false,
+    //    "AnalysisAreaStrokeColor": "#7dda58",
+    //    "GenerateExcludeAreas": true,
+    //    "ExcludeAreaStrokeColor": "#e36667",
+    //    "GenerateLanes": true,
+    //    "LanesStrokeColor": "#e8e8e8",
+    //    "GenerateInterestAreas": true,
+    //    "InterestAreasStrokeColor": "#ffeca1",
+    //    "GenerateCountLines": true,
+    //    "EnterLineStrokeColor": "#4e4e4e",
+    //    "LeaveLineStrokeColor": "#4e4e4e"
+    //  }
+    //},
+    {
+      "AssemblyFile": "Algorithm.General.Classify.dll",
+      "FullQualifiedClassName": "Algorithm.General.Classify.Executor",
+      "Preferences": {
+        "EventSnapshotDir": "Events/Classify",
+        "ModelPath": "Models/ship_cls_l.onnx",
+        "ExecutionProvider": "cuda",
+        "DeviceId": 0,
+        "Stride": 1,
+        "GenerateObjText": false,
+        "WillGenerateObjLabelText": true,
+        "EventName": "船舶类型识别"
+      }
+    }    
+  ]
+}
