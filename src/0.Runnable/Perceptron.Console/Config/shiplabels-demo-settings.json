@@ -16,8 +16,8 @@
       "AssemblyFile": "MediaLoader.OpenCV.dll",
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
-        "SourceId": "Suzhou-Cam-001",
-        "VideoUri": "D:\\Video\\Ship\\suzhou.ts",
+        "SourceId": "Sea-Cam-001",
+        "VideoUri": "D:\\Video\\Ship\\test - Trim.mp4",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -48,8 +48,8 @@
       "AssemblyFile": "RegionManager.DefinitionBased.dll",
       "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
       "Preferences": {
-        "SourceId": "Suzhou-Cam-001",
-        "RegionDefinitionFile": "RegionDefinitions/suzhou-region.json"
+        "SourceId": "Sea-Cam-001",
+        "RegionDefinitionFile": "RegionDefinitions/default-region.json"
       }
     }
     //{

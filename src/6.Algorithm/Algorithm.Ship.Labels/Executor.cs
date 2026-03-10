@@ -175,12 +175,55 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
             var shipLabels = JsonSerializer.Deserialize<ShipLabel>(labels);
 
-            // text annotation
-            var text = new Shape()
+            // type annotation
+            var textType = new Shape()
             {
-                Id = "text_label_" + detectedObject.Id,
+                Id = "text_label_type_" + detectedObject.Id,
                 Type = "text",
-                Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                Content = $"Type:{shipLabels.ShipType}",
+                Position = new Position()
+                {
+                    X = bbox.X,
+                    Y = bbox.Y - 3 * base.ObjTextFontSize
+                },
+                Style = new Style()
+                {
+                    Color = base.ObjTextColor,
+                    FontSize = base.ObjTextFontSize,
+                }
+            };
+
+            annotation.Shapes.Add(textType);
+
+            // color annotation
+            var textColor = new Shape()
+            {
+                Id = "text_label_color_" + detectedObject.Id,
+                Type = "text",
+                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                Content = $"Color:{string.Join(',', shipLabels.ShipColor)}",
+                Position = new Position()
+                {
+                    X = bbox.X,
+                    Y = bbox.Y - 2 * base.ObjTextFontSize
+                },
+                Style = new Style()
+                {
+                    Color = base.ObjTextColor,
+                    FontSize = base.ObjTextFontSize,
+                }
+            };
+
+            annotation.Shapes.Add(textColor);
+
+            // draught annotation
+            var draughtColor = new Shape()
+            {
+                Id = "text_label_color_" + detectedObject.Id,
+                Type = "text",
+                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                Content = $"Draught:{shipLabels.ShipDraught}",
                 Position = new Position()
                 {
                     X = bbox.X,
@@ -193,7 +236,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 }
             };
 
-            annotation.Shapes.Add(text);
+            annotation.Shapes.Add(draughtColor);
         }
 
         return annotation;
