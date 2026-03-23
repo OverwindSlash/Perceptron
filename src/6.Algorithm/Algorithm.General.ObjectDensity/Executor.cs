@@ -48,7 +48,7 @@ public class Executor : AlgorithmBase
         CountRegionName = PreferenceParser.ParseStringValue(Preferences, "CountRegionName", DefaultCountRegionName);
         MaxCountThreshold = PreferenceParser.ParseIntValue(Preferences, "MaxCountThreshold", DefaultMaxCountThreshold);
 
-        return base.Initialize(); ;
+        return base.Initialize();
     }
 
     public override AnalysisResult Analyze(Frame frame)

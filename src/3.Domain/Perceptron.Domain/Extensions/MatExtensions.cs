@@ -210,6 +210,14 @@ public static class MatExtensions
         return new Scalar(newBgr.Item0, newBgr.Item1, newBgr.Item2);
     }
 
+    public static string ToBase64String(this Mat mat)
+    {
+        if (mat == null || mat.Empty()) throw new ArgumentNullException(nameof(mat));
+
+        Cv2.ImEncode(".jpg", mat, out var bytes);
+        return Convert.ToBase64String(bytes);
+    }
+
     // 零拷贝：要求 mat.Channels() == 4 且数据为 BGRA 顺序（OpenCV 默认 BGRA）
     public static SKBitmap ToSKBitmap(this Mat mat)
     {

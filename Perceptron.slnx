@@ -95,6 +95,7 @@
     <Project Path="src/5.Component/Tracker.Sort/Tracker.Sort.csproj" Id="e9a8f91b-20fc-4bd0-8080-f40f75b53d62" />
   </Folder>
   <Folder Name="/src/6.Algorithm/">
+    <Project Path="Algorithm.General.LLM/Algorithm.General.LLM.csproj" Id="b8b7283c-ec90-4b39-9137-373c50050731" />
     <Project Path="src/6.Algorithm/Algorithm.Common/Algorithm.Common.csproj" Id="5c770453-4618-400f-816f-b25fabd34a23" />
     <Project Path="src/6.Algorithm/Algorithm.General.Classify/Algorithm.General.Classify.csproj" Id="c42bad2d-98fc-42a5-a521-ffc3afdcdfdf" />
     <Project Path="src/6.Algorithm/Algorithm.General.MotionDetection/Algorithm.General.MotionDetection.csproj" Id="5f155014-a8ff-4f21-9874-d16f929eea34" />
