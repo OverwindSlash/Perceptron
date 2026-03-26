@@ -157,9 +157,7 @@
       "DestinationUrl": "http://127.0.0.1:5000/pipeline_event",
       //"DestinationUrl": "http://192.168.1.232/api/marinemind/event/pipeline_warn",
       "CheckDuplicateEvent": true,
-      "EventSuppressionIntervals": {
-        "Suzhou-Cam-001_船舶处于警戒区": 30
-      }
+      "EventSuppressionIntervals": "船舶属性识别:30"
     }
   },
   "EventRepository": {
