@@ -97,6 +97,7 @@
   <Folder Name="/src/6.Algorithm/">
     <Project Path="src/6.Algorithm/Algorithm.Common/Algorithm.Common.csproj" Id="5c770453-4618-400f-816f-b25fabd34a23" />
     <Project Path="src/6.Algorithm/Algorithm.General.Classify/Algorithm.General.Classify.csproj" Id="c42bad2d-98fc-42a5-a521-ffc3afdcdfdf" />
+    <Project Path="src/6.Algorithm/Algorithm.General.LLM/Algorithm.General.LLM.csproj" />
     <Project Path="src/6.Algorithm/Algorithm.General.MotionDetection/Algorithm.General.MotionDetection.csproj" Id="5f155014-a8ff-4f21-9874-d16f929eea34" />
     <Project Path="src/6.Algorithm/Algorithm.General.ObjectDensity/Algorithm.General.ObjectDensity.csproj" Id="22c17cce-e1a8-40bf-b693-4b71259cd9d3" />
     <Project Path="src/6.Algorithm/Algorithm.General.ObjectOccurrence/Algorithm.General.ObjectOccurrence.csproj" Id="72129c5d-aed6-491b-a072-e385c0476d16" />
@@ -128,5 +129,4 @@
     <Project Path="test/6.Algorithm/MotionDetection.Tests/MotionDetection.Tests.csproj" Id="8c7d8fbb-f834-4751-a16c-9715ec10f6db" />
     <Project Path="test/6.Algorithm/ShipLables.Tests/ShipLables.Tests.csproj" Id="4a88dbdb-ba41-4c3d-9792-a6a9849296c0" />
   </Folder>
-  <Project Path="src/6.Algorithm/Algorithm.General.LLM/Algorithm.General.LLM.csproj" />
 </Solution>
