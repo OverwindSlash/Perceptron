@@ -1,5 +1,9 @@
-﻿using Perceptron.Domain.Abstraction.AlgorithmModule;
+﻿using Algorithm.Common.Event;
+using MessagePipe;
+using Microsoft.Extensions.DependencyInjection;
+using Perceptron.Domain.Abstraction.AlgorithmModule;
 using Perceptron.Domain.Abstraction.Annotation;
+using Perceptron.Domain.Abstraction.EventHandler;
 using Perceptron.Domain.Abstraction.MessagePoster;
 using Perceptron.Domain.Abstraction.RegionManager;
 using Perceptron.Domain.Abstraction.Repository;
@@ -15,7 +19,7 @@ using Perceptron.Service.Pipeline;
 
 namespace Algorithm.Common;
 
-public abstract class AlgorithmBase : IAlgorithmModule
+public abstract class AlgorithmBase : IAlgorithmModule, IEventSubscriber<LLMInferenceResultEvent>
 {
     public string AlgorithmName { get; protected set; }
     public string AlgorithmVersion { get; protected set; }
@@ -72,6 +76,9 @@ public abstract class AlgorithmBase : IAlgorithmModule
     protected bool WillPerformLLMAnalysis;
     protected string LLMPromptFile;
 
+    private ISubscriber<LLMInferenceResultEvent>? _llmEventSubscriber;
+    private IDisposable? _disposableLlmEventSubscriber;
+
     protected List<IRegionManager> RegionManagers;
     protected ISnapshotManager SnapshotManager;
     protected IEventRepository EventRepository;
@@ -116,6 +123,8 @@ public abstract class AlgorithmBase : IAlgorithmModule
         
         WillPerformLLMAnalysis = PreferenceParser.ParseBoolValue(Preferences, "PerformLLMAnalysis", AlgorithmConstants.DefaultWillPerformLLMAnalysis);
         LLMPromptFile = PreferenceParser.ParseStringValue(Preferences, "LLMPromptFile", AlgorithmConstants.DefaultLLMPromptFile);
+
+        SetSubscriber(Pipeline.Provider.GetRequiredService<ISubscriber<LLMInferenceResultEvent>>());
 
         WillGenerateCountLines = PreferenceParser.ParseBoolValue(Preferences, "GenerateCountLines", AlgorithmConstants.DefaultWillGenerateCountLines);
         EnterLineStrokeColor = PreferenceParser.ParseStringValue(Preferences, "EnterLineStrokeColor", AlgorithmConstants.DefaultEnterLineStrokeColor);
@@ -219,8 +228,21 @@ public abstract class AlgorithmBase : IAlgorithmModule
         return false;
     }
 
+    public void SetSubscriber(ISubscriber<LLMInferenceResultEvent> subscriber)
+    {
+        _llmEventSubscriber = subscriber;
+        _disposableLlmEventSubscriber = _llmEventSubscriber.Subscribe(ProcessEvent);
+    }
+
+    public virtual void ProcessEvent(LLMInferenceResultEvent @event)
+    {
+        // 将 @event 的信息通过 Trace 进行调试
+        // Log.Information("LLM inference event received. Event: {@Event}", @event);
+    }
+
     public virtual void Dispose()
     {
         // Do nothing by default
+        _disposableLlmEventSubscriber?.Dispose();
     }
 }

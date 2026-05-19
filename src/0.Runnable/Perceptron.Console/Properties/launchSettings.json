@@ -2,7 +2,7 @@
   "profiles": {
     "Perceptron.Console": {
       "commandName": "Project",
-      "commandLineArgs": "-c Config/fire-smoke-settings.json"
+      "commandLineArgs": "-c Config/suzhou-shiplabels-llm-settings.json"
     },
     "Container (Dockerfile)": {
       "commandName": "Docker"

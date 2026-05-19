@@ -1,18 +1,19 @@
 ﻿using Algorithm.Common;
+using Algorithm.Common.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
 using OpenAI;
 using OpenAI.Chat;
+using OpenCvSharp;
+using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
-using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
 using System.ClientModel;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using Algorithm.Common.Event;
 
 namespace Algorithm.General.LLM;
 
@@ -32,6 +33,7 @@ public class Executor : AlgorithmBase
     private ChatClient _chatClient = null!;
 
     private readonly BlockingCollection<Frame> _inferenceBuffer = new(new ConcurrentQueue<Frame>());
+    private readonly object _inferenceBufferSync = new();
     private Thread? _inferenceWorkerThread;
     private int _isDisposing;
 
@@ -49,6 +51,7 @@ public class Executor : AlgorithmBase
         _inferenceResultEventPublisher = provider.GetRequiredService<IPublisher<LLMInferenceResultEvent>>();
 
         ServerUrl = PreferenceParser.ParseStringValue(Preferences, "ServerUrl", string.Empty);
+        ServerUrl = NormalizeServerUrl(ServerUrl);
         ApiKey = PreferenceParser.ParseStringValue(Preferences, "ApiKey", string.Empty);
         ModelName = PreferenceParser.ParseStringValue(Preferences, "ModelName", DefaultModelName);
 
@@ -70,6 +73,7 @@ public class Executor : AlgorithmBase
         }
         else
         {
+            Log.Information("Using LLM server endpoint: {ServerUrl}", ServerUrl);
             _chatClient = new ChatClient(
                 model: ModelName,
                 credential: new ApiKeyCredential(ApiKey),
@@ -99,19 +103,40 @@ public class Executor : AlgorithmBase
 
     private void ProcessInferenceBuffer()
     {
-        foreach (var frame in _inferenceBuffer.GetConsumingEnumerable())
+        while (true)
         {
+            Frame? frame = null;
+
             try
             {
+                lock (_inferenceBufferSync)
+                {
+                    if (_inferenceBuffer.IsCompleted)
+                    {
+                        return;
+                    }
+
+                    _inferenceBuffer.TryTake(out frame);
+                }
+
+                if (frame == null)
+                {
+                    Thread.Sleep(50);
+                    continue;
+                }
+
                 ProcessInference(frame);
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error processing LLM inference. SourceId: {SourceId}, FrameId: {FrameId}", frame.SourceId, frame.FrameId);
+                if (frame != null)
+                {
+                    Log.Error(ex, "Error processing LLM inference. SourceId: {SourceId}, FrameId: {FrameId}", frame.SourceId, frame.FrameId);
+                }
             }
             finally
             {
-                frame.Dispose(); // 和 EnqueueFrameForInference 方法中的 Retain 配对
+                frame?.Dispose(); // 和 EnqueueFrameForInference 方法中的 Retain 配对
             }
         }
     }
@@ -125,26 +150,33 @@ public class Executor : AlgorithmBase
 
         string userPrompt = frame.GetProperty<string>(LLMAnalysisPromptPropertyName);
 
-        var base64Image = frame.Scene.ToBase64String();
-        var userMessage = $"{userPrompt}\n\ndata:image/jpeg;base64,{base64Image}";
-        var stopwatch = Stopwatch.StartNew();
-        var inferenceResult = CallLLMInferenceAPI(userMessage);
-        stopwatch.Stop();
+        foreach (var detectedObject in frame.DetectedObjects)
+        {
+            if (!detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
+            {
+                continue;
+            }
 
-        Log.Information("LLM inference completed. Model: {ModelName}, Result: {Result}", ModelName, inferenceResult);
+            Cv2.ImEncode(".jpg", detectedObject.Snapshot, out var imageBytes);
+            var stopwatch = Stopwatch.StartNew();
+            var inferenceResult = CallLLMInferenceAPI(userPrompt, BinaryData.FromBytes(imageBytes));
+            stopwatch.Stop();
 
-        var inferenceEvent = new LLMInferenceResultEvent(
-            sourceId: frame.SourceId,
-            eventType: LLMInferenceResultEvent.EventType,
-            eventName: EventName,
-            algorithmName: AlgorithmName,
-            modelName: ModelName,
-            inferenceTime: stopwatch.Elapsed,
-            jsonResult: inferenceResult);
-        _inferenceResultEventPublisher.Publish(inferenceEvent);
+            Log.Information("LLM inference completed. Model: {ModelName}, Result: {Result}", ModelName, inferenceResult);
+
+            var inferenceEvent = new LLMInferenceResultEvent(
+                sourceId: frame.SourceId,
+                eventType: LLMInferenceResultEvent.EventType,
+                eventName: EventName,
+                algorithmName: AlgorithmName,
+                modelName: ModelName,
+                inferenceTime: stopwatch.Elapsed,
+                jsonResult: inferenceResult);
+            _inferenceResultEventPublisher.Publish(inferenceEvent);
+        }
     }
 
-    private string CallLLMInferenceAPI(string message)
+    private string CallLLMInferenceAPI(string userPrompt, BinaryData imageBytes)
     {
         List<ChatMessage> messages = [];
         if (!string.IsNullOrWhiteSpace(SystemPrompt))
@@ -152,7 +184,11 @@ public class Executor : AlgorithmBase
             messages.Add(new SystemChatMessage(SystemPrompt));
         }
 
-        messages.Add(new UserChatMessage(message));
+        messages.Add(new UserChatMessage(new List<ChatMessageContentPart>
+        {
+            ChatMessageContentPart.CreateTextPart(userPrompt),
+            ChatMessageContentPart.CreateImagePart(imageBytes, "image/jpeg")
+        }));
         ChatCompletion completion = _chatClient.CompleteChat(messages);
 
         if (completion.Content.Count == 0)
@@ -163,9 +199,41 @@ public class Executor : AlgorithmBase
         return string.Concat(completion.Content.Select(item => item.Text));
     }
 
+    private static string NormalizeServerUrl(string serverUrl)
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl))
+        {
+            return string.Empty;
+        }
+
+        if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri))
+        {
+            return serverUrl;
+        }
+
+        if (!string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+        {
+            return serverUrl;
+        }
+
+        if (string.IsNullOrEmpty(uri.AbsolutePath) || uri.AbsolutePath == "/")
+        {
+            var builder = new UriBuilder(uri)
+            {
+                Path = "v1"
+            };
+            return builder.Uri.ToString().TrimEnd('/');
+        }
+
+        return serverUrl.TrimEnd('/');
+    }
+
     public override AnalysisResult Analyze(Frame frame)
     {
         frame.Retain();
+
+        // 显示当前 _inferenceBuffer 中待处理图片的数量
+        Log.Information("LLM inference buffer size: {BufferSize}", _inferenceBuffer.Count);
 
         try
         {
@@ -188,7 +256,11 @@ public class Executor : AlgorithmBase
 
         try
         {
-            _inferenceBuffer.Add(frame);
+            lock (_inferenceBufferSync)
+            {
+                FilterAndRebuildInferenceBuffer(frame);
+            }
+
             return true;
         }
         catch (InvalidOperationException ex)
@@ -196,6 +268,79 @@ public class Executor : AlgorithmBase
             frame.Dispose();
             Log.Warning(ex, "LLM inference buffer is closed. FrameId: {FrameId}", frame.FrameId);
             return false;
+        }
+    }
+
+    private void FilterAndRebuildInferenceBuffer(Frame newFrame)
+    {
+        List<Frame> pendingFrames = [];
+        while (_inferenceBuffer.TryTake(out var pendingFrame))
+        {
+            pendingFrames.Add(pendingFrame);
+        }
+
+        pendingFrames.Add(newFrame);
+
+        Dictionary<string, DetectedObject> bestDetectedObjectById = [];
+        foreach (var frame in pendingFrames)
+        {
+            foreach (var detectedObject in frame.DetectedObjects)
+            {
+                if (!detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
+                {
+                    continue;
+                }
+
+                if (!bestDetectedObjectById.TryGetValue(detectedObject.Id, out var currentBestDetectedObject) ||
+                    detectedObject.Confidence > currentBestDetectedObject.Confidence)
+                {
+                    bestDetectedObjectById[detectedObject.Id] = detectedObject;
+                }
+            }
+        }
+
+        int removedFrameCount = 0;
+        int removedObjectCount = 0;
+        foreach (var frame in pendingFrames)
+        {
+            bool hasLLMObjectToProcess = false;
+
+            foreach (var detectedObject in frame.DetectedObjects)
+            {
+                if (!detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
+                {
+                    continue;
+                }
+
+                if (bestDetectedObjectById.TryGetValue(detectedObject.Id, out var bestDetectedObject) &&
+                    !ReferenceEquals(detectedObject, bestDetectedObject))
+                {
+                    detectedObject.SetProperty(LLMAnalysisPropertyName, false);
+                    removedObjectCount++;
+                    continue;
+                }
+
+                hasLLMObjectToProcess = true;
+            }
+
+            if (hasLLMObjectToProcess)
+            {
+                _inferenceBuffer.Add(frame);
+            }
+            else
+            {
+                frame.Dispose();
+                removedFrameCount++;
+            }
+        }
+
+        if (removedFrameCount > 0 || removedObjectCount > 0)
+        {
+            Log.Information(
+                "LLM inference buffer filtered. BufferSize: {BufferSize}, RemovedFrames: {RemovedFrames}, RemovedObjects: {RemovedObjects}",
+                _inferenceBuffer.Count,
+                removedFrameCount,
+                removedObjectCount);
         }
     }
 

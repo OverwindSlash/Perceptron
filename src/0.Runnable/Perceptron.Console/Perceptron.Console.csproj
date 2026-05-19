@@ -33,11 +33,13 @@
     <ProjectReference Include="..\..\5.Component\Tracker.DeepSort\Tracker.DeepSort.csproj" />
     <ProjectReference Include="..\..\5.Component\Tracker.Sort\Tracker.Sort.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.Classify\Algorithm.General.Classify.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.LLM\Algorithm.General.LLM.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.MotionDetection\Algorithm.General.MotionDetection.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectDensity\Algorithm.General.ObjectDensity.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrence\Algorithm.General.ObjectOccurrence.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.RegionAccess\Algorithm.General.RegionAccess.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.Ship.LabelsByLLM\Algorithm.Ship.LabelsByLLM.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.Ship.Labels\Algorithm.Ship.Labels.csproj" />
   </ItemGroup>
 
@@ -61,6 +63,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Config\shiplabels-demo-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Config\suzhou-shiplabels-llm-settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Config\suzhou-shiplabels-settings.json">

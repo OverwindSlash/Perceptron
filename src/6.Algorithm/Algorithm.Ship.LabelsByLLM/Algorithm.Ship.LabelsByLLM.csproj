@@ -10,4 +10,10 @@
     <ProjectReference Include="..\Algorithm.Common\Algorithm.Common.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="prompt.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
