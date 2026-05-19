@@ -1,7 +1,6 @@
-﻿namespace MOT.CORE.Utils.Pool
+﻿namespace Tracker.DeepSort.Utils.Pool;
+
+public interface IPoolable
 {
-    public interface IPoolable
-    {
-        public abstract void Reset();
-    }
+    public abstract void Reset();
 }

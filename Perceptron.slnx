@@ -104,6 +104,7 @@
     <Project Path="src/6.Algorithm/Algorithm.General.RegionAccess/Algorithm.General.RegionAccess.csproj" Id="b5f42d95-46bf-4a91-bbc8-ee9e7e6072cd" />
     <Project Path="src/6.Algorithm/Algorithm.GenerateDebugAnnotations/Algorithm.GenerateDebugAnnotations.csproj" Id="8704d032-4a47-4c8d-89e5-b4b26a449154" />
     <Project Path="src/6.Algorithm/Algorithm.Ship.Labels/Algorithm.Ship.Labels.csproj" Id="1613a8ba-da9d-4a96-b8e0-5a5eee3f3a44" />
+    <Project Path="src/6.Algorithm/Algorithm.Ship.LabelsByLLM/Algorithm.Ship.LabelsByLLM.csproj" Id="f5996fab-8b0b-4219-a9ed-237fd7e01165" />
   </Folder>
   <Folder Name="/test/" />
   <Folder Name="/test/2.Service/">

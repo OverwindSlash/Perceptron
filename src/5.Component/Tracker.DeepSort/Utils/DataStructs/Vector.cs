@@ -1,100 +1,97 @@
-﻿using System;
-using System.Drawing;
-using System.Linq;
+﻿using System.Drawing;
 
-namespace MOT.CORE.Utils.DataStructs
+namespace Tracker.DeepSort.Utils.DataStructs;
+
+public class Vector
 {
-    public class Vector
+    private readonly float[] _values;
+    private float _magnitude;
+
+    public static Vector Empty = new Vector(new float[0]);
+
+    public Vector(params float[] values)
     {
-        private readonly float[] _values;
-        private float _magnitude;
+        _values = values;
+        _magnitude = GetMagnitude();
+    }
 
-        public static Vector Empty = new Vector(new float[0]);
+    public Vector(int size)
+    {
+        _values = new float[size];
+    }
 
-        public Vector(params float[] values)
-        {
-            _values = values;
-            _magnitude = GetMagnitude();
-        }
+    public Vector(ref float[] data)
+    {
+        _values = data;
+        _magnitude = GetMagnitude();
+    }
 
-        public Vector(int size)
-        {
-            _values = new float[size];
-        }
+    public int Length => _values.Length;
 
-        public Vector(ref float[] data)
-        {
-            _values = data;
-            _magnitude = GetMagnitude();
-        }
+    public float Magnitude => _magnitude;
 
-        public int Length => _values.Length;
+    public float this[int index] => _values[index];
 
-        public float Magnitude => _magnitude;
+    public static Vector operator -(Vector first, Vector second)
+    {
+        return new Vector(first._values.Zip(second._values, (a, b) => a - b).ToArray());
+    }
 
-        public float this[int index] => _values[index];
+    public static Vector operator +(Vector first, Vector second)
+    {
+        return new Vector(first._values.Zip(second._values, (a, b) => a + b).ToArray());
+    }
 
-        public static Vector operator -(Vector first, Vector second)
-        {
-            return new Vector(first._values.Zip(second._values, (a, b) => a - b).ToArray());
-        }
+    public static Vector operator /(Vector first, float second)
+    {
+        return new Vector(first._values.Select(p => p / second).ToArray());
+    }
 
-        public static Vector operator +(Vector first, Vector second)
-        {
-            return new Vector(first._values.Zip(second._values, (a, b) => a + b).ToArray());
-        }
+    public static Vector operator *(Vector first, float second)
+    {
+        return new Vector(first._values.Select(p => p * second).ToArray());
+    }
 
-        public static Vector operator /(Vector first, float second)
-        {
-            return new Vector(first._values.Select(p => p / second).ToArray());
-        }
+    public float Dot(Vector other)
+    {
+        return _values.Zip(other._values, (a, b) => a * b).Sum();
+    }
 
-        public static Vector operator *(Vector first, float second)
-        {
-            return new Vector(first._values.Select(p => p * second).ToArray());
-        }
+    public PointF AsPointF()
+    {
+        const int pointDimensions = 2;
 
-        public float Dot(Vector other)
-        {
-            return _values.Zip(other._values, (a, b) => a * b).Sum();
-        }
+        if (_values.Length > pointDimensions)
+            throw new Exception("Vector must be two dimensional.");
 
-        public PointF AsPointF()
-        {
-            const int pointDimensions = 2;
+        return new PointF(_values[0], _values[1]);
+    }
 
-            if (_values.Length > pointDimensions)
-                throw new Exception("Vector must be two dimensional.");
+    public void Normalize()
+    {
+        for (int i = 0; i < _values.Length; i++)
+            _values[i] = _values[i] / _magnitude;
 
-            return new PointF(_values[0], _values[1]);
-        }
+        _magnitude = GetMagnitude();
+    }
 
-        public void Normalize()
-        {
-            for (int i = 0; i < _values.Length; i++)
-                _values[i] = _values[i] / _magnitude;
+    public Vector Append(params float[] extraElements)
+    {
+        return new Vector(_values.Concat(extraElements).ToArray());
+    }
 
-            _magnitude = GetMagnitude();
-        }
+    public float[] ToArray()
+    {
+        return _values.ToArray();
+    }
 
-        public Vector Append(params float[] extraElements)
-        {
-            return new Vector(_values.Concat(extraElements).ToArray());
-        }
+    private float GetMagnitude()
+    {
+        double length = 0;
 
-        public float[] ToArray()
-        {
-            return _values.ToArray();
-        }
+        foreach (float value in _values)
+            length += value * value;
 
-        private float GetMagnitude()
-        {
-            double length = 0;
-
-            foreach (float value in _values)
-                length += value * value;
-
-            return (float)Math.Sqrt(length);
-        }
+        return (float)Math.Sqrt(length);
     }
 }

@@ -68,6 +68,10 @@ public abstract class AlgorithmBase : IAlgorithmModule
     protected string EventSnapshotDir;
     protected string EventName;
 
+    // llm analysis preferences
+    protected bool WillPerformLLMAnalysis;
+    protected string LLMPromptFile;
+
     protected List<IRegionManager> RegionManagers;
     protected ISnapshotManager SnapshotManager;
     protected IEventRepository EventRepository;
@@ -109,6 +113,9 @@ public abstract class AlgorithmBase : IAlgorithmModule
 
         WillGenerateInterestAreas = PreferenceParser.ParseBoolValue(Preferences, "GenerateInterestAreas", AlgorithmConstants.DefaultWillGenerateInterestAreas);
         InterestAreasStrokeColor = PreferenceParser.ParseStringValue(Preferences, "InterestAreasStrokeColor", AlgorithmConstants.DefaultInterestAreasStrokeColor);
+        
+        WillPerformLLMAnalysis = PreferenceParser.ParseBoolValue(Preferences, "PerformLLMAnalysis", AlgorithmConstants.DefaultWillPerformLLMAnalysis);
+        LLMPromptFile = PreferenceParser.ParseStringValue(Preferences, "LLMPromptFile", AlgorithmConstants.DefaultLLMPromptFile);
 
         WillGenerateCountLines = PreferenceParser.ParseBoolValue(Preferences, "GenerateCountLines", AlgorithmConstants.DefaultWillGenerateCountLines);
         EnterLineStrokeColor = PreferenceParser.ParseStringValue(Preferences, "EnterLineStrokeColor", AlgorithmConstants.DefaultEnterLineStrokeColor);

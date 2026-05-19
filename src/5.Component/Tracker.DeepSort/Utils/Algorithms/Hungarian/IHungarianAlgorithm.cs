@@ -1,7 +1,6 @@
-﻿namespace MOT.CORE.Utils.Algorithms.Hungarian
+﻿namespace Tracker.DeepSort.Utils.Algorithms.Hungarian;
+
+public interface IHungarianAlgorithm
 {
-    public interface IHungarianAlgorithm
-    {
-        public abstract int[] Solve();
-    }
+    public abstract int[] Solve();
 }

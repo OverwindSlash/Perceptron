@@ -1,35 +1,32 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
+﻿using System.Drawing;
 using Tracker.DeepSort.Matchers.Abstract;
 
-namespace Tracker.DeepSort.Matchers.Base
+namespace Tracker.DeepSort.Matchers.Base;
+
+public class Track : ITrack
 {
-    public class Track : ITrack
+    private static readonly Random _random = new Random();
+
+    private readonly List<RectangleF> _history;
+
+    public Track(RectangleF firstUnpredicted, int objectType, int id = -1)
     {
-        private static readonly Random _random = new Random();
+        Id = id;
+        DetectionObjectType = objectType;
+        _history = new List<RectangleF>() { firstUnpredicted };
+        CurrentBoundingBox = firstUnpredicted;
+        Color = Color.FromArgb((int)(_random.Next(int.MinValue, int.MaxValue) << (int)(id & 0xFFFFFF00) | (0x8 << 28)));
+    }
 
-        private readonly List<RectangleF> _history;
+    public int Id { get; set; }
+    public Color Color { get; set; }
+    public RectangleF CurrentBoundingBox { get; private set; }
+    public int DetectionObjectType { get; private set; }
+    public IReadOnlyList<RectangleF> History => _history;
 
-        public Track(RectangleF firstUnpredicted, int objectType, int id = -1)
-        {
-            Id = id;
-            DetectionObjectType = objectType;
-            _history = new List<RectangleF>() { firstUnpredicted };
-            CurrentBoundingBox = firstUnpredicted;
-            Color = Color.FromArgb((int)(_random.Next(int.MinValue, int.MaxValue) << (int)(id & 0xFFFFFF00) | (0x8 << 28)));
-        }
-
-        public int Id { get; set; }
-        public Color Color { get; set; }
-        public RectangleF CurrentBoundingBox { get; private set; }
-        public int DetectionObjectType { get; private set; }
-        public IReadOnlyList<RectangleF> History => _history;
-
-        public void RegisterTracked(RectangleF trackedRectangle)
-        {
-            _history.Add(trackedRectangle);
-            CurrentBoundingBox = trackedRectangle;
-        }
+    public void RegisterTracked(RectangleF trackedRectangle)
+    {
+        _history.Add(trackedRectangle);
+        CurrentBoundingBox = trackedRectangle;
     }
 }

@@ -1,187 +1,180 @@
-﻿using Microsoft.ML.OnnxRuntime.Tensors;
-using Microsoft.ML.OnnxRuntime;
-using System;
-using System.Collections.Generic;
-using System.Drawing.Imaging;
-using System.Drawing;
-using System.Linq;
-using MOT.CORE.ReID.Models;
-using MOT.CORE.Utils.DataStructs;
-using System.Threading.Tasks;
+﻿using Microsoft.ML.OnnxRuntime;
+using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
-using Tracker.DeepSort;
+using System.Drawing;
+using Tracker.DeepSort.ReID.Models;
+using Tracker.DeepSort.Utils.DataStructs;
 
-namespace MOT.CORE.ReID
+namespace Tracker.DeepSort.ReID;
+
+public class ReidScorer<TReidModel> : IAppearanceExtractor where TReidModel : IReidModel
 {
-    public class ReidScorer<TReidModel> : IAppearanceExtractor where TReidModel : IReidModel
+    private readonly IReidModel _reidModel;
+    private readonly List<InferenceSession> _inferenceSessions;
+
+    private SessionOptions _currentSessionOptions;
+    private byte[] _currentModel;
+
+    private ReidScorer()
     {
-        private readonly IReidModel _reidModel;
-        private readonly List<InferenceSession> _inferenceSessions;
+        _reidModel = Activator.CreateInstance<TReidModel>();
+    }
 
-        private SessionOptions _currentSessionOptions;
-        private byte[] _currentModel;
+    public ReidScorer(byte[] model, int startSessionsCount = 1, SessionOptions sessionOptions = null) : this()
+    {
+        _inferenceSessions = new List<InferenceSession>();
+        _currentSessionOptions = sessionOptions ?? new SessionOptions();
+        _currentModel = model;
 
-        private ReidScorer()
+        for (int i = 0; i < startSessionsCount; i++)
+            _inferenceSessions.Add(new InferenceSession(_currentModel, _currentSessionOptions));
+    }
+
+    public void Dispose()
+    {
+        for (int i = 0; i < _inferenceSessions.Count; i++)
+            _inferenceSessions[i].Dispose();
+    }
+
+    public IReadOnlyList<Vector> Predict(Mat image, IPrediction[] detectedBounds)
+    {
+        int batchCount = detectedBounds.Length / _reidModel.BatchSize;
+        batchCount = detectedBounds.Length % _reidModel.BatchSize == 0 ? batchCount : batchCount + 1;
+
+        for (int i = _inferenceSessions.Count; i < batchCount; i++)
+            _inferenceSessions.Add(new InferenceSession(_currentModel, _currentSessionOptions));
+
+        DenseTensor<float>[] extracted = ExtractSubImages(image, detectedBounds, batchCount);
+        List<Vector> appearances = new List<Vector>();
+        float[][] modelOutputs = new float[batchCount][];
+
+        RunInferencesAsync(extracted, batchCount, modelOutputs);
+
+        for (int i = 0; i < batchCount - 1; i++)
         {
-            _reidModel = Activator.CreateInstance<TReidModel>();
-        }
-
-        public ReidScorer(byte[] model, int startSessionsCount = 1, SessionOptions sessionOptions = null) : this()
-        {
-            _inferenceSessions = new List<InferenceSession>();
-            _currentSessionOptions = sessionOptions ?? new SessionOptions();
-            _currentModel = model;
-
-            for (int i = 0; i < startSessionsCount; i++)
-                _inferenceSessions.Add(new InferenceSession(_currentModel, _currentSessionOptions));
-        }
-
-        public void Dispose()
-        {
-            for (int i = 0; i < _inferenceSessions.Count; i++)
-                _inferenceSessions[i].Dispose();
-        }
-
-        public IReadOnlyList<Vector> Predict(Mat image, IPrediction[] detectedBounds)
-        {
-            int batchCount = detectedBounds.Length / _reidModel.BatchSize;
-            batchCount = detectedBounds.Length % _reidModel.BatchSize == 0 ? batchCount : batchCount + 1;
-
-            for (int i = _inferenceSessions.Count; i < batchCount; i++)
-                _inferenceSessions.Add(new InferenceSession(_currentModel, _currentSessionOptions));
-
-            DenseTensor<float>[] extracted = ExtractSubImages(image, detectedBounds, batchCount);
-            List<Vector> appearances = new List<Vector>();
-            float[][] modelOutputs = new float[batchCount][];
-
-            RunInferencesAsync(extracted, batchCount, modelOutputs);
-
-            for (int i = 0; i < batchCount - 1; i++)
+            for (int k = 0; k < _reidModel.BatchSize; k++)
             {
-                for (int k = 0; k < _reidModel.BatchSize; k++)
-                {
-                    float[] parsing = modelOutputs[i].AsSpan<float>().Slice(k * _reidModel.OutputVectorSize, _reidModel.OutputVectorSize).ToArray();
-                    Vector appearance = new Vector(ref parsing);
-                    appearance.Normalize();
-                    appearances.Add(appearance);
-                }
+                float[] parsing = modelOutputs[i].AsSpan<float>().Slice(k * _reidModel.OutputVectorSize, _reidModel.OutputVectorSize).ToArray();
+                Vector appearance = new Vector(ref parsing);
+                appearance.Normalize();
+                appearances.Add(appearance);
             }
+        }
 
-            int lastBatchAppearancesCount = detectedBounds.Length % _reidModel.BatchSize;
-            if (lastBatchAppearancesCount == 0)
-                lastBatchAppearancesCount = _reidModel.BatchSize;
-            for (int k = 0; k < lastBatchAppearancesCount; k++)
+        int lastBatchAppearancesCount = detectedBounds.Length % _reidModel.BatchSize;
+        if (lastBatchAppearancesCount == 0)
+            lastBatchAppearancesCount = _reidModel.BatchSize;
+        for (int k = 0; k < lastBatchAppearancesCount; k++)
+        {
+            try
             {
-                try
-                {
-                    float[] parsing = modelOutputs[batchCount - 1].AsSpan<float>().Slice(k * _reidModel.OutputVectorSize, _reidModel.OutputVectorSize).ToArray();
-                    Vector appearance = new Vector(ref parsing);
-                    appearance.Normalize();
-                    appearances.Add(appearance);
-                }
-                catch (Exception ex)
-                {
+                float[] parsing = modelOutputs[batchCount - 1].AsSpan<float>().Slice(k * _reidModel.OutputVectorSize, _reidModel.OutputVectorSize).ToArray();
+                Vector appearance = new Vector(ref parsing);
+                appearance.Normalize();
+                appearances.Add(appearance);
+            }
+            catch (Exception ex)
+            {
 
-                }
+            }
                 
-            }
-
-            return appearances;
         }
 
-        private async void RunInferencesAsync(DenseTensor<float>[] extracted, int batchCount, float[][] modelOutputs)
+        return appearances;
+    }
+
+    private async void RunInferencesAsync(DenseTensor<float>[] extracted, int batchCount, float[][] modelOutputs)
+    {
+        Task[] inferenceTasks = new Task[batchCount];
+
+        for (int k = 0; k < batchCount; k++)
+            inferenceTasks[k] = RunInference(extracted, k, modelOutputs);
+
+        await Task.WhenAll(inferenceTasks);
+    }
+
+    private Task RunInference(DenseTensor<float>[] extracted, int iterationIndex, float[][] modelOutputs)
+    {
+        List<NamedOnnxValue> inputs = new List<NamedOnnxValue>()
         {
-            Task[] inferenceTasks = new Task[batchCount];
+            NamedOnnxValue.CreateFromTensor(_reidModel.Input, extracted[iterationIndex])
+        };
 
-            for (int k = 0; k < batchCount; k++)
-                inferenceTasks[k] = RunInference(extracted, k, modelOutputs);
+        IDisposableReadOnlyCollection<DisposableNamedOnnxValue> onnxOutput = _inferenceSessions[iterationIndex].Run(inputs, _reidModel.Outputs);
+        modelOutputs[iterationIndex] = onnxOutput.First().AsEnumerable<float>().ToArray();
 
-            await Task.WhenAll(inferenceTasks);
-        }
+        onnxOutput.Dispose();
 
-        private Task RunInference(DenseTensor<float>[] extracted, int iterationIndex, float[][] modelOutputs)
+        return Task.CompletedTask;
+    }
+
+    private DenseTensor<float>[] ExtractSubImages(Mat image, IPrediction[] detectedBoundingBoxes, int batchCount)
+    {
+        DenseTensor<float>[] subImagesData = new DenseTensor<float>[batchCount];
+
+        for (int i = 0; i < subImagesData.Length; i++)
         {
-            List<NamedOnnxValue> inputs = new List<NamedOnnxValue>()
+            subImagesData[i] = new DenseTensor<float>(new[] { _reidModel.BatchSize, _reidModel.Channels, _reidModel.Height, _reidModel.Width });
+
+            int targetIterationsCount = i == batchCount - 1 ? detectedBoundingBoxes.Length % _reidModel.BatchSize : _reidModel.BatchSize;
+
+            for (int j = 0; j < targetIterationsCount; j++)
             {
-                NamedOnnxValue.CreateFromTensor(_reidModel.Input, extracted[iterationIndex])
-            };
+                Mat croppedMat = FragmentMat(image, detectedBoundingBoxes[i * _reidModel.BatchSize + j].CurrentBoundingBox, _reidModel.Width, _reidModel.Height);
 
-            IDisposableReadOnlyCollection<DisposableNamedOnnxValue> onnxOutput = _inferenceSessions[iterationIndex].Run(inputs, _reidModel.Outputs);
-            modelOutputs[iterationIndex] = onnxOutput.First().AsEnumerable<float>().ToArray();
+                int width = croppedMat.Width;
+                int height = croppedMat.Height;
 
-            onnxOutput.Dispose();
+                Span<float> rTensorSpan = subImagesData[i].Buffer.Span.Slice(_reidModel.Channels * _reidModel.Height * _reidModel.Width * j,
+                    _reidModel.Height * _reidModel.Width);
+                Span<float> gTensorSpan = subImagesData[i].Buffer.Span.Slice(_reidModel.Channels * _reidModel.Height * _reidModel.Width * j + _reidModel.Height * _reidModel.Width,
+                    _reidModel.Height * _reidModel.Width);
+                Span<float> bTensorSpan = subImagesData[i].Buffer.Span.Slice(_reidModel.Channels * _reidModel.Height * _reidModel.Width * j + _reidModel.Height * _reidModel.Width * 2,
+                    _reidModel.Height * _reidModel.Width);
 
-            return Task.CompletedTask;
-        }
+                Mat[] channels = croppedMat.Split();
 
-        private DenseTensor<float>[] ExtractSubImages(Mat image, IPrediction[] detectedBoundingBoxes, int batchCount)
-        {
-            DenseTensor<float>[] subImagesData = new DenseTensor<float>[batchCount];
+                Mat rChannel = channels[2];
+                Mat gChannel = channels[1];
+                Mat bChannel = channels[0];
 
-            for (int i = 0; i < subImagesData.Length; i++)
-            {
-                subImagesData[i] = new DenseTensor<float>(new[] { _reidModel.BatchSize, _reidModel.Channels, _reidModel.Height, _reidModel.Width });
-
-                int targetIterationsCount = i == batchCount - 1 ? detectedBoundingBoxes.Length % _reidModel.BatchSize : _reidModel.BatchSize;
-
-                for (int j = 0; j < targetIterationsCount; j++)
+                for (int y = 0; y < height; y++)
                 {
-                    Mat croppedMat = FragmentMat(image, detectedBoundingBoxes[i * _reidModel.BatchSize + j].CurrentBoundingBox, _reidModel.Width, _reidModel.Height);
-
-                    int width = croppedMat.Width;
-                    int height = croppedMat.Height;
-
-                    Span<float> rTensorSpan = subImagesData[i].Buffer.Span.Slice(_reidModel.Channels * _reidModel.Height * _reidModel.Width * j,
-                        _reidModel.Height * _reidModel.Width);
-                    Span<float> gTensorSpan = subImagesData[i].Buffer.Span.Slice(_reidModel.Channels * _reidModel.Height * _reidModel.Width * j + _reidModel.Height * _reidModel.Width,
-                        _reidModel.Height * _reidModel.Width);
-                    Span<float> bTensorSpan = subImagesData[i].Buffer.Span.Slice(_reidModel.Channels * _reidModel.Height * _reidModel.Width * j + _reidModel.Height * _reidModel.Width * 2,
-                        _reidModel.Height * _reidModel.Width);
-
-                    Mat[] channels = croppedMat.Split();
-
-                    Mat rChannel = channels[2];
-                    Mat gChannel = channels[1];
-                    Mat bChannel = channels[0];
-
-                    for (int y = 0; y < height; y++)
+                    for (int x = 0; x < width; x++)
                     {
-                        for (int x = 0; x < width; x++)
-                        {
-                            int point = y * width + x;
-                            rTensorSpan[point] = rChannel.At<byte>(y, x) / 255.0f;
-                            gTensorSpan[point] = gChannel.At<byte>(y, x) / 255.0f;
-                            bTensorSpan[point] = bChannel.At<byte>(y, x) / 255.0f;
-                        }
-                    }
-
-                    foreach (var ch in channels)
-                    {
-                        ch.Dispose();
+                        int point = y * width + x;
+                        rTensorSpan[point] = rChannel.At<byte>(y, x) / 255.0f;
+                        gTensorSpan[point] = gChannel.At<byte>(y, x) / 255.0f;
+                        bTensorSpan[point] = bChannel.At<byte>(y, x) / 255.0f;
                     }
                 }
+
+                foreach (var ch in channels)
+                {
+                    ch.Dispose();
+                }
             }
-
-            return subImagesData;
         }
 
-        private Mat FragmentMat(Mat image, Rectangle boundingBox, int modelWidth, int modelHeight)
-        {
-            // Extract the region of interest (ROI) from the image
-            Rect roi = new Rect((int)boundingBox.X, (int)boundingBox.Y, (int)boundingBox.Width, (int)boundingBox.Height);
+        return subImagesData;
+    }
 
-            // Ensure ROI is within image bounds
-            roi = roi & new Rect(0, 0, image.Width, image.Height);
+    private Mat FragmentMat(Mat image, Rectangle boundingBox, int modelWidth, int modelHeight)
+    {
+        // Extract the region of interest (ROI) from the image
+        Rect roi = new Rect((int)boundingBox.X, (int)boundingBox.Y, (int)boundingBox.Width, (int)boundingBox.Height);
 
-            Mat cropped = new Mat(image, roi);
+        // Ensure ROI is within image bounds
+        roi = roi & new Rect(0, 0, image.Width, image.Height);
 
-            // Resize to model dimensions
-            Mat resized = new Mat();
-            Cv2.Resize(cropped, resized, new OpenCvSharp.Size(modelWidth, modelHeight), 0, 0, InterpolationFlags.Linear);
+        Mat cropped = new Mat(image, roi);
 
-            cropped.Dispose();
+        // Resize to model dimensions
+        Mat resized = new Mat();
+        Cv2.Resize(cropped, resized, new OpenCvSharp.Size(modelWidth, modelHeight), 0, 0, InterpolationFlags.Linear);
 
-            return resized;
-        }
+        cropped.Dispose();
+
+        return resized;
     }
 }

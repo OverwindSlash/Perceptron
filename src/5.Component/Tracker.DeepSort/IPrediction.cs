@@ -1,16 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Drawing;
 
-namespace Tracker.DeepSort
+namespace Tracker.DeepSort;
+
+public interface IPrediction
 {
-    public interface IPrediction
-    {
-        public int DetectionObjectType { get; }
-        public Rectangle CurrentBoundingBox { get; }
-        public float Confidence { get; }
-    }
+    public int DetectionObjectType { get; }
+    public Rectangle CurrentBoundingBox { get; }
+    public float Confidence { get; }
 }

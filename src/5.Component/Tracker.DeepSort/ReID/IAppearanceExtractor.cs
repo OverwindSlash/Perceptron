@@ -1,14 +1,9 @@
-﻿using MOT.CORE.Utils.DataStructs;
-using OpenCvSharp;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using Tracker.DeepSort;
+﻿using OpenCvSharp;
+using Tracker.DeepSort.Utils.DataStructs;
 
-namespace MOT.CORE.ReID
+namespace Tracker.DeepSort.ReID;
+
+public interface IAppearanceExtractor : IDisposable
 {
-    public interface IAppearanceExtractor : IDisposable
-    {
-        public abstract IReadOnlyList<Vector> Predict(Mat image, IPrediction[] detectedBounds);
-    }
+    public abstract IReadOnlyList<Vector> Predict(Mat image, IPrediction[] detectedBounds);
 }

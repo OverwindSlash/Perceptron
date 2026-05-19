@@ -37,4 +37,9 @@ public class AlgorithmConstants
     public const int DefaultLocalEventIntervalSec = 1;
     public const string DefaultEventSnapshotDir = "Events";
     public const string DefaultEventName = "UnknownEvent";
+
+    // llm analysis
+    public const bool DefaultWillPerformLLMAnalysis = false;
+    public const string DefaultLLMPromptFile = "prompt.md";
+
 }
