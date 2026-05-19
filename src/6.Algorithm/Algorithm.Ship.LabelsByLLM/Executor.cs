@@ -3,6 +3,8 @@ using Algorithm.Common.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
 using Perceptron.Domain.Abstraction.EventHandler;
+using Perceptron.Domain.Entity.Annotation;
+using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event.Pipeline;
@@ -107,6 +109,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             else
             {
                 detectedObject.SetProperty("Labels", shipLabels.JsonLabel);
+                //GenerateObjectLabelAnnotation(frame, detectedObject);
             }
         }
 
@@ -115,17 +118,107 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         return new AnalysisResult(true);
     }
 
+    protected override VisualAnnotation GenerateObjectLabelAnnotation(Frame frame, DetectedObject detectedObject)
+    {
+        var annotation = frame.Annotation;
+
+        if (!detectedObject.IsUnderAnalysis)
+        {
+            return annotation;
+        }
+
+        // bbox annotation
+        if (WillGenerateBBox)
+        {
+            var rect = ObjAnnoGenerator.GenerateBBox(detectedObject, BBoxStrokeColor, BBoxStrokeWidth);
+            annotation.Shapes.Add(rect);
+        }
+
+        // object text annotation
+        if (WillGenerateObjLabelText)
+        {
+            var bbox = detectedObject.Bbox;
+
+            var labels = detectedObject.GetProperty<string>("Labels");
+
+            var shipLabels = JsonSerializer.Deserialize<ShipLabel>(labels);
+
+            // type annotation
+            var textType = new Shape()
+            {
+                Id = "text_label_type_" + detectedObject.Id,
+                Type = "text",
+                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                Content = $"Type:{shipLabels.ShipType}",
+                Position = new Position()
+                {
+                    X = bbox.X,
+                    Y = bbox.Y - 3 * base.ObjTextFontSize
+                },
+                Style = new Style()
+                {
+                    Color = base.ObjTextColor,
+                    FontSize = base.ObjTextFontSize,
+                }
+            };
+
+            annotation.Shapes.Add(textType);
+
+            // color annotation
+            var textColor = new Shape()
+            {
+                Id = "text_label_color_" + detectedObject.Id,
+                Type = "text",
+                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                Content = $"Color:{string.Join(',', shipLabels.ShipColor)}",
+                Position = new Position()
+                {
+                    X = bbox.X,
+                    Y = bbox.Y - 2 * base.ObjTextFontSize
+                },
+                Style = new Style()
+                {
+                    Color = base.ObjTextColor,
+                    FontSize = base.ObjTextFontSize,
+                }
+            };
+
+            annotation.Shapes.Add(textColor);
+
+            // draught annotation
+            var draughtColor = new Shape()
+            {
+                Id = "text_label_color_" + detectedObject.Id,
+                Type = "text",
+                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                Content = $"Draught:{shipLabels.ShipDraught}",
+                Position = new Position()
+                {
+                    X = bbox.X,
+                    Y = bbox.Y - base.ObjTextFontSize
+                },
+                Style = new Style()
+                {
+                    Color = base.ObjTextColor,
+                    FontSize = base.ObjTextFontSize,
+                }
+            };
+
+            annotation.Shapes.Add(draughtColor);
+        }
+
+        return annotation;
+    }
+
     public override void ProcessEvent(LLMInferenceResultEvent @event)
     {
         var shipLabel = JsonSerializer.Deserialize<ShipLabel>(@event.JsonResult);
 
         _cachedShipLabels.AddOrUpdate(
-            shipLabel.DetectedObjectId,
+            @event.DetectedObjectId,
             shipLabel,
             (key, oldValue) => shipLabel
         );
-
-        //GenerateObjectLabelAnnotation(frame, detectedObject);
     }
 
     public void ProcessEvent(ObjectExpiredEvent @event)

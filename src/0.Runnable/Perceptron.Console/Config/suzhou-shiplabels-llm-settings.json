@@ -83,7 +83,7 @@
     "AssemblyFile": "Detector.YoloDotNet.dll",
     "FullQualifiedClassName": "Detector.YoloDotNet.YoloDetector",
     "Preferences": {
-      "ModelPath": "Models/yolo11x.onnx",
+      "ModelPath": "Models/yolo11m.onnx",
       "ModelConfig": "Models/yolo11.json",
       "ExecutionProvider": "cuda",
       "DeviceId": 0,
@@ -241,7 +241,7 @@
       "AssemblyFile": "Algorithm.General.LLM.dll",
       "FullQualifiedClassName": "Algorithm.General.LLM.Executor",
       "Preferences": {
-        "ServerUrl": "http://192.168.1.103:4321",
+        "ServerUrl": "http://127.0.0.1:4321",
         "ApiKey": "lmstudio",
         "ModelName": "qwen/qwen3-vl-8b",
         "SystemPrompt": ""

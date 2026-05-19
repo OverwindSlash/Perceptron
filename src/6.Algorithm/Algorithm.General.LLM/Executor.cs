@@ -162,7 +162,7 @@ public class Executor : AlgorithmBase
             var inferenceResult = CallLLMInferenceAPI(userPrompt, BinaryData.FromBytes(imageBytes));
             stopwatch.Stop();
 
-            Log.Information("LLM inference completed. Model: {ModelName}, Result: {Result}", ModelName, inferenceResult);
+            Log.Information("LLM inference completed. Model: {ModelName}, Result: {Result}, Elapse: {InferTime}", ModelName, inferenceResult, stopwatch.Elapsed);
 
             var inferenceEvent = new LLMInferenceResultEvent(
                 sourceId: frame.SourceId,
@@ -172,6 +172,7 @@ public class Executor : AlgorithmBase
                 modelName: ModelName,
                 inferenceTime: stopwatch.Elapsed,
                 jsonResult: inferenceResult);
+            inferenceEvent.DetectedObjectId = detectedObject.Id;
             _inferenceResultEventPublisher.Publish(inferenceEvent);
         }
     }
@@ -233,7 +234,7 @@ public class Executor : AlgorithmBase
         frame.Retain();
 
         // 显示当前 _inferenceBuffer 中待处理图片的数量
-        Log.Information("LLM inference buffer size: {BufferSize}", _inferenceBuffer.Count);
+        // Log.Information("LLM inference buffer size: {BufferSize}", _inferenceBuffer.Count);
 
         try
         {
@@ -334,14 +335,14 @@ public class Executor : AlgorithmBase
             }
         }
 
-        if (removedFrameCount > 0 || removedObjectCount > 0)
-        {
-            Log.Information(
-                "LLM inference buffer filtered. BufferSize: {BufferSize}, RemovedFrames: {RemovedFrames}, RemovedObjects: {RemovedObjects}",
-                _inferenceBuffer.Count,
-                removedFrameCount,
-                removedObjectCount);
-        }
+        //if (removedFrameCount > 0 || removedObjectCount > 0)
+        //{
+        //    Log.Information(
+        //        "LLM inference buffer filtered. BufferSize: {BufferSize}, RemovedFrames: {RemovedFrames}, RemovedObjects: {RemovedObjects}",
+        //        _inferenceBuffer.Count,
+        //        removedFrameCount,
+        //        removedObjectCount);
+        //}
     }
 
     public override void Dispose()
