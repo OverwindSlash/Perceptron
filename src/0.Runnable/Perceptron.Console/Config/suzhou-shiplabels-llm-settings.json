@@ -225,7 +225,7 @@
       "AssemblyFile": "Algorithm.Ship.LabelsByLLM.dll",
       "FullQualifiedClassName": "Algorithm.Ship.LabelsByLLM.Executor",
       "Preferences": {
-        "Stride": 2,
+        "Stride": 5,
         "GenerateObjText": false,
         "WillGenerateObjLabelText": true,
         "MinImageAreaOfLabelEvent": 60000,
@@ -241,7 +241,7 @@
       "AssemblyFile": "Algorithm.General.LLM.dll",
       "FullQualifiedClassName": "Algorithm.General.LLM.Executor",
       "Preferences": {
-        "ServerUrl": "http://127.0.0.1:4321",
+        "ServerUrl": "http://192.168.1.103:4321",
         "ApiKey": "lmstudio",
         "ModelName": "qwen/qwen3-vl-8b",
         "SystemPrompt": ""

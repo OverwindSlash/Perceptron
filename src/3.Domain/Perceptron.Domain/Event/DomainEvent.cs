@@ -7,7 +7,7 @@ namespace Perceptron.Domain.Event;
 public abstract class DomainEvent : EventBase
 {
     public string SourceId { get; }
-    public string DetectedObjectId { get; set; }
+    
     public string ObjectGuid { get; set; }
     public string EventType { get; }
     public string EventName { get; }

@@ -1,4 +1,4 @@
-﻿using Algorithm.Common;
+﻿﻿using Algorithm.Common;
 using Algorithm.Common.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
@@ -171,8 +171,11 @@ public class Executor : AlgorithmBase
                 algorithmName: AlgorithmName,
                 modelName: ModelName,
                 inferenceTime: stopwatch.Elapsed,
+                detectedObjectId: detectedObject.Id,
+                confidence: detectedObject.Confidence,
                 jsonResult: inferenceResult);
-            inferenceEvent.DetectedObjectId = detectedObject.Id;
+            inferenceEvent.Frame = frame;
+            inferenceEvent.Snapshot = detectedObject.Snapshot;
             _inferenceResultEventPublisher.Publish(inferenceEvent);
         }
     }

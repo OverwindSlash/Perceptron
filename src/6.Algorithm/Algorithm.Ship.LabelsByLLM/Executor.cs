@@ -108,8 +108,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             }
             else
             {
-                detectedObject.SetProperty("Labels", shipLabels.JsonLabel);
-                //GenerateObjectLabelAnnotation(frame, detectedObject);
+                detectedObject.SetProperty("ShipLabel", shipLabels);
+                GenerateObjectLabelAnnotation(frame, detectedObject);
             }
         }
 
@@ -137,11 +137,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         // object text annotation
         if (WillGenerateObjLabelText)
         {
+
+
             var bbox = detectedObject.Bbox;
 
-            var labels = detectedObject.GetProperty<string>("Labels");
-
-            var shipLabels = JsonSerializer.Deserialize<ShipLabel>(labels);
+            var shipLabels = detectedObject.GetProperty<ShipLabel>("ShipLabel");
 
             // type annotation
             var textType = new Shape()
@@ -213,6 +213,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     public override void ProcessEvent(LLMInferenceResultEvent @event)
     {
         var shipLabel = JsonSerializer.Deserialize<ShipLabel>(@event.JsonResult);
+        shipLabel.DetectedObjectId = @event.DetectedObjectId;
+        shipLabel.Confidence = @event.Confidence;
+        shipLabel.Frame = @event.Frame;
+        shipLabel.Snapshot = @event.Snapshot;
+        shipLabel.JsonLabel = @event.JsonResult;
 
         _cachedShipLabels.AddOrUpdate(
             @event.DetectedObjectId,

@@ -1,5 +1,8 @@
-﻿using Perceptron.Domain.Event;
+﻿using OpenCvSharp;
+using Perceptron.Domain.Entity.VideoStream;
+using Perceptron.Domain.Event;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Algorithm.Common.Event;
 
@@ -9,12 +12,23 @@ public class LLMInferenceResultEvent : DomainEvent
 
     public string ModelName { get; }
     public TimeSpan InferenceTime { get; }
+
+    public string DetectedObjectId { get; set; }
+    public float Confidence { get; set; }
+
     public string JsonResult { get; set; }
 
+    [JsonIgnore]
+    public Frame Frame { get; set; }
+    [JsonIgnore]
+    public Mat Snapshot { get; set; }
+
     public LLMInferenceResultEvent(string sourceId, string eventType, string eventName, string algorithmName,
-        string modelName, TimeSpan inferenceTime, string jsonResult)
+        string detectedObjectId, float confidence, string modelName, TimeSpan inferenceTime, string jsonResult)
         : base(sourceId, EventType, eventName, algorithmName)
     {
+        DetectedObjectId = detectedObjectId;
+        Confidence = confidence;
         ModelName = modelName;
         InferenceTime = inferenceTime;
         JsonResult = jsonResult;
