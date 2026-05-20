@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using Algorithm.Common;
+﻿﻿﻿﻿﻿﻿using Algorithm.Common;
 using Algorithm.Common.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +35,7 @@ public class Executor : AlgorithmBase
     private readonly ConcurrentDictionary<string, ObjectInferenceTask> _latestObjectInferenceTasks = new();
     private readonly ConcurrentDictionary<string, byte> _queuedObjectInferenceIds = new();
     private readonly object _objectInferenceSync = new();
+    private readonly SemaphoreSlim _pendingInferenceSignal = new(0);
     private Thread? _inferenceWorkerThread;
     private int _isDisposing;
 
@@ -123,6 +124,8 @@ public class Executor : AlgorithmBase
 
             try
             {
+                _pendingInferenceSignal.Wait();
+
                 if (TryTakeNextInferenceWork(out frame, out objectId))
                 {
                     ProcessInference(frame, objectId);
@@ -152,12 +155,12 @@ public class Executor : AlgorithmBase
         frame = null;
         objectId = null;
 
-        if (_frameInferenceBuffer.TryTake(out frame, 20))
+        if (_frameInferenceBuffer.TryTake(out frame))
         {
             return true;
         }
 
-        if (!_objectInferenceIdBuffer.TryTake(out var nextObjectId, 20))
+        if (!_objectInferenceIdBuffer.TryTake(out var nextObjectId))
         {
             return false;
         }
@@ -364,6 +367,7 @@ public class Executor : AlgorithmBase
         try
         {
             _frameInferenceBuffer.Add(frame);
+            _pendingInferenceSignal.Release();
             return true;
         }
         catch
@@ -408,6 +412,7 @@ public class Executor : AlgorithmBase
                     try
                     {
                         _objectInferenceIdBuffer.Add(objectId);
+                        _pendingInferenceSignal.Release();
                     }
                     catch
                     {
@@ -455,6 +460,7 @@ public class Executor : AlgorithmBase
 
         _frameInferenceBuffer.CompleteAdding();
         _objectInferenceIdBuffer.CompleteAdding();
+        _pendingInferenceSignal.Release();
         _inferenceWorkerThread?.Join();
 
         while (_frameInferenceBuffer.TryTake(out var pendingFrame))
@@ -475,6 +481,7 @@ public class Executor : AlgorithmBase
         _queuedObjectInferenceIds.Clear();
         _frameInferenceBuffer.Dispose();
         _objectInferenceIdBuffer.Dispose();
+        _pendingInferenceSignal.Dispose();
         base.Dispose();
     }
 }
