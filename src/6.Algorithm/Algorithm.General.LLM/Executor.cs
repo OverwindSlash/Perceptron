@@ -1,4 +1,4 @@
-﻿﻿using Algorithm.Common;
+﻿﻿﻿﻿using Algorithm.Common;
 using Algorithm.Common.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,10 +30,25 @@ public class Executor : AlgorithmBase
     private IPublisher<LLMInferenceResultEvent> _inferenceResultEventPublisher = null!;
     private ChatClient _chatClient = null!;
 
-    private readonly BlockingCollection<Frame> _inferenceBuffer = new(new ConcurrentQueue<Frame>());
-    private readonly object _inferenceBufferSync = new();
+    private readonly BlockingCollection<Frame> _frameInferenceBuffer = new(new ConcurrentQueue<Frame>());
+    private readonly BlockingCollection<string> _objectInferenceIdBuffer = new(new ConcurrentQueue<string>());
+    private readonly ConcurrentDictionary<string, ObjectInferenceTask> _latestObjectInferenceTasks = new();
+    private readonly ConcurrentDictionary<string, byte> _queuedObjectInferenceIds = new();
+    private readonly object _objectInferenceSync = new();
     private Thread? _inferenceWorkerThread;
     private int _isDisposing;
+
+    private sealed class ObjectInferenceTask
+    {
+        public ObjectInferenceTask(Frame frame, string objectId)
+        {
+            Frame = frame;
+            ObjectId = objectId;
+        }
+
+        public Frame Frame { get; }
+        public string ObjectId { get; }
+    }
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
@@ -104,42 +119,68 @@ public class Executor : AlgorithmBase
         while (true)
         {
             Frame? frame = null;
+            string? objectId = null;
 
             try
             {
-                lock (_inferenceBufferSync)
+                if (TryTakeNextInferenceWork(out frame, out objectId))
                 {
-                    if (_inferenceBuffer.IsCompleted)
-                    {
-                        return;
-                    }
-
-                    _inferenceBuffer.TryTake(out frame);
+                    ProcessInference(frame, objectId);
                 }
-
-                if (frame == null)
+                else if (IsInferenceCompleted())
                 {
-                    Thread.Sleep(50);
-                    continue;
+                    return;
                 }
-
-                ProcessInference(frame);
             }
             catch (Exception ex)
             {
                 if (frame != null)
                 {
-                    Log.Error(ex, "Error processing LLM inference. SourceId: {SourceId}, FrameId: {FrameId}", frame.SourceId, frame.FrameId);
+                    Log.Error(ex, "Error processing LLM inference. SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
+                        frame.SourceId, frame.FrameId, objectId);
                 }
             }
             finally
             {
-                frame?.Dispose(); // 和 EnqueueFrameForInference 方法中的 Retain 配对
+                frame?.Dispose();
             }
         }
     }
 
-    private void ProcessInference(Frame frame)
+    private bool TryTakeNextInferenceWork(out Frame? frame, out string? objectId)
+    {
+        frame = null;
+        objectId = null;
+
+        if (_frameInferenceBuffer.TryTake(out frame, 20))
+        {
+            return true;
+        }
+
+        if (!_objectInferenceIdBuffer.TryTake(out var nextObjectId, 20))
+        {
+            return false;
+        }
+
+        _queuedObjectInferenceIds.TryRemove(nextObjectId, out _);
+        if (!_latestObjectInferenceTasks.TryRemove(nextObjectId, out var objectTask))
+        {
+            return false;
+        }
+
+        frame = objectTask.Frame;
+        objectId = objectTask.ObjectId;
+        return true;
+    }
+
+    private bool IsInferenceCompleted()
+    {
+        return _frameInferenceBuffer.IsCompleted &&
+               _objectInferenceIdBuffer.IsCompleted &&
+               _latestObjectInferenceTasks.IsEmpty;
+    }
+
+    private void ProcessInference(Frame frame, string? objectId = null)
     {
         if (!frame.HasProperty(LLMAnalysisPromptPropertyName))
         {
@@ -179,7 +220,13 @@ public class Executor : AlgorithmBase
         // 针对帧中识别到的对象进行推理
         if (analysisType == "object")
         {
-            foreach (var detectedObject in frame.DetectedObjects)
+            IEnumerable<DetectedObject> detectedObjects = frame.DetectedObjects;
+            if (!string.IsNullOrWhiteSpace(objectId))
+            {
+                detectedObjects = detectedObjects.Where(detectedObject => detectedObject.Id == objectId);
+            }
+
+            foreach (var detectedObject in detectedObjects)
             {
                 if (!detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
                 {
@@ -289,96 +336,114 @@ public class Executor : AlgorithmBase
 
     private bool EnqueueFrameForInference(Frame frame)
     {
-        frame.Retain(); // 和 ProcessInferenceBuffer 中的 finally 块的 Dispose 配对
-
         try
         {
-            lock (_inferenceBufferSync)
+            if (IsFrameLevelAnalysis(frame))
             {
-                FilterAndRebuildInferenceBuffer(frame);
+                return EnqueueFrameLevelInference(frame);
+            }
+
+            if (IsObjectLevelAnalysis(frame))
+            {
+                return EnqueueObjectLevelInference(frame);
             }
 
             return true;
         }
         catch (InvalidOperationException ex)
         {
-            frame.Dispose();
             Log.Warning(ex, "LLM inference buffer is closed. FrameId: {FrameId}", frame.FrameId);
             return false;
         }
     }
 
-    private void FilterAndRebuildInferenceBuffer(Frame newFrame)
+    private bool EnqueueFrameLevelInference(Frame frame)
     {
-        List<Frame> pendingFrames = [];
-        while (_inferenceBuffer.TryTake(out var pendingFrame))
+        frame.Retain();
+
+        try
         {
-            pendingFrames.Add(pendingFrame);
+            _frameInferenceBuffer.Add(frame);
+            return true;
+        }
+        catch
+        {
+            frame.Dispose();
+            throw;
+        }
+    }
+
+    private bool EnqueueObjectLevelInference(Frame frame)
+    {
+        var objectIds = frame.DetectedObjects
+            .Where(detectedObject => detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
+            .Select(detectedObject => detectedObject.Id)
+            .Distinct()
+            .ToList();
+
+        if (objectIds.Count == 0)
+        {
+            return true;
         }
 
-        pendingFrames.Add(newFrame);
-
-        Dictionary<string, DetectedObject> bestDetectedObjectById = [];
-        foreach (var frame in pendingFrames)
+        lock (_objectInferenceSync)
         {
-            foreach (var detectedObject in frame.DetectedObjects)
+            foreach (var objectId in objectIds)
             {
-                if (!detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
+                frame.Retain();
+                var objectTask = new ObjectInferenceTask(frame, objectId);
+
+                if (_latestObjectInferenceTasks.TryGetValue(objectId, out var oldTask))
                 {
-                    continue;
+                    _latestObjectInferenceTasks[objectId] = objectTask;
+                    DisposeObjectInferenceTask(oldTask);
+                }
+                else
+                {
+                    _latestObjectInferenceTasks[objectId] = objectTask;
                 }
 
-                if (!bestDetectedObjectById.TryGetValue(detectedObject.Id, out var currentBestDetectedObject) ||
-                    detectedObject.Confidence > currentBestDetectedObject.Confidence)
+                if (_queuedObjectInferenceIds.TryAdd(objectId, 0))
                 {
-                    bestDetectedObjectById[detectedObject.Id] = detectedObject;
+                    try
+                    {
+                        _objectInferenceIdBuffer.Add(objectId);
+                    }
+                    catch
+                    {
+                        _queuedObjectInferenceIds.TryRemove(objectId, out _);
+                        if (_latestObjectInferenceTasks.TryRemove(objectId, out var pendingTask))
+                        {
+                            DisposeObjectInferenceTask(pendingTask);
+                        }
+                        throw;
+                    }
                 }
             }
         }
 
-        int removedFrameCount = 0;
-        int removedObjectCount = 0;
-        foreach (var frame in pendingFrames)
-        {
-            bool hasLLMObjectToProcess = false;
+        return true;
+    }
 
-            foreach (var detectedObject in frame.DetectedObjects)
-            {
-                if (!detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
-                {
-                    continue;
-                }
+    private static void DisposeObjectInferenceTask(ObjectInferenceTask task)
+    {
+        task.Frame.Dispose();
+    }
 
-                if (bestDetectedObjectById.TryGetValue(detectedObject.Id, out var bestDetectedObject) &&
-                    !ReferenceEquals(detectedObject, bestDetectedObject))
-                {
-                    detectedObject.SetProperty(LLMAnalysisPropertyName, false);
-                    removedObjectCount++;
-                    continue;
-                }
+    private bool IsFrameLevelAnalysis(Frame frame)
+    {
+        return string.Equals(
+            frame.GetProperty<string>(LLMAnalysisType),
+            "frame",
+            StringComparison.OrdinalIgnoreCase);
+    }
 
-                hasLLMObjectToProcess = true;
-            }
-
-            if (hasLLMObjectToProcess)
-            {
-                _inferenceBuffer.Add(frame);
-            }
-            else
-            {
-                frame.Dispose();
-                removedFrameCount++;
-            }
-        }
-
-        //if (removedFrameCount > 0 || removedObjectCount > 0)
-        //{
-        //    Log.Information(
-        //        "LLM inference buffer filtered. BufferSize: {BufferSize}, RemovedFrames: {RemovedFrames}, RemovedObjects: {RemovedObjects}",
-        //        _inferenceBuffer.Count,
-        //        removedFrameCount,
-        //        removedObjectCount);
-        //}
+    private bool IsObjectLevelAnalysis(Frame frame)
+    {
+        return string.Equals(
+            frame.GetProperty<string>(LLMAnalysisType),
+            "object",
+            StringComparison.OrdinalIgnoreCase);
     }
 
     public override void Dispose()
@@ -388,15 +453,28 @@ public class Executor : AlgorithmBase
             return;
         }
 
-        _inferenceBuffer.CompleteAdding();
+        _frameInferenceBuffer.CompleteAdding();
+        _objectInferenceIdBuffer.CompleteAdding();
         _inferenceWorkerThread?.Join();
 
-        while (_inferenceBuffer.TryTake(out var pendingFrame))
+        while (_frameInferenceBuffer.TryTake(out var pendingFrame))
         {
             pendingFrame.Dispose();
         }
 
-        _inferenceBuffer.Dispose();
+        while (_objectInferenceIdBuffer.TryTake(out _))
+        {
+        }
+
+        foreach (var objectTask in _latestObjectInferenceTasks.Values)
+        {
+            DisposeObjectInferenceTask(objectTask);
+        }
+
+        _latestObjectInferenceTasks.Clear();
+        _queuedObjectInferenceIds.Clear();
+        _frameInferenceBuffer.Dispose();
+        _objectInferenceIdBuffer.Dispose();
         base.Dispose();
     }
 }
