@@ -21,6 +21,10 @@ namespace Algorithm.Common;
 
 public abstract class AlgorithmBase : IAlgorithmModule, IEventSubscriber<LLMInferenceResultEvent>
 {
+    protected const string LLMAnalysisPropertyName = "LLMAnalysis";
+    protected const string LLMAnalysisType = "LLMAnalysisType";
+    protected const string LLMAnalysisPromptPropertyName = "LLMAnalysisPrompt";
+
     public string AlgorithmName { get; protected set; }
     public string AlgorithmVersion { get; protected set; }
     public string AlgorithmDescription { get; protected set; }

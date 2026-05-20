@@ -22,9 +22,7 @@ namespace Algorithm.Ship.LabelsByLLM;
 
 public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 {
-    private const int DefaultStride = 5;
-    private const string LLMAnalysisPropertyName = "LLMAnalysis";
-    private const string LLMAnalysisPromptPropertyName = "LLMAnalysisPrompt";
+    private const int DefaultStride = 5;   
 
     public int Stride { get; private set; }
     public bool WillGenerateObjLabelText { get; private set; }
@@ -109,6 +107,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 detectedObject.SetProperty(LLMAnalysisPropertyName, true);
 
                 frame.SetProperty(LLMAnalysisPropertyName, true);
+                frame.SetProperty(LLMAnalysisType, "object");
                 frame.SetProperty(LLMAnalysisPromptPropertyName, userPrompt);
             }
             else

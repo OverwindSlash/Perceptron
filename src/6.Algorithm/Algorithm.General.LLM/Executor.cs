@@ -20,8 +20,6 @@ namespace Algorithm.General.LLM;
 public class Executor : AlgorithmBase
 {
     private const string DefaultModelName = "unsloth/qwen3-vl-30b-a3b-instruct";
-    private const string LLMAnalysisPropertyName = "LLMAnalysis";
-    private const string LLMAnalysisPromptPropertyName = "LLMAnalysisPrompt";
 
     public string ServerUrl { get; private set; }
     public string ApiKey { get; private set; }
@@ -37,7 +35,7 @@ public class Executor : AlgorithmBase
     private Thread? _inferenceWorkerThread;
     private int _isDisposing;
 
-    public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences) 
+    public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
     {
         AlgorithmName = "LLM Inference Module";
@@ -149,15 +147,12 @@ public class Executor : AlgorithmBase
         }
 
         string userPrompt = frame.GetProperty<string>(LLMAnalysisPromptPropertyName);
+        string analysisType = frame.GetProperty<string>(LLMAnalysisType);
 
-        foreach (var detectedObject in frame.DetectedObjects)
+        // 针对帧进行推理
+        if (analysisType == "frame")
         {
-            if (!detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
-            {
-                continue;
-            }
-
-            Cv2.ImEncode(".jpg", detectedObject.Snapshot, out var imageBytes);
+            Cv2.ImEncode(".jpg", frame.Scene, out var imageBytes);
             var stopwatch = Stopwatch.StartNew();
             var inferenceResult = CallLLMInferenceAPI(userPrompt, BinaryData.FromBytes(imageBytes));
             stopwatch.Stop();
@@ -171,15 +166,50 @@ public class Executor : AlgorithmBase
                 algorithmName: AlgorithmName,
                 modelName: ModelName,
                 inferenceTime: stopwatch.Elapsed,
-                detectedObjectId: detectedObject.Id,
-                confidence: detectedObject.Confidence,
+                detectedObjectId: string.Empty,
+                confidence: 0,
                 jsonResult: inferenceResult);
             inferenceEvent.Frame = frame;
-            inferenceEvent.Snapshot = detectedObject.Snapshot.Clone();
 
             frame.Retain();
             _inferenceResultEventPublisher.Publish(inferenceEvent);
             frame.Dispose();
+        }
+
+        // 针对帧中识别到的对象进行推理
+        if (analysisType == "object")
+        {
+            foreach (var detectedObject in frame.DetectedObjects)
+            {
+                if (!detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
+                {
+                    continue;
+                }
+
+                Cv2.ImEncode(".jpg", detectedObject.Snapshot, out var imageBytes);
+                var stopwatch = Stopwatch.StartNew();
+                var inferenceResult = CallLLMInferenceAPI(userPrompt, BinaryData.FromBytes(imageBytes));
+                stopwatch.Stop();
+
+                Log.Information("LLM inference completed. Model: {ModelName}, Result: {Result}, Elapse: {InferTime}", ModelName, inferenceResult, stopwatch.Elapsed);
+
+                var inferenceEvent = new LLMInferenceResultEvent(
+                    sourceId: frame.SourceId,
+                    eventType: LLMInferenceResultEvent.EventType,
+                    eventName: EventName,
+                    algorithmName: AlgorithmName,
+                    modelName: ModelName,
+                    inferenceTime: stopwatch.Elapsed,
+                    detectedObjectId: detectedObject.Id,
+                    confidence: detectedObject.Confidence,
+                    jsonResult: inferenceResult);
+                inferenceEvent.Frame = frame;
+                inferenceEvent.Snapshot = detectedObject.Snapshot.Clone();
+
+                frame.Retain();
+                _inferenceResultEventPublisher.Publish(inferenceEvent);
+                frame.Dispose();
+            }
         }
     }
 
@@ -255,7 +285,7 @@ public class Executor : AlgorithmBase
         {
             frame.Dispose();
         }
-    }    
+    }
 
     private bool EnqueueFrameForInference(Frame frame)
     {
