@@ -216,12 +216,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
     public override void ProcessEvent(LLMInferenceResultEvent @event)
     {
-        var shipLabel = JsonSerializer.Deserialize<ShipLabel>(@event.JsonResult);
-        shipLabel.DetectedObjectId = @event.DetectedObjectId;
-        shipLabel.Confidence = @event.Confidence;
-        shipLabel.Frame = @event.Frame;
-        shipLabel.Snapshot = @event.Snapshot;
-        shipLabel.JsonLabel = @event.JsonResult;
+        if (!TryCreateShipLabel(@event, out var shipLabel))
+        {
+            DisposeSnapshot(@event.Snapshot);
+            return;
+        }
 
         _cachedShipLabels.AddOrUpdate(
             @event.DetectedObjectId,
@@ -272,8 +271,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             labels: shipLabels);
 
         // 2. Generate text annotation for detected object
-        var frame = shipLabels.Frame;
-        var visualAnnotation = new VisualAnnotation(@event.SourceId, frame.UtcTimeStamp, frame.FrameId, shipLabels.Snapshot.Width,
+        var visualAnnotation = new VisualAnnotation(shipLabels.SourceId, shipLabels.UtcTimeStamp, shipLabels.FrameId, shipLabels.Snapshot.Width,
             shipLabels.Snapshot.Height);
 
         var text = new Shape()
@@ -337,6 +335,75 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 Log.Error(ex, "Error processing event {EventName}", EventName);
             }
         });
+    }
+
+    private bool TryCreateShipLabel(LLMInferenceResultEvent @event, out ShipLabel? shipLabel)
+    {
+        shipLabel = null;
+
+        if (string.IsNullOrWhiteSpace(@event.JsonResult))
+        {
+            Log.Warning("LLM returned empty result. SourceId: {SourceId}, ObjectId: {ObjectId}, Model: {ModelName}",
+                @event.SourceId, @event.DetectedObjectId, @event.ModelName);
+            return false;
+        }
+
+        try
+        {
+            shipLabel = JsonSerializer.Deserialize<ShipLabel>(@event.JsonResult);
+        }
+        catch (JsonException ex)
+        {
+            Log.Warning(ex, "Failed to deserialize ship label JSON. SourceId: {SourceId}, ObjectId: {ObjectId}, Model: {ModelName}, Result: {Result}",
+                @event.SourceId, @event.DetectedObjectId, @event.ModelName, @event.JsonResult);
+            return false;
+        }
+        catch (NotSupportedException ex)
+        {
+            Log.Warning(ex, "Unsupported ship label payload. SourceId: {SourceId}, ObjectId: {ObjectId}, Model: {ModelName}, Result: {Result}",
+                @event.SourceId, @event.DetectedObjectId, @event.ModelName, @event.JsonResult);
+            return false;
+        }
+
+        if (shipLabel == null)
+        {
+            Log.Warning("LLM ship label payload resolved to null. SourceId: {SourceId}, ObjectId: {ObjectId}, Model: {ModelName}, Result: {Result}",
+                @event.SourceId, @event.DetectedObjectId, @event.ModelName, @event.JsonResult);
+            return false;
+        }
+
+        shipLabel.DetectedObjectId = @event.DetectedObjectId;
+        shipLabel.Confidence = @event.Confidence;
+        shipLabel.SourceId = @event.SourceId;
+        shipLabel.FrameId = @event.FrameId;
+        shipLabel.UtcTimeStamp = @event.UtcTimeStamp;
+        shipLabel.Snapshot = @event.Snapshot;
+        shipLabel.JsonLabel = @event.JsonResult;
+        shipLabel.ShipType = string.IsNullOrWhiteSpace(shipLabel.ShipType) ? "Unknown" : shipLabel.ShipType;
+        shipLabel.ShipDraught = string.IsNullOrWhiteSpace(shipLabel.ShipDraught) ? "Unknown" : shipLabel.ShipDraught;
+        shipLabel.ShipColor = shipLabel.ShipColor?
+            .Where(color => !string.IsNullOrWhiteSpace(color))
+            .ToList() ?? new List<string>();
+
+        if (shipLabel.ShipColor.Count == 0)
+        {
+            shipLabel.ShipColor = new List<string> { "Unknown" };
+        }
+
+        return true;
+    }
+
+    public override void Dispose()
+    {
+        _disposableOeSubscriber?.Dispose();
+
+        foreach (var shipLabel in _cachedShipLabels.Values)
+        {
+            DisposeSnapshot(shipLabel.Snapshot);
+        }
+
+        _cachedShipLabels.Clear();
+        base.Dispose();
     }
 
     private static void DisposeSnapshot(Mat? snapshot)

@@ -1,4 +1,4 @@
-﻿﻿﻿using Algorithm.Common;
+﻿﻿using Algorithm.Common;
 using Algorithm.Common.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
@@ -215,11 +215,9 @@ public class Executor : AlgorithmBase
                 detectedObjectId: string.Empty,
                 confidence: 0,
                 jsonResult: inferenceResult);
-            inferenceEvent.Frame = frame;
-
-            frame.Retain();
+            inferenceEvent.FrameId = frame.FrameId;
+            inferenceEvent.UtcTimeStamp = frame.UtcTimeStamp;
             _inferenceResultEventPublisher.Publish(inferenceEvent);
-            frame.Dispose();
         }
 
         // 针对帧中识别到的对象进行推理
@@ -255,12 +253,11 @@ public class Executor : AlgorithmBase
                     detectedObjectId: detectedObject.Id,
                     confidence: detectedObject.Confidence,
                     jsonResult: inferenceResult);
-                inferenceEvent.Frame = frame;
+                inferenceEvent.FrameId = frame.FrameId;
+                inferenceEvent.UtcTimeStamp = frame.UtcTimeStamp;
                 inferenceEvent.Snapshot = detectedObject.Snapshot.Clone();
 
-                frame.Retain();
                 _inferenceResultEventPublisher.Publish(inferenceEvent);
-                frame.Dispose();
             }
         }
     }
