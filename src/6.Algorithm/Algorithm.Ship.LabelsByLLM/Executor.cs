@@ -226,7 +226,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         _cachedShipLabels.AddOrUpdate(
             @event.DetectedObjectId,
             shipLabel,
-            (key, oldValue) => shipLabel
+            (key, oldValue) =>
+            {
+                DisposeSnapshot(oldValue.Snapshot);
+                return shipLabel;
+            }
         );
     }
 
@@ -234,12 +238,17 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     {
         var objectId = @event.Id;
 
-        if (_cachedShipLabels.TryGetValue(objectId, out var shipLabels))
+        if (_cachedShipLabels.TryRemove(objectId, out var shipLabels))
         {
-            ProcessShipLabelEvent(@event, shipLabels);
+            try
+            {
+                ProcessShipLabelEvent(@event, shipLabels);
+            }
+            finally
+            {
+                DisposeSnapshot(shipLabels.Snapshot);
+            }
         }
-
-        _cachedShipLabels.TryRemove(objectId, out _);
     }
 
     private void ProcessShipLabelEvent(ObjectExpiredEvent @event, ShipLabel shipLabels)
@@ -291,7 +300,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         Mat? snapshot = null;
         if (WillSaveEventSnapshot)
         {
-            snapshot = shipLabels.Snapshot;
+            snapshot = shipLabels.Snapshot.Clone();
         }
 
         // 4. Async Saving
@@ -300,7 +309,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         {
             try
             {
-                using (snapshot) // Ensure disposal of the cloned snapshot
+                using (snapshot)
                 {
                     string savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"));
                     savePath.EnsureDirExistence();
@@ -328,5 +337,15 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 Log.Error(ex, "Error processing event {EventName}", EventName);
             }
         });
+    }
+
+    private static void DisposeSnapshot(Mat? snapshot)
+    {
+        if (snapshot == null || snapshot.IsDisposed)
+        {
+            return;
+        }
+
+        snapshot.Dispose();
     }
 }
