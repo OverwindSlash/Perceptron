@@ -175,8 +175,11 @@ public class Executor : AlgorithmBase
                 confidence: detectedObject.Confidence,
                 jsonResult: inferenceResult);
             inferenceEvent.Frame = frame;
-            inferenceEvent.Snapshot = detectedObject.Snapshot;
+            inferenceEvent.Snapshot = detectedObject.Snapshot.Clone();
+
+            frame.Retain();
             _inferenceResultEventPublisher.Publish(inferenceEvent);
+            frame.Dispose();
         }
     }
 

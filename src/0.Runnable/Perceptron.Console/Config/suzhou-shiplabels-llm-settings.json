@@ -88,7 +88,7 @@
       "ExecutionProvider": "cuda",
       "DeviceId": 0,
       "ClassNum": 80,
-      "ConfThresh": 0.7,
+      "ConfThresh": 0.2,
       "TargetTypes": "person,boat",
       "DetectionStride": 2,
       "FilterSmallObject": false,
@@ -102,7 +102,7 @@
       "MaxStitchGapPixel": 3,
       "MinVerticalOverlapRatio": 0.8,
       "WillSuppressInnerSameObject": true,
-      "InnerObjectOverlapRatio": 0.7,
+      "InnerObjectOverlapRatio": 0.6,
       "WillMapObjectTypes": false,
       "SourceObjectTypeNames": "truck,bus",
       "DestinationObjectTypeName": "car",
@@ -113,8 +113,8 @@
     "AssemblyFile": "Tracker.Sort.dll",
     "FullQualifiedClassName": "Tracker.Sort.SortTracker",
     "Preferences": {
-      "IouThreshold": 0.1,
-      "MaxMisses": 50
+      "IouThreshold": 0.01,
+      "MaxMisses": 100
     }
   },
   //"Tracker": {
@@ -225,7 +225,7 @@
       "AssemblyFile": "Algorithm.Ship.LabelsByLLM.dll",
       "FullQualifiedClassName": "Algorithm.Ship.LabelsByLLM.Executor",
       "Preferences": {
-        "Stride": 5,
+        "Stride": 10,
         "GenerateObjText": false,
         "WillGenerateObjLabelText": true,
         "MinImageAreaOfLabelEvent": 60000,
@@ -241,7 +241,7 @@
       "AssemblyFile": "Algorithm.General.LLM.dll",
       "FullQualifiedClassName": "Algorithm.General.LLM.Executor",
       "Preferences": {
-        "ServerUrl": "http://192.168.1.103:4321",
+        "ServerUrl": "http://127.0.0.1:4321",
         "ApiKey": "lmstudio",
         "ModelName": "qwen/qwen3-vl-8b",
         "SystemPrompt": ""

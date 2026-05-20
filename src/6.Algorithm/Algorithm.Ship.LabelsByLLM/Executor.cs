@@ -1,15 +1,20 @@
 ﻿using Algorithm.Common;
 using Algorithm.Common.Event;
+using Algorithm.Ship.LabelsByLLM.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
+using OpenCvSharp;
 using Perceptron.Domain.Abstraction.EventHandler;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
+using Perceptron.Domain.Event;
 using Perceptron.Domain.Event.Pipeline;
+using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
+using Serilog;
 using System.Collections.Concurrent;
 using System.Text.Json;
 
@@ -153,7 +158,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 Position = new Position()
                 {
                     X = bbox.X,
-                    Y = bbox.Y - 3 * base.ObjTextFontSize
+                    Y = bbox.Y - 3 * base.ObjTextFontSize - 20
                 },
                 Style = new Style()
                 {
@@ -174,7 +179,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 Position = new Position()
                 {
                     X = bbox.X,
-                    Y = bbox.Y - 2 * base.ObjTextFontSize
+                    Y = bbox.Y - 2 * base.ObjTextFontSize - 10
                 },
                 Style = new Style()
                 {
@@ -232,9 +237,97 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
         if (_cachedShipLabels.TryGetValue(objectId, out var shipLabels))
         {
-            //ProcessShipLabelEvent(@event, shipLabels);
+            ProcessShipLabelEvent(@event, shipLabels);
         }
 
         _cachedShipLabels.TryRemove(objectId, out _);
+    }
+
+    private void ProcessShipLabelEvent(ObjectExpiredEvent @event, ShipLabel shipLabels)
+    {
+        if (!WillPublishEventMessage) return;
+
+        var snapshotArea = shipLabels.Snapshot.Width * shipLabels.Snapshot.Height;
+        if (snapshotArea < MinImageAreaOfLabelEvent) return;
+
+        Log.Information("{ShipId} labels -> Type:{ShipType}, Colors:{ShipColors}, Draught:{ShipDraught}",
+            @event.Id, shipLabels.ShipType, string.Join(',', shipLabels.ShipColor), shipLabels.ShipDraught);
+
+        // 1. Create Event
+        var shipLabelEvent = new ShipLabelEvent(
+            sourceId: @event.SourceId,
+            eventName: EventName,
+            algorithmName: AlgorithmName,
+            objectId: @event.Id,
+            objectLocalId: @event.LocalId,
+            confidence: shipLabels.Confidence,
+            labels: shipLabels);
+
+        // 2. Generate text annotation for detected object
+        var frame = shipLabels.Frame;
+        var visualAnnotation = new VisualAnnotation(@event.SourceId, frame.UtcTimeStamp, frame.FrameId, shipLabels.Snapshot.Width,
+            shipLabels.Snapshot.Height);
+
+        var text = new Shape()
+        {
+            Id = "text_label_" + @event.Id,
+            Type = "text",
+            Content = $"Id:{@event.LocalId}, T:{shipLabels.ShipType}\nC:{string.Join(',', shipLabels.ShipColor)}\nD:{shipLabels.ShipDraught}",
+            Position = new Position()
+            {
+                X = 10,
+                Y = 10
+            },
+            Style = new Style()
+            {
+                Color = base.ObjTextColor,
+                FontSize = base.ObjTextFontSize,
+            }
+        };
+
+        visualAnnotation.AddShape(text);
+        shipLabelEvent.Annotations = JsonSerializer.Serialize(visualAnnotation, DomainEvent.JsonOptions);
+
+        // 3. Prepare Snapshot (Synchronously - critical for thread safety)
+        Mat? snapshot = null;
+        if (WillSaveEventSnapshot)
+        {
+            snapshot = shipLabels.Snapshot;
+        }
+
+        // 4. Async Saving
+        string now = DateTime.Now.ToString("yyyyMMddhhmmss");
+        Task.Run(async () =>
+        {
+            try
+            {
+                using (snapshot) // Ensure disposal of the cloned snapshot
+                {
+                    string savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"));
+                    savePath.EnsureDirExistence();
+
+                    if (snapshot != null && !snapshot.IsDisposed)
+                    {
+                        string imagePath = Path.Combine(savePath, $"{@event.Id}_{now}.jpg");
+                        snapshot.SaveImage(imagePath);
+
+                        string annotationPath = Path.Combine(savePath, $"{@event.Id}_{now}.json");
+                        await File.WriteAllTextAsync(annotationPath, shipLabelEvent.Annotations);
+
+                        shipLabelEvent.ImageLocalPath = imagePath;
+                        shipLabelEvent.ImageJsonLocalPath = annotationPath;
+                    }
+
+                    await EventRepository.SaveDomainEventAsync(shipLabelEvent);
+                    MessagePoster.PostDomainEventMessage(shipLabelEvent);
+
+                    //_shipLabelEventPublisher.Publish(shipLabelEvent);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error processing event {EventName}", EventName);
+            }
+        });
     }
 }

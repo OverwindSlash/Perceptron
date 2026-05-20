@@ -1,7 +1,7 @@
 ﻿using Perceptron.Domain.Event;
 using System.Text.Json;
 
-namespace Algorithm.Ship.Labels.Event;
+namespace Algorithm.Ship.LabelsByLLM.Event;
 
 public class ShipLabelEvent : DomainEvent
 {
@@ -16,7 +16,7 @@ public class ShipLabelEvent : DomainEvent
 
 
     public ShipLabelEvent(string sourceId, string eventName, string algorithmName,
-        string objectId, string objectLocalId, float confidence, ShipLabel labels) 
+        string objectId, string objectLocalId, float confidence, ShipLabel labels)
         : base(sourceId, EventType, eventName, algorithmName)
     {
         ObjectId = objectId;
