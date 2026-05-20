@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿using Algorithm.Common;
+﻿﻿﻿using Algorithm.Common;
 using Algorithm.Common.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,14 +41,16 @@ public class Executor : AlgorithmBase
 
     private sealed class ObjectInferenceTask
     {
-        public ObjectInferenceTask(Frame frame, string objectId)
+        public ObjectInferenceTask(Frame frame, string objectId, float confidence)
         {
             Frame = frame;
             ObjectId = objectId;
+            Confidence = confidence;
         }
 
         public Frame Frame { get; }
         public string ObjectId { get; }
+        public float Confidence { get; }
     }
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
@@ -379,32 +381,42 @@ public class Executor : AlgorithmBase
 
     private bool EnqueueObjectLevelInference(Frame frame)
     {
-        var objectIds = frame.DetectedObjects
+        var objectCandidates = frame.DetectedObjects
             .Where(detectedObject => detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
-            .Select(detectedObject => detectedObject.Id)
-            .Distinct()
+            .GroupBy(detectedObject => detectedObject.Id)
+            .Select(group => group
+                .OrderByDescending(detectedObject => detectedObject.Confidence)
+                .First())
             .ToList();
 
-        if (objectIds.Count == 0)
+        if (objectCandidates.Count == 0)
         {
             return true;
         }
 
         lock (_objectInferenceSync)
         {
-            foreach (var objectId in objectIds)
+            foreach (var detectedObject in objectCandidates)
             {
-                frame.Retain();
-                var objectTask = new ObjectInferenceTask(frame, objectId);
+                var objectId = detectedObject.Id;
+                var confidence = detectedObject.Confidence;
 
                 if (_latestObjectInferenceTasks.TryGetValue(objectId, out var oldTask))
                 {
-                    _latestObjectInferenceTasks[objectId] = objectTask;
+                    if (confidence <= oldTask.Confidence)
+                    {
+                        continue;
+                    }
+
+                    frame.Retain();
+                    var replacementTask = new ObjectInferenceTask(frame, objectId, confidence);
+                    _latestObjectInferenceTasks[objectId] = replacementTask;
                     DisposeObjectInferenceTask(oldTask);
                 }
                 else
                 {
-                    _latestObjectInferenceTasks[objectId] = objectTask;
+                    frame.Retain();
+                    _latestObjectInferenceTasks[objectId] = new ObjectInferenceTask(frame, objectId, confidence);
                 }
 
                 if (_queuedObjectInferenceIds.TryAdd(objectId, 0))
