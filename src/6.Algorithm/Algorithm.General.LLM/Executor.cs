@@ -20,6 +20,9 @@ namespace Algorithm.General.LLM;
 public class Executor : AlgorithmBase
 {
     private const string DefaultModelName = "unsloth/qwen3-vl-30b-a3b-instruct";
+    private const string FrameAnalysisType = "frame";
+    private const string ObjectAnalysisType = "object";
+    private static readonly TimeSpan InferenceRequestTimeout = TimeSpan.FromMinutes(2);
 
     public string ServerUrl { get; private set; }
     public string ApiKey { get; private set; }
@@ -36,8 +39,10 @@ public class Executor : AlgorithmBase
     private readonly ConcurrentDictionary<string, byte> _queuedObjectInferenceIds = new();
     private readonly object _objectInferenceSync = new();
     private readonly SemaphoreSlim _pendingInferenceSignal = new(0);
+    private readonly CancellationTokenSource _disposeCancellationTokenSource = new();
     private Thread? _inferenceWorkerThread;
     private int _isDisposing;
+    private bool _preferFrameInferenceWork = true;
 
     private sealed class ObjectInferenceTask
     {
@@ -130,11 +135,29 @@ public class Executor : AlgorithmBase
 
                 if (TryTakeNextInferenceWork(out frame, out objectId))
                 {
-                    ProcessInference(frame, objectId);
+                    ProcessInference(frame!, objectId);
                 }
                 else if (IsInferenceCompleted())
                 {
                     return;
+                }
+            }
+            catch (OperationCanceledException) when (Volatile.Read(ref _isDisposing) == 1)
+            {
+                if (frame != null)
+                {
+                    Log.Information("LLM inference canceled during shutdown. SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
+                        frame.SourceId, frame.FrameId, objectId);
+                }
+
+                return;
+            }
+            catch (OperationCanceledException ex)
+            {
+                if (frame != null)
+                {
+                    Log.Warning(ex, "LLM inference canceled or timed out. SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
+                        frame.SourceId, frame.FrameId, objectId);
                 }
             }
             catch (Exception ex)
@@ -157,25 +180,62 @@ public class Executor : AlgorithmBase
         frame = null;
         objectId = null;
 
-        if (_frameInferenceBuffer.TryTake(out frame))
+        if (_preferFrameInferenceWork)
         {
+            if (TryTakeFrameInferenceWork(out frame))
+            {
+                _preferFrameInferenceWork = false;
+                return true;
+            }
+
+            if (TryTakeObjectInferenceWork(out frame, out objectId))
+            {
+                _preferFrameInferenceWork = true;
+                return true;
+            }
+        }
+        else
+        {
+            if (TryTakeObjectInferenceWork(out frame, out objectId))
+            {
+                _preferFrameInferenceWork = true;
+                return true;
+            }
+
+            if (TryTakeFrameInferenceWork(out frame))
+            {
+                _preferFrameInferenceWork = false;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryTakeFrameInferenceWork(out Frame? frame)
+    {
+        return _frameInferenceBuffer.TryTake(out frame);
+    }
+
+    private bool TryTakeObjectInferenceWork(out Frame? frame, out string? objectId)
+    {
+        frame = null;
+        objectId = null;
+
+        while (_objectInferenceIdBuffer.TryTake(out var nextObjectId))
+        {
+            _queuedObjectInferenceIds.TryRemove(nextObjectId, out _);
+            if (!_latestObjectInferenceTasks.TryRemove(nextObjectId, out var objectTask))
+            {
+                continue;
+            }
+
+            frame = objectTask.Frame;
+            objectId = objectTask.ObjectId;
             return true;
         }
 
-        if (!_objectInferenceIdBuffer.TryTake(out var nextObjectId))
-        {
-            return false;
-        }
-
-        _queuedObjectInferenceIds.TryRemove(nextObjectId, out _);
-        if (!_latestObjectInferenceTasks.TryRemove(nextObjectId, out var objectTask))
-        {
-            return false;
-        }
-
-        frame = objectTask.Frame;
-        objectId = objectTask.ObjectId;
-        return true;
+        return false;
     }
 
     private bool IsInferenceCompleted()
@@ -192,11 +252,11 @@ public class Executor : AlgorithmBase
             return;
         }
 
-        string userPrompt = frame.GetProperty<string>(LLMAnalysisPromptPropertyName);
-        string analysisType = frame.GetProperty<string>(LLMAnalysisType);
+        string userPrompt = frame.GetProperty<string>(LLMAnalysisPromptPropertyName) ?? string.Empty;
+        string analysisType = NormalizeAnalysisType(frame.GetProperty<string>(LLMAnalysisType));
 
         // 针对帧进行推理
-        if (analysisType == "frame")
+        if (analysisType == FrameAnalysisType)
         {
             Cv2.ImEncode(".jpg", frame.Scene, out var imageBytes);
             var stopwatch = Stopwatch.StartNew();
@@ -221,7 +281,7 @@ public class Executor : AlgorithmBase
         }
 
         // 针对帧中识别到的对象进行推理
-        if (analysisType == "object")
+        if (analysisType == ObjectAnalysisType)
         {
             IEnumerable<DetectedObject> detectedObjects = frame.DetectedObjects;
             if (!string.IsNullOrWhiteSpace(objectId))
@@ -236,7 +296,15 @@ public class Executor : AlgorithmBase
                     continue;
                 }
 
-                Cv2.ImEncode(".jpg", detectedObject.Snapshot, out var imageBytes);
+                using var snapshot = TryCloneSnapshot(detectedObject);
+                if (snapshot == null)
+                {
+                    Log.Warning("Skip LLM object inference because snapshot is unavailable. SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
+                        frame.SourceId, frame.FrameId, detectedObject.Id);
+                    continue;
+                }
+
+                Cv2.ImEncode(".jpg", snapshot, out var imageBytes);
                 var stopwatch = Stopwatch.StartNew();
                 var inferenceResult = CallLLMInferenceAPI(userPrompt, BinaryData.FromBytes(imageBytes));
                 stopwatch.Stop();
@@ -255,10 +323,29 @@ public class Executor : AlgorithmBase
                     jsonResult: inferenceResult);
                 inferenceEvent.FrameId = frame.FrameId;
                 inferenceEvent.UtcTimeStamp = frame.UtcTimeStamp;
-                inferenceEvent.Snapshot = detectedObject.Snapshot.Clone();
+                inferenceEvent.Snapshot = snapshot.Clone();
 
                 _inferenceResultEventPublisher.Publish(inferenceEvent);
             }
+        }
+    }
+
+    private static Mat? TryCloneSnapshot(DetectedObject detectedObject)
+    {
+        try
+        {
+            var snapshot = detectedObject.CloneSnapshot();
+            if (snapshot == null || snapshot.Empty())
+            {
+                snapshot?.Dispose();
+                return null;
+            }
+
+            return snapshot;
+        }
+        catch (ObjectDisposedException)
+        {
+            return null;
         }
     }
 
@@ -275,7 +362,11 @@ public class Executor : AlgorithmBase
             ChatMessageContentPart.CreateTextPart(userPrompt),
             ChatMessageContentPart.CreateImagePart(imageBytes, "image/jpeg")
         }));
-        ChatCompletion completion = _chatClient.CompleteChat(messages);
+
+        using var requestCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationTokenSource.Token);
+        requestCancellationTokenSource.CancelAfter(InferenceRequestTimeout);
+
+        ChatCompletion completion = _chatClient.CompleteChat(messages, null, requestCancellationTokenSource.Token);
 
         if (completion.Content.Count == 0)
         {
@@ -283,6 +374,16 @@ public class Executor : AlgorithmBase
         }
 
         return string.Concat(completion.Content.Select(item => item.Text));
+    }
+
+    private static string NormalizeAnalysisType(string? analysisType)
+    {
+        if (string.IsNullOrWhiteSpace(analysisType))
+        {
+            return string.Empty;
+        }
+
+        return analysisType.Trim().ToLowerInvariant();
     }
 
     private static string NormalizeServerUrl(string serverUrl)
@@ -446,18 +547,12 @@ public class Executor : AlgorithmBase
 
     private bool IsFrameLevelAnalysis(Frame frame)
     {
-        return string.Equals(
-            frame.GetProperty<string>(LLMAnalysisType),
-            "frame",
-            StringComparison.OrdinalIgnoreCase);
+        return NormalizeAnalysisType(frame.GetProperty<string>(LLMAnalysisType)) == FrameAnalysisType;
     }
 
     private bool IsObjectLevelAnalysis(Frame frame)
     {
-        return string.Equals(
-            frame.GetProperty<string>(LLMAnalysisType),
-            "object",
-            StringComparison.OrdinalIgnoreCase);
+        return NormalizeAnalysisType(frame.GetProperty<string>(LLMAnalysisType)) == ObjectAnalysisType;
     }
 
     public override void Dispose()
@@ -467,6 +562,7 @@ public class Executor : AlgorithmBase
             return;
         }
 
+        _disposeCancellationTokenSource.Cancel();
         _frameInferenceBuffer.CompleteAdding();
         _objectInferenceIdBuffer.CompleteAdding();
         _pendingInferenceSignal.Release();
@@ -491,6 +587,7 @@ public class Executor : AlgorithmBase
         _frameInferenceBuffer.Dispose();
         _objectInferenceIdBuffer.Dispose();
         _pendingInferenceSignal.Dispose();
+        _disposeCancellationTokenSource.Dispose();
         base.Dispose();
     }
 }

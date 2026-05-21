@@ -29,7 +29,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     public int MinImageAreaOfLabelEvent { get; private set; }
 
     private int _frameCount = 0;
-    private string userPrompt = string.Empty;
+    private string _userPrompt = string.Empty;
 
     // objectId -> (confidence, label)
     private readonly ConcurrentDictionary<string, ShipLabel> _cachedShipLabels = new();
@@ -61,7 +61,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
         if (File.Exists(LLMPromptFile))
         {
-            userPrompt = File.ReadAllText(LLMPromptFile);
+            _userPrompt = File.ReadAllText(LLMPromptFile);
+        }
+        else
+        {
+            throw new FileNotFoundException(LLMPromptFile);
         }
 
         return true;
@@ -88,9 +92,13 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             }
 
             // 按以下规则判定是否需要调用 LLM 进行推理
-            // 1. _cachedShipLabels 中是否有指定 detectedObject.Id 的缓存，如果没有，则调用 LLM 进行推理
+            // 1. _cachedShipLabels 中是否有指定 detectedObject.Id 的缓存，如果没有，代表对象第一次出现，需调用 LLM 进行推理
             // 2. 如果 _cachedShipLabels 中有指定 detectedObject.Id 的缓存，则判断当前 detectedObject.Confidence 是否大于缓存的置信度，若大于则调用 LLM 进行推理，否则继续使用缓存标签，减少计算量
-            // 3. 需要调用 LLM 的，只需要设置 detectedObject.SetProperty(LLMAnalysisPropertyName, true); detectedObject.SetProperty(LLMAnalysisPromptPropertyName, userPrompt);
+            // 3. 需要调用 LLM 的，要设置
+            //      detectedObject.SetProperty(LLMAnalysisPropertyName, true);  需调用 LLM 的标志位
+            //      frame.SetProperty(LLMAnalysisType, "object");  LLM 处理类型，object 代表针对 detectedObject 进行分析，frame 代表针对整帧进行分析
+            //      detectedObject.SetProperty(LLMAnalysisPromptPropertyName, userPrompt);   LLM 用提示词
+            // 4. 设置完 LLM 分析标志位后，流水线后的 LLM 算法模块会进行后续分析
 
             var shouldRunLLM = false;
             if (!_cachedShipLabels.TryGetValue(detectedObject.Id, out var shipLabels))
@@ -108,7 +116,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
                 frame.SetProperty(LLMAnalysisPropertyName, true);
                 frame.SetProperty(LLMAnalysisType, "object");
-                frame.SetProperty(LLMAnalysisPromptPropertyName, userPrompt);
+                frame.SetProperty(LLMAnalysisPromptPropertyName, _userPrompt);
             }
             else
             {
@@ -141,8 +149,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         // object text annotation
         if (WillGenerateObjLabelText)
         {
-
-
             var bbox = detectedObject.Bbox;
 
             var shipLabels = detectedObject.GetProperty<ShipLabel>("ShipLabel");
@@ -214,6 +220,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         return annotation;
     }
 
+    // LLM 推理完毕结果事件处理
     public override void ProcessEvent(LLMInferenceResultEvent @event)
     {
         if (!TryCreateShipLabel(@event, out var shipLabel))
@@ -227,12 +234,13 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             shipLabel,
             (key, oldValue) =>
             {
-                DisposeSnapshot(oldValue.Snapshot);
+                DisposeSnapshot(oldValue.Snapshot);     // 释放旧的 snapshot 资源
                 return shipLabel;
             }
         );
     }
 
+    // 对象过期事件处理，清理缓存并根据缓存信息生成事件消息
     public void ProcessEvent(ObjectExpiredEvent @event)
     {
         var objectId = @event.Id;
@@ -241,6 +249,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         {
             try
             {
+                // 处理对象过期事件，生成标签事件消息，当前 shipLabels 包含了过期对象置信度最高的Snapshot和LLM推理结果
                 ProcessShipLabelEvent(@event, shipLabels);
             }
             finally

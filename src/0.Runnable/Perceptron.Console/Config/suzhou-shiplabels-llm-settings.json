@@ -241,9 +241,12 @@
       "AssemblyFile": "Algorithm.General.LLM.dll",
       "FullQualifiedClassName": "Algorithm.General.LLM.Executor",
       "Preferences": {
-        "ServerUrl": "http://127.0.0.1:4321",
+        "ServerUrl": "http://192.168.1.103:4321",
         "ApiKey": "lmstudio",
         "ModelName": "qwen/qwen3-vl-8b",
+        //"ServerUrl": "http://192.168.1.111:1234",
+        //"ApiKey": "lmstudio",
+        //"ModelName": "unsloth/qwen3-vl-30b-a3b-instruct",
         "SystemPrompt": ""
       }
     }
