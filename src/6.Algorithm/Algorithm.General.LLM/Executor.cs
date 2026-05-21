@@ -33,10 +33,13 @@ public class Executor : AlgorithmBase
     private IPublisher<LLMInferenceResultEvent> _inferenceResultEventPublisher = null!;
     private ChatClient _chatClient = null!;
 
-    private readonly BlockingCollection<Frame> _frameInferenceBuffer = new(new ConcurrentQueue<Frame>());
+    private readonly BlockingCollection<string> _frameInferenceSourceIdBuffer = new(new ConcurrentQueue<string>());
+    private readonly ConcurrentDictionary<string, FrameInferenceTask> _latestFrameInferenceTasks = new();
+    private readonly ConcurrentDictionary<string, byte> _queuedFrameInferenceSourceIds = new();
     private readonly BlockingCollection<string> _objectInferenceIdBuffer = new(new ConcurrentQueue<string>());
     private readonly ConcurrentDictionary<string, ObjectInferenceTask> _latestObjectInferenceTasks = new();
     private readonly ConcurrentDictionary<string, byte> _queuedObjectInferenceIds = new();
+    private readonly object _frameInferenceSync = new();
     private readonly object _objectInferenceSync = new();
     private readonly SemaphoreSlim _pendingInferenceSignal = new(0);
     private readonly CancellationTokenSource _disposeCancellationTokenSource = new();
@@ -56,6 +59,18 @@ public class Executor : AlgorithmBase
         public Frame Frame { get; }
         public string ObjectId { get; }
         public float Confidence { get; }
+    }
+
+    private sealed class FrameInferenceTask
+    {
+        public FrameInferenceTask(Frame frame)
+        {
+            Frame = frame;
+            SourceId = frame.SourceId;
+        }
+
+        public Frame Frame { get; }
+        public string SourceId { get; }
     }
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
@@ -214,7 +229,21 @@ public class Executor : AlgorithmBase
 
     private bool TryTakeFrameInferenceWork(out Frame? frame)
     {
-        return _frameInferenceBuffer.TryTake(out frame);
+        frame = null;
+
+        while (_frameInferenceSourceIdBuffer.TryTake(out var sourceId))
+        {
+            _queuedFrameInferenceSourceIds.TryRemove(sourceId, out _);
+            if (!_latestFrameInferenceTasks.TryRemove(sourceId, out var frameTask))
+            {
+                continue;
+            }
+
+            frame = frameTask.Frame;
+            return true;
+        }
+
+        return false;
     }
 
     private bool TryTakeObjectInferenceWork(out Frame? frame, out string? objectId)
@@ -240,7 +269,8 @@ public class Executor : AlgorithmBase
 
     private bool IsInferenceCompleted()
     {
-        return _frameInferenceBuffer.IsCompleted &&
+        return _frameInferenceSourceIdBuffer.IsCompleted &&
+               _latestFrameInferenceTasks.IsEmpty &&
                _objectInferenceIdBuffer.IsCompleted &&
                _latestObjectInferenceTasks.IsEmpty;
     }
@@ -462,18 +492,54 @@ public class Executor : AlgorithmBase
 
     private bool EnqueueFrameLevelInference(Frame frame)
     {
-        frame.Retain();
+        lock (_frameInferenceSync)
+        {
+            var shouldReleaseRetainedFrame = true;
+            frame.Retain();
 
-        try
-        {
-            _frameInferenceBuffer.Add(frame);
-            _pendingInferenceSignal.Release();
-            return true;
-        }
-        catch
-        {
-            frame.Dispose();
-            throw;
+            try
+            {
+                var sourceId = frame.SourceId;
+                if (_latestFrameInferenceTasks.TryGetValue(sourceId, out var oldTask))
+                {
+                    var replacementTask = new FrameInferenceTask(frame);
+                    _latestFrameInferenceTasks[sourceId] = replacementTask;
+                    DisposeFrameInferenceTask(oldTask);
+                }
+                else
+                {
+                    _latestFrameInferenceTasks[sourceId] = new FrameInferenceTask(frame);
+                }
+
+                if (_queuedFrameInferenceSourceIds.TryAdd(sourceId, 0))
+                {
+                    try
+                    {
+                        _frameInferenceSourceIdBuffer.Add(sourceId);
+                        _pendingInferenceSignal.Release();
+                    }
+                    catch
+                    {
+                        _queuedFrameInferenceSourceIds.TryRemove(sourceId, out _);
+                        if (_latestFrameInferenceTasks.TryRemove(sourceId, out var pendingTask))
+                        {
+                            DisposeFrameInferenceTask(pendingTask);
+                            shouldReleaseRetainedFrame = false;
+                        }
+                        throw;
+                    }
+                }
+
+                return true;
+            }
+            catch
+            {
+                if (shouldReleaseRetainedFrame)
+                {
+                    frame.Dispose();
+                }
+                throw;
+            }
         }
     }
 
@@ -545,6 +611,11 @@ public class Executor : AlgorithmBase
         task.Frame.Dispose();
     }
 
+    private static void DisposeFrameInferenceTask(FrameInferenceTask task)
+    {
+        task.Frame.Dispose();
+    }
+
     private bool IsFrameLevelAnalysis(Frame frame)
     {
         return NormalizeAnalysisType(frame.GetProperty<string>(LLMAnalysisType)) == FrameAnalysisType;
@@ -563,18 +634,22 @@ public class Executor : AlgorithmBase
         }
 
         _disposeCancellationTokenSource.Cancel();
-        _frameInferenceBuffer.CompleteAdding();
+        _frameInferenceSourceIdBuffer.CompleteAdding();
         _objectInferenceIdBuffer.CompleteAdding();
         _pendingInferenceSignal.Release();
         _inferenceWorkerThread?.Join();
 
-        while (_frameInferenceBuffer.TryTake(out var pendingFrame))
+        while (_frameInferenceSourceIdBuffer.TryTake(out _))
         {
-            pendingFrame.Dispose();
         }
 
         while (_objectInferenceIdBuffer.TryTake(out _))
         {
+        }
+
+        foreach (var frameTask in _latestFrameInferenceTasks.Values)
+        {
+            DisposeFrameInferenceTask(frameTask);
         }
 
         foreach (var objectTask in _latestObjectInferenceTasks.Values)
@@ -582,9 +657,11 @@ public class Executor : AlgorithmBase
             DisposeObjectInferenceTask(objectTask);
         }
 
+        _latestFrameInferenceTasks.Clear();
+        _queuedFrameInferenceSourceIds.Clear();
         _latestObjectInferenceTasks.Clear();
         _queuedObjectInferenceIds.Clear();
-        _frameInferenceBuffer.Dispose();
+        _frameInferenceSourceIdBuffer.Dispose();
         _objectInferenceIdBuffer.Dispose();
         _pendingInferenceSignal.Dispose();
         _disposeCancellationTokenSource.Dispose();

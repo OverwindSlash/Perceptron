@@ -79,6 +79,7 @@ public abstract class AlgorithmBase : IAlgorithmModule, IEventSubscriber<LLMInfe
     // llm analysis preferences
     protected bool WillPerformLLMAnalysis;
     protected string LLMPromptFile;
+    protected string _userPrompt = string.Empty;
 
     private ISubscriber<LLMInferenceResultEvent>? _llmEventSubscriber;
     private IDisposable? _disposableLlmEventSubscriber;
@@ -127,6 +128,15 @@ public abstract class AlgorithmBase : IAlgorithmModule, IEventSubscriber<LLMInfe
         
         WillPerformLLMAnalysis = PreferenceParser.ParseBoolValue(Preferences, "PerformLLMAnalysis", AlgorithmConstants.DefaultWillPerformLLMAnalysis);
         LLMPromptFile = PreferenceParser.ParseStringValue(Preferences, "LLMPromptFile", AlgorithmConstants.DefaultLLMPromptFile);
+
+        if (File.Exists(LLMPromptFile))
+        {
+            _userPrompt = File.ReadAllText(LLMPromptFile);
+        }
+        else
+        {
+            throw new FileNotFoundException(LLMPromptFile);
+        }
 
         SetSubscriber(Pipeline.Provider.GetRequiredService<ISubscriber<LLMInferenceResultEvent>>());
 

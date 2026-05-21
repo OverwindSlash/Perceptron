@@ -36,6 +36,7 @@
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.LLM\Algorithm.General.LLM.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.MotionDetection\Algorithm.General.MotionDetection.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectDensity\Algorithm.General.ObjectDensity.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrenceByLLM\Algorithm.General.ObjectOccurrenceByLLM.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrence\Algorithm.General.ObjectOccurrence.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.RegionAccess\Algorithm.General.RegionAccess.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
@@ -44,6 +45,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Config\fire-smoke-llm-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Config\hk-motion-settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

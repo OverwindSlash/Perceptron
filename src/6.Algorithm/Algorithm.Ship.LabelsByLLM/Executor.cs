@@ -29,7 +29,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     public int MinImageAreaOfLabelEvent { get; private set; }
 
     private int _frameCount = 0;
-    private string _userPrompt = string.Empty;
 
     // objectId -> (confidence, label)
     private readonly ConcurrentDictionary<string, ShipLabel> _cachedShipLabels = new();
@@ -57,18 +56,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         WillGenerateObjLabelText = PreferenceParser.ParseBoolValue(Preferences, "WillGenerateObjLabelText", true);
         MinImageAreaOfLabelEvent = PreferenceParser.ParseIntValue(Preferences, "MinImageAreaOfLabelEvent", 50000);
         
-        base.Initialize();
-
-        if (File.Exists(LLMPromptFile))
-        {
-            _userPrompt = File.ReadAllText(LLMPromptFile);
-        }
-        else
-        {
-            throw new FileNotFoundException(LLMPromptFile);
-        }
-
-        return true;
+        return base.Initialize(); ;
     }
 
     public void SetSubscriber(ISubscriber<ObjectExpiredEvent> subscriber)

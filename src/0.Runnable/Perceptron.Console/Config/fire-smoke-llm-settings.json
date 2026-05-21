@@ -17,7 +17,7 @@
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
         "SourceId": "Fire-Cam-001",
-        "VideoUri": "D:\\Video\\Fire-Smoke\\anlu.avi",
+        "VideoUri": "D:\\Video\\Fire-Smoke\\1.mp4",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -170,13 +170,13 @@
   },
   "Algorithms": [
     {
-      "AssemblyFile": "Algorithm.General.ObjectOccurrence.dll",
-      "FullQualifiedClassName": "Algorithm.General.ObjectOccurrence.Executor",
+      "AssemblyFile": "Algorithm.General.ObjectOccurrenceByLLM.dll",
+      "FullQualifiedClassName": "Algorithm.General.ObjectOccurrenceByLLM.Executor",
       "Preferences": {
         "OccurrenceCheckRegionName": "fire-smoke-area",
         "TargetObjectNames": "fire,smoke",
         "OccurrenceCondition": "or", // "or" | "and"
-        "MinDurationSec": 3,
+        "MinDurationSec": 2,
         "LocalEventIntervalSec": 3,
         "EnableProximityCheck": false,
         "ProximityObject1Label": "fire",
@@ -185,7 +185,22 @@
         "ProximityReferenceObject": "fire",
         "ProximityReferenceDimension": "width", // "width" | "height"
         "ObjTextShowTrackingId": false,
-        "EventName": "火焰与烟雾"
+        "EventName": "火焰与烟雾",
+        "PerformLLMAnalysis": true,
+        "LLMPromptFile": "fire-smoke-prompt.md"
+      }
+    },
+    {
+      "AssemblyFile": "Algorithm.General.LLM.dll",
+      "FullQualifiedClassName": "Algorithm.General.LLM.Executor",
+      "Preferences": {
+        "ServerUrl": "http://192.168.1.103:4321",
+        "ApiKey": "lmstudio",
+        "ModelName": "qwen/qwen3-vl-8b",
+        //"ServerUrl": "http://192.168.1.111:1234",
+        //"ApiKey": "lmstudio",
+        //"ModelName": "unsloth/qwen3-vl-30b-a3b-instruct",
+        "SystemPrompt": ""
       }
     }
   ]
