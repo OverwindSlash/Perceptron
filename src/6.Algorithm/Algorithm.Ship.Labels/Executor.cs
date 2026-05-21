@@ -270,7 +270,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             eventName: EventName,
             algorithmName: AlgorithmName,
             objectId: @event.Id,
-            objectLoacalId: @event.LocalId,
+            objectLocalId: @event.LocalId,
             confidence: shipLabels.Confidence,
             labels: shipLabels);
 
