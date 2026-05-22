@@ -223,7 +223,7 @@
       "AssemblyFile": "Algorithm.Ship.Labels.dll",
       "FullQualifiedClassName": "Algorithm.Ship.Labels.Executor",
       "Preferences": {
-        "ModelPath": "Models/ship_labels_atc.onnx",
+        "ModelPath": "Models/ship_labels_codex_enhanced.onnx",
         "ExecutionProvider": "cuda",
         "DeviceId": 0,
         "Stride": 5,

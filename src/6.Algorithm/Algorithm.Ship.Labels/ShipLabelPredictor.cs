@@ -63,9 +63,9 @@ public class ShipLabelPredictor : IDisposable
 
         var shipLabel = new ShipLabel();
 
-        // 1. Ship Type (Argmax)
+        // 1. Ship Type Group (Argmax)
         int typeIdx = GetArgMax(typeLogits);
-        shipLabel.ShipType = ShipLabelConfigs.ShipTypes[typeIdx];
+        shipLabel.ShipTypeGroup = ShipLabelConfigs.ShipTypes[typeIdx];
 
         // 2. Ship Color (Sigmoid + Threshold)
         shipLabel.ShipColor = GetMultiLabel(colorLogits);

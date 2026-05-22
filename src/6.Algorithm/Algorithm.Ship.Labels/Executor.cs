@@ -180,8 +180,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             {
                 Id = "text_label_type_" + detectedObject.Id,
                 Type = "text",
-                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
-                Content = $"Type:{shipLabels.ShipType}",
+                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipTypeGroup},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                Content = $"TypeGroup:{shipLabels.ShipTypeGroup}",
                 Position = new Position()
                 {
                     X = bbox.X,
@@ -201,7 +201,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             {
                 Id = "text_label_color_" + detectedObject.Id,
                 Type = "text",
-                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipTypeGroup},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
                 Content = $"Color:{string.Join(',', shipLabels.ShipColor)}",
                 Position = new Position()
                 {
@@ -222,7 +222,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             {
                 Id = "text_label_color_" + detectedObject.Id,
                 Type = "text",
-                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
+                //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipTypeGroup},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
                 Content = $"Draught:{shipLabels.ShipDraught}",
                 Position = new Position()
                 {
@@ -261,8 +261,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         var snapshotArea = shipLabels.Snapshot.Width * shipLabels.Snapshot.Height;
         if (snapshotArea < MinImageAreaOfLabelEvent) return;
 
-        Log.Information("{ShipId} labels -> Type:{ShipType}, Colors:{ShipColors}, Draught:{ShipDraught}",
-            @event.Id, shipLabels.ShipType, string.Join(',', shipLabels.ShipColor), shipLabels.ShipDraught);
+        Log.Information("{ShipId} labels -> TypeGroup:{ShipTypeGroup}, Colors:{ShipColors}, Draught:{ShipDraught}",
+            @event.Id, shipLabels.ShipTypeGroup, string.Join(',', shipLabels.ShipColor), shipLabels.ShipDraught);
 
         // 1. Create Event
         var shipLabelEvent = new ShipLabelEvent(
@@ -283,7 +283,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         {
             Id = "text_label_" + @event.Id,
             Type = "text",
-            Content = $"Id:{@event.LocalId}, T:{shipLabels.ShipType}\nC:{string.Join(',', shipLabels.ShipColor)}\nD:{shipLabels.ShipDraught}",
+            Content = $"Id:{@event.LocalId}, T:{shipLabels.ShipTypeGroup}\nC:{string.Join(',', shipLabels.ShipColor)}\nD:{shipLabels.ShipDraught}",
             Position = new Position()
             {
                 X = 10,
@@ -345,6 +345,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     public override void Dispose()
     {
         _predictor?.Dispose();
+        _disposableOeSubscriber.Dispose();
         base.Dispose();
     }
 }

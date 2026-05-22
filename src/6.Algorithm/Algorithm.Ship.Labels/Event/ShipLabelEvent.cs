@@ -23,7 +23,7 @@ public class ShipLabelEvent : DomainEvent
         ObjectLocalId = objectLocalId;
         Confidence = confidence;
         Labels = labels;
-        Message = $"{ObjectId} labels -> Type:{Labels.ShipType}, Colors:{string.Join(',', Labels.ShipColor)}, Draught:{Labels.ShipDraught}";
+        Message = $"{ObjectId} labels -> TypeGroup:{Labels.ShipTypeGroup}, Colors:{string.Join(',', Labels.ShipColor)}, Draught:{Labels.ShipDraught}";
     }
 
     public override string GenerateJsonContent()

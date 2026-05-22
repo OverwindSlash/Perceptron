@@ -348,6 +348,108 @@ LLM 当前确认成立 -> 如果事件类型要求即时发布，则立即发布
 LLM 结果到达太晚 -> 忽略，或作为迟到诊断结果持久化。
 ```
 
+#### 5.7.1 协调器边界
+
+`LLMResultReconciler` 不应实现成理解所有业务 JSON 和所有业务事件的“巨型算法”。它应承担公共协调职责，业务语义仍由发起 LLM 请求的算法模块或业务 handler 提供。
+
+公共协调器负责：
+
+- 按 `RequestId`、`CandidateEventId`、`RequesterAlgorithmName` 查找状态。
+- 检查请求是否过期。
+- 执行候选事件或对象确认状态的幂等流转。
+- 记录确认、拒绝、超时、迟到、重复结果等观测信息。
+- 释放 `PendingEvidenceStore` 中的证据资源。
+
+业务算法或业务 handler 负责：
+
+- 解析自身的 LLM JSON 结果。
+- 判断 LLM 结果是否代表业务确认成立。
+- 构造最终领域事件。
+- 决定事件发布时间、降级策略和事件内容。
+
+推荐抽象方向：
+
+```csharp
+public interface ILLMResultHandler
+{
+    string RequesterAlgorithmName { get; }
+    bool CanHandle(LLMAnalysisResult result);
+    Task HandleAsync(LLMAnalysisResult result, LLMReconcileContext context, CancellationToken cancellationToken);
+}
+```
+
+这样可以避免公共协调器和具体算法模块强耦合，也便于后续新增火灾、烟雾、跌倒、PPE 等不同业务确认流程。
+
+#### 5.7.2 幂等状态流转
+
+LLM 超时扫描、LLM 结果返回、对象过期、人工取消和进程关闭可能并发发生。候选事件和对象确认状态必须使用幂等状态转换，避免重复发布事件或重复释放资源。
+
+建议所有状态变更使用类似以下方法封装：
+
+```csharp
+public bool TryConfirm(string id, LLMAnalysisResult result);
+public bool TryReject(string id, LLMAnalysisResult result);
+public bool TryMarkTimedOut(string id, DateTime nowUtc);
+public bool TryPublish(string id);
+public bool TryFinalizeObject(string objectId);
+```
+
+状态转换规则必须满足：
+
+- `Published`、`Finalized`、`Cancelled` 为终态，不能再次发布。
+- 已超时结果可以记录为迟到诊断，但不能默认触发业务事件。
+- 同一个 `RequestId` 的重复结果只能被消费一次。
+- 对象过期后若仍在 deadline 内，可以等待 LLM；超过 deadline 后必须降级或最终化。
+
+### 5.8 请求身份与归属
+
+当前所有算法模块都可以订阅 `LLMInferenceResultEvent`，但事件本身缺少请求方身份，导致结果路由依赖算法内部约定。改造后每个请求和结果都必须携带清晰归属。
+
+推荐必备字段：
+
+- `RequestId`
+- `RequesterAlgorithmName`
+- `CandidateEventId`，如果是事件确认请求
+- `SourceId`
+- `FrameId`
+- `OffsetMilliSec`
+- `UtcTimeStamp`
+- `ObjectId`，如果是对象级请求
+- `TrackKey`，如果可用
+- `Scope`
+- `QueuePolicy`
+- `CreatedAtUtc`
+- `ExpireAtUtc`
+
+对旧的属性标记集成方式，`Algorithm.General.LLM` 在转换为 `LLMAnalysisRequest` 时应补齐这些字段。对于暂时无法提供 `CandidateEventId` 的旧对象级请求，可以使用 `RequestId` 和 `ObjectId` 保持兼容，但新增即时确认型事件必须提供 `CandidateEventId`。
+
+### 5.9 证据编码成本控制
+
+固化证据是必要的，但不能无差别地对每一帧进行高质量整帧 JPEG 编码。证据链路必须把 CPU、内存和队列容量作为一等约束。
+
+推荐约束：
+
+- 对象级请求优先保存对象裁剪图，必要时再附带低质量整帧上下文。
+- 帧级 `EventAnchored` 请求保存触发时刻的整帧 JPEG，但受 TTL、容量和源级限流约束。
+- JPEG 质量可配置，默认建议 `FrameJpegQuality = 80`，对象裁剪可根据模型效果独立配置。
+- 对象裁剪应支持 padding，默认可取 `ObjectCropPaddingRatio = 0.10`。
+- 同一对象只有当质量分数显著提升时才重新编码和提交。
+- `PendingEvidenceStore` 必须有总字节数上限和按 SourceId 的数量上限。
+
+质量评分不要只依赖 YOLO confidence。对 LLM 来说，更清晰、更大、更居中的裁剪图通常更有价值。实际实现可以先使用轻量评分，后续再补充清晰度和遮挡估计。
+
+### 5.10 EventAnchored 的优先级
+
+`EventAnchored` 是即时确认型事件正确性的关键能力，优先级应高于完整抽象重构。
+
+原因：
+
+- 当前 `LatestPerSource` 会用最新帧替换待处理帧，不适合火灾、烟雾、跌倒、入侵等候选事件。
+- 即时事件需要确认的是“触发候选事件的那份证据”，不是几秒后的最新画面。
+- 如果没有 `CandidateEventId` 和 `EventAnchored`，LLM 返回后很难可靠判断应发布哪个业务事件。
+
+因此，实施时应先让 `Algorithm.General.ObjectOccurrenceByLLM` 这类即时事件走 `CandidateEventId + EventAnchored + LLM 结果立即协调发布` 的链路，再逐步重构对象生命周期型事件。
+
 ## 6. 事件类型与发布时间
 
 ### 6.1 即时确认型事件
@@ -565,13 +667,15 @@ public sealed class FrameEvidence
 
 ## 11. 推荐实施路线
 
-### 阶段 1：消息与证据模型
+### 阶段 1：消息、身份与证据模型
 
 - 新增 `LLMAnalysisRequest`。
 - 新增 `LLMAnalysisResult`，或增强 `LLMInferenceResultEvent`。
 - 新增 `PendingLLMEvidence`。
 - 新增 `DetectedObjectEvidence`。
 - 新增从 `Frame` 构建证据的辅助方法。
+- 为请求和结果补齐 `RequestId`、`RequesterAlgorithmName`、`CandidateEventId`、`Scope`、`QueuePolicy`、`ExpireAtUtc`。
+- 保留旧属性标记入口，将旧 `Frame` / `DetectedObject` 标记转换成新的请求模型。
 
 ### 阶段 2：调度器显式化
 
@@ -581,27 +685,40 @@ public sealed class FrameEvidence
   - `LatestBestPerObject`
   - `EventAnchored`
 - 增加有界容量和 TTL。
+- 优先验证 `EventAnchored` 不会被同 SourceId 的后续帧替换。
 
-### 阶段 3：结果协调
+### 阶段 3：即时确认型事件闭环
+
+- 为 `Algorithm.General.ObjectOccurrenceByLLM` 创建 `CandidateEventId`。
+- 固化触发时刻证据。
+- 使用 `EventAnchored` 提交请求。
+- LLM 确认成立后立即发布业务事件。
+- LLM 拒绝、超时和迟到结果进入可观测日志或持久化记录。
+
+### 阶段 4：结果协调基础设施
 
 - 新增 `CandidateEventStore`。
 - 新增 `LLMResultReconciler`。
+- 新增业务 handler 抽象，避免协调器直接理解所有业务 JSON。
 - 支持 LLM 确认后立即发布事件。
 - 支持超时策略。
+- 支持幂等状态转换，避免重复发布。
 
-### 阶段 4：修复船舶标签生命周期
+### 阶段 5：修复船舶标签生命周期
 
 - 引入 `ObjectVerificationState`。
 - 处理 `ExpiredWaitingLLM`。
 - 在结果返回或超时后最终化对象标签事件。
 
-### 阶段 5：对象出现、火灾等即时事件流程
+### 阶段 6：证据成本与背压保护
 
-- 将对象出现确认改造成基于 `CandidateEventId` 的流程。
-- 使用 `EventAnchored` 队列策略。
-- LLM 确认后立即发布。
+- 增加 JPEG 质量配置。
+- 增加对象裁剪 padding 配置。
+- 增加 `PendingEvidenceStore` 总字节数上限。
+- 增加按 SourceId 的 pending 证据数量上限。
+- 增加队列满时的显式背压行为。
 
-### 阶段 6：可观测性
+### 阶段 7：可观测性
 
 增加指标和日志：
 
