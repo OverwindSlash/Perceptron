@@ -1,18 +1,17 @@
 ﻿﻿using Algorithm.Common;
 using Algorithm.Common.Event;
+using Algorithm.Common.LLM;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
 using OpenAI;
 using OpenAI.Chat;
 using OpenCvSharp;
-using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
 using System.ClientModel;
-using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace Algorithm.General.LLM;
@@ -22,56 +21,35 @@ public class Executor : AlgorithmBase
     private const string DefaultModelName = "unsloth/qwen3-vl-30b-a3b-instruct";
     private const string FrameAnalysisType = "frame";
     private const string ObjectAnalysisType = "object";
-    private static readonly TimeSpan InferenceRequestTimeout = TimeSpan.FromMinutes(2);
+    private const int DefaultInferenceRequestTimeoutSeconds = 10;
 
-    public string ServerUrl { get; private set; }
-    public string ApiKey { get; private set; }
-    public string ModelName { get; private set; }
+    public string ServerUrl { get; private set; } = string.Empty;
+    public string ApiKey { get; private set; } = string.Empty;
+    public string ModelName { get; private set; } = string.Empty;
 
-    public string SystemPrompt { get; private set; }
+    public string SystemPrompt { get; private set; } = string.Empty;
+    public int MaxQueueCapacity { get; private set; }
+    public int FrameJpegQuality { get; private set; }
+    public int ObjectCropJpegQuality { get; private set; }
+    public double ObjectCropPaddingRatio { get; private set; }
+    public int RequestTimeoutSeconds { get; private set; }
+    public int DefaultRequestTtlSeconds { get; private set; }
+    public int MaxPendingEvidencePerSource { get; private set; }
+    public long MaxPendingEvidenceTotalBytes { get; private set; }
+    public int MaxConcurrentFrameRequests { get; private set; }
+    public int MaxConcurrentObjectRequests { get; private set; }
 
     private IPublisher<LLMInferenceResultEvent> _inferenceResultEventPublisher = null!;
     private ChatClient _chatClient = null!;
 
-    private readonly BlockingCollection<string> _frameInferenceSourceIdBuffer = new(new ConcurrentQueue<string>());
-    private readonly ConcurrentDictionary<string, FrameInferenceTask> _latestFrameInferenceTasks = new();
-    private readonly ConcurrentDictionary<string, byte> _queuedFrameInferenceSourceIds = new();
-    private readonly BlockingCollection<string> _objectInferenceIdBuffer = new(new ConcurrentQueue<string>());
-    private readonly ConcurrentDictionary<string, ObjectInferenceTask> _latestObjectInferenceTasks = new();
-    private readonly ConcurrentDictionary<string, byte> _queuedObjectInferenceIds = new();
-    private readonly object _frameInferenceSync = new();
-    private readonly object _objectInferenceSync = new();
-    private readonly SemaphoreSlim _pendingInferenceSignal = new(0);
+    private LLMRequestScheduler _requestScheduler = null!;
+    private PendingEvidenceStore _pendingEvidenceStore = null!;
+    private readonly LLMRuntimeMetrics _metrics = new();
+    private SemaphoreSlim _frameInferenceConcurrency = new(1);
+    private SemaphoreSlim _objectInferenceConcurrency = new(1);
     private readonly CancellationTokenSource _disposeCancellationTokenSource = new();
     private Thread? _inferenceWorkerThread;
     private int _isDisposing;
-    private bool _preferFrameInferenceWork = true;
-
-    private sealed class ObjectInferenceTask
-    {
-        public ObjectInferenceTask(Frame frame, string objectId, float confidence)
-        {
-            Frame = frame;
-            ObjectId = objectId;
-            Confidence = confidence;
-        }
-
-        public Frame Frame { get; }
-        public string ObjectId { get; }
-        public float Confidence { get; }
-    }
-
-    private sealed class FrameInferenceTask
-    {
-        public FrameInferenceTask(Frame frame)
-        {
-            Frame = frame;
-            SourceId = frame.SourceId;
-        }
-
-        public Frame Frame { get; }
-        public string SourceId { get; }
-    }
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
@@ -92,6 +70,20 @@ public class Executor : AlgorithmBase
         ModelName = PreferenceParser.ParseStringValue(Preferences, "ModelName", DefaultModelName);
 
         SystemPrompt = PreferenceParser.ParseStringValue(Preferences, "SystemPrompt", string.Empty);
+        MaxQueueCapacity = PreferenceParser.ParseIntValue(Preferences, "MaxQueueCapacity", 100);
+        FrameJpegQuality = PreferenceParser.ParseIntValue(Preferences, "FrameJpegQuality", LLMEvidenceBuilder.DefaultFrameJpegQuality);
+        ObjectCropJpegQuality = PreferenceParser.ParseIntValue(Preferences, "ObjectCropJpegQuality", LLMEvidenceBuilder.DefaultObjectCropJpegQuality);
+        ObjectCropPaddingRatio = PreferenceParser.ParseFloatValue(Preferences, "ObjectCropPaddingRatio", (float)LLMEvidenceBuilder.DefaultObjectCropPaddingRatio);
+        RequestTimeoutSeconds = PreferenceParser.ParseIntValue(Preferences, "RequestTimeoutSeconds", DefaultInferenceRequestTimeoutSeconds);
+        DefaultRequestTtlSeconds = PreferenceParser.ParseIntValue(Preferences, "DefaultRequestTtlSeconds", 120);
+        MaxPendingEvidencePerSource = PreferenceParser.ParseIntValue(Preferences, "MaxPendingEvidencePerSource", 30);
+        MaxPendingEvidenceTotalBytes = PreferenceParser.ParseIntValue(Preferences, "MaxPendingEvidenceTotalBytes", 128 * 1024 * 1024);
+        MaxConcurrentFrameRequests = PreferenceParser.ParseIntValue(Preferences, "MaxConcurrentFrameRequests", 1);
+        MaxConcurrentObjectRequests = PreferenceParser.ParseIntValue(Preferences, "MaxConcurrentObjectRequests", 2);
+        _frameInferenceConcurrency = new SemaphoreSlim(Math.Max(1, MaxConcurrentFrameRequests));
+        _objectInferenceConcurrency = new SemaphoreSlim(Math.Max(1, MaxConcurrentObjectRequests));
+        _requestScheduler = new LLMRequestScheduler(MaxQueueCapacity);
+        _pendingEvidenceStore = new PendingEvidenceStore(MaxPendingEvidencePerSource, MaxPendingEvidenceTotalBytes);
 
         if (string.IsNullOrWhiteSpace(ApiKey))
         {
@@ -141,242 +133,144 @@ public class Executor : AlgorithmBase
     {
         while (true)
         {
-            Frame? frame = null;
-            string? objectId = null;
+            LLMAnalysisRequest? request = null;
 
             try
             {
-                _pendingInferenceSignal.Wait();
+                request = _requestScheduler
+                    .TakeAsync(_disposeCancellationTokenSource.Token)
+                    .AsTask()
+                    .GetAwaiter()
+                    .GetResult();
 
-                if (TryTakeNextInferenceWork(out frame, out objectId))
+                if (request == null)
                 {
-                    ProcessInference(frame!, objectId);
+                    if (Volatile.Read(ref _isDisposing) == 1)
+                    {
+                        return;
+                    }
+
+                    continue;
                 }
-                else if (IsInferenceCompleted())
-                {
-                    return;
-                }
+
+                ProcessInference(request);
             }
             catch (OperationCanceledException) when (Volatile.Read(ref _isDisposing) == 1)
             {
-                if (frame != null)
+                if (request != null)
                 {
-                    Log.Information("LLM inference canceled during shutdown. SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
-                        frame.SourceId, frame.FrameId, objectId);
+                    Log.Information("LLM inference canceled during shutdown. RequestId: {RequestId}, SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
+                        request.RequestId, request.SourceId, request.FrameId, request.ObjectId);
                 }
 
                 return;
             }
             catch (OperationCanceledException ex)
             {
-                if (frame != null)
+                if (request != null)
                 {
-                    Log.Warning(ex, "LLM inference canceled or timed out. SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
-                        frame.SourceId, frame.FrameId, objectId);
+                    Log.Warning(ex, "LLM inference canceled or timed out. RequestId: {RequestId}, SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
+                        request.RequestId, request.SourceId, request.FrameId, request.ObjectId);
+                    PublishFailedResult(request, "cancelled_or_timeout");
                 }
             }
             catch (Exception ex)
             {
-                if (frame != null)
+                if (request != null)
                 {
-                    Log.Error(ex, "Error processing LLM inference. SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
-                        frame.SourceId, frame.FrameId, objectId);
+                    Log.Error(ex, "Error processing LLM inference. RequestId: {RequestId}, SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
+                        request.RequestId, request.SourceId, request.FrameId, request.ObjectId);
+                    PublishFailedResult(request, "inference_error");
                 }
             }
-            finally
-            {
-                frame?.Dispose();
-            }
         }
     }
 
-    private bool TryTakeNextInferenceWork(out Frame? frame, out string? objectId)
+    private void ProcessInference(LLMAnalysisRequest request)
     {
-        frame = null;
-        objectId = null;
-
-        if (_preferFrameInferenceWork)
-        {
-            if (TryTakeFrameInferenceWork(out frame))
-            {
-                _preferFrameInferenceWork = false;
-                return true;
-            }
-
-            if (TryTakeObjectInferenceWork(out frame, out objectId))
-            {
-                _preferFrameInferenceWork = true;
-                return true;
-            }
-        }
-        else
-        {
-            if (TryTakeObjectInferenceWork(out frame, out objectId))
-            {
-                _preferFrameInferenceWork = true;
-                return true;
-            }
-
-            if (TryTakeFrameInferenceWork(out frame))
-            {
-                _preferFrameInferenceWork = false;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private bool TryTakeFrameInferenceWork(out Frame? frame)
-    {
-        frame = null;
-
-        while (_frameInferenceSourceIdBuffer.TryTake(out var sourceId))
-        {
-            _queuedFrameInferenceSourceIds.TryRemove(sourceId, out _);
-            if (!_latestFrameInferenceTasks.TryRemove(sourceId, out var frameTask))
-            {
-                continue;
-            }
-
-            frame = frameTask.Frame;
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TryTakeObjectInferenceWork(out Frame? frame, out string? objectId)
-    {
-        frame = null;
-        objectId = null;
-
-        while (_objectInferenceIdBuffer.TryTake(out var nextObjectId))
-        {
-            _queuedObjectInferenceIds.TryRemove(nextObjectId, out _);
-            if (!_latestObjectInferenceTasks.TryRemove(nextObjectId, out var objectTask))
-            {
-                continue;
-            }
-
-            frame = objectTask.Frame;
-            objectId = objectTask.ObjectId;
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool IsInferenceCompleted()
-    {
-        return _frameInferenceSourceIdBuffer.IsCompleted &&
-               _latestFrameInferenceTasks.IsEmpty &&
-               _objectInferenceIdBuffer.IsCompleted &&
-               _latestObjectInferenceTasks.IsEmpty;
-    }
-
-    private void ProcessInference(Frame frame, string? objectId = null)
-    {
-        if (!frame.HasProperty(LLMAnalysisPromptPropertyName))
-        {
-            return;
-        }
-
-        string userPrompt = frame.GetProperty<string>(LLMAnalysisPromptPropertyName) ?? string.Empty;
-        string analysisType = NormalizeAnalysisType(frame.GetProperty<string>(LLMAnalysisType));
-
-        // 针对帧进行推理
-        if (analysisType == FrameAnalysisType)
-        {
-            Cv2.ImEncode(".jpg", frame.Scene, out var imageBytes);
-            var stopwatch = Stopwatch.StartNew();
-            var inferenceResult = CallLLMInferenceAPI(userPrompt, BinaryData.FromBytes(imageBytes));
-            stopwatch.Stop();
-
-            Log.Information("LLM inference completed. Model: {ModelName}, Result: {Result}, Elapse: {InferTime}", ModelName, inferenceResult, stopwatch.Elapsed);
-
-            var inferenceEvent = new LLMInferenceResultEvent(
-                sourceId: frame.SourceId,
-                eventType: LLMInferenceResultEvent.EventType,
-                eventName: EventName,
-                algorithmName: AlgorithmName,
-                modelName: ModelName,
-                inferenceTime: stopwatch.Elapsed,
-                detectedObjectId: string.Empty,
-                confidence: 0,
-                jsonResult: inferenceResult);
-            inferenceEvent.FrameId = frame.FrameId;
-            inferenceEvent.UtcTimeStamp = frame.UtcTimeStamp;
-            _inferenceResultEventPublisher.Publish(inferenceEvent);
-        }
-
-        // 针对帧中识别到的对象进行推理
-        if (analysisType == ObjectAnalysisType)
-        {
-            IEnumerable<DetectedObject> detectedObjects = frame.DetectedObjects;
-            if (!string.IsNullOrWhiteSpace(objectId))
-            {
-                detectedObjects = detectedObjects.Where(detectedObject => detectedObject.Id == objectId);
-            }
-
-            foreach (var detectedObject in detectedObjects)
-            {
-                if (!detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
-                {
-                    continue;
-                }
-
-                using var snapshot = TryCloneSnapshot(detectedObject);
-                if (snapshot == null)
-                {
-                    Log.Warning("Skip LLM object inference because snapshot is unavailable. SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
-                        frame.SourceId, frame.FrameId, detectedObject.Id);
-                    continue;
-                }
-
-                Cv2.ImEncode(".jpg", snapshot, out var imageBytes);
-                var stopwatch = Stopwatch.StartNew();
-                var inferenceResult = CallLLMInferenceAPI(userPrompt, BinaryData.FromBytes(imageBytes));
-                stopwatch.Stop();
-
-                Log.Information("LLM inference completed. Model: {ModelName}, Result: {Result}, Elapse: {InferTime}", ModelName, inferenceResult, stopwatch.Elapsed);
-
-                var inferenceEvent = new LLMInferenceResultEvent(
-                    sourceId: frame.SourceId,
-                    eventType: LLMInferenceResultEvent.EventType,
-                    eventName: EventName,
-                    algorithmName: AlgorithmName,
-                    modelName: ModelName,
-                    inferenceTime: stopwatch.Elapsed,
-                    detectedObjectId: detectedObject.Id,
-                    confidence: detectedObject.Confidence,
-                    jsonResult: inferenceResult);
-                inferenceEvent.FrameId = frame.FrameId;
-                inferenceEvent.UtcTimeStamp = frame.UtcTimeStamp;
-                inferenceEvent.Snapshot = snapshot.Clone();
-
-                _inferenceResultEventPublisher.Publish(inferenceEvent);
-            }
-        }
-    }
-
-    private static Mat? TryCloneSnapshot(DetectedObject detectedObject)
-    {
+        var concurrency = request.Scope == LLMAnalysisScope.Frame
+            ? _frameInferenceConcurrency
+            : _objectInferenceConcurrency;
+        concurrency.Wait(_disposeCancellationTokenSource.Token);
+        var stopwatch = Stopwatch.StartNew();
         try
         {
-            var snapshot = detectedObject.CloneSnapshot();
-            if (snapshot == null || snapshot.Empty())
-            {
-                snapshot?.Dispose();
-                return null;
-            }
+            var inferenceResult = CallLLMInferenceAPI(request.Prompt, BinaryData.FromBytes(request.ImageJpeg));
+            stopwatch.Stop();
 
-            return snapshot;
+            var completedAtUtc = DateTime.UtcNow;
+            var result = new LLMAnalysisResult(
+                request.RequestId,
+                request.RequesterAlgorithmName,
+                request.CandidateEventId,
+                request.SourceId,
+                request.FrameId,
+                request.OffsetMilliSec,
+                request.UtcTimeStamp,
+                request.ObjectId,
+                request.Scope,
+                ModelName,
+                stopwatch.Elapsed,
+                inferenceResult,
+                IsSuccess: true,
+                IsExpiredResult: completedAtUtc > request.ExpireAtUtc,
+                ErrorCode: null,
+                RequestedAtUtc: request.CreatedAtUtc,
+                CompletedAtUtc: completedAtUtc);
+
+        Log.Information("LLM inference completed. RequestId: {RequestId}, Model: {ModelName}, Result: {Result}, Elapse: {InferTime}",
+            request.RequestId, ModelName, inferenceResult, stopwatch.Elapsed);
+        _metrics.Increment("llm_inference_completed_total", request.SourceId, request.QueuePolicy, request.RequesterAlgorithmName);
+
+        PublishResult(result, request);
         }
-        catch (ObjectDisposedException)
+        finally
         {
-            return null;
+            concurrency.Release();
         }
+    }
+
+    private void PublishFailedResult(LLMAnalysisRequest request, string errorCode)
+    {
+        var completedAtUtc = DateTime.UtcNow;
+        var result = new LLMAnalysisResult(
+            request.RequestId,
+            request.RequesterAlgorithmName,
+            request.CandidateEventId,
+            request.SourceId,
+            request.FrameId,
+            request.OffsetMilliSec,
+            request.UtcTimeStamp,
+            request.ObjectId,
+            request.Scope,
+            ModelName,
+            TimeSpan.Zero,
+            string.Empty,
+            IsSuccess: false,
+            IsExpiredResult: completedAtUtc > request.ExpireAtUtc,
+            ErrorCode: errorCode,
+            RequestedAtUtc: request.CreatedAtUtc,
+            CompletedAtUtc: completedAtUtc);
+
+        PublishResult(result, request);
+    }
+
+    private void PublishResult(LLMAnalysisResult result, LLMAnalysisRequest request)
+    {
+        var inferenceEvent = LLMInferenceResultEvent.FromAnalysisResult(
+            result,
+            EventName,
+            request.DetectorConfidence ?? 0);
+        inferenceEvent.QueuePolicy = request.QueuePolicy;
+        inferenceEvent.TrackKey = request.TrackKey;
+        inferenceEvent.ExpireAtUtc = request.ExpireAtUtc;
+        if (request.Scope == LLMAnalysisScope.Object && request.ImageJpeg.Length > 0)
+        {
+            inferenceEvent.Snapshot = Cv2.ImDecode(request.ImageJpeg, ImreadModes.Color);
+        }
+
+        _inferenceResultEventPublisher.Publish(inferenceEvent);
+        _pendingEvidenceStore.TryRemove(request.RequestId, out _);
     }
 
     private string CallLLMInferenceAPI(string userPrompt, BinaryData imageBytes)
@@ -394,7 +288,7 @@ public class Executor : AlgorithmBase
         }));
 
         using var requestCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationTokenSource.Token);
-        requestCancellationTokenSource.CancelAfter(InferenceRequestTimeout);
+        requestCancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(RequestTimeoutSeconds));
 
         ChatCompletion completion = _chatClient.CompleteChat(messages, null, requestCancellationTokenSource.Token);
 
@@ -492,55 +386,50 @@ public class Executor : AlgorithmBase
 
     private bool EnqueueFrameLevelInference(Frame frame)
     {
-        lock (_frameInferenceSync)
+        if (!LLMEvidenceBuilder.TryBuildFrameJpeg(frame, FrameJpegQuality, out var imageBytes))
         {
-            var shouldReleaseRetainedFrame = true;
-            frame.Retain();
-
-            try
-            {
-                var sourceId = frame.SourceId;
-                if (_latestFrameInferenceTasks.TryGetValue(sourceId, out var oldTask))
-                {
-                    var replacementTask = new FrameInferenceTask(frame);
-                    _latestFrameInferenceTasks[sourceId] = replacementTask;
-                    DisposeFrameInferenceTask(oldTask);
-                }
-                else
-                {
-                    _latestFrameInferenceTasks[sourceId] = new FrameInferenceTask(frame);
-                }
-
-                if (_queuedFrameInferenceSourceIds.TryAdd(sourceId, 0))
-                {
-                    try
-                    {
-                        _frameInferenceSourceIdBuffer.Add(sourceId);
-                        _pendingInferenceSignal.Release();
-                    }
-                    catch
-                    {
-                        _queuedFrameInferenceSourceIds.TryRemove(sourceId, out _);
-                        if (_latestFrameInferenceTasks.TryRemove(sourceId, out var pendingTask))
-                        {
-                            DisposeFrameInferenceTask(pendingTask);
-                            shouldReleaseRetainedFrame = false;
-                        }
-                        throw;
-                    }
-                }
-
-                return true;
-            }
-            catch
-            {
-                if (shouldReleaseRetainedFrame)
-                {
-                    frame.Dispose();
-                }
-                throw;
-            }
+            Log.Warning("Skip LLM frame inference because frame evidence cannot be built. SourceId: {SourceId}, FrameId: {FrameId}",
+                frame.SourceId, frame.FrameId);
+            return false;
         }
+
+        var nowUtc = DateTime.UtcNow;
+        var request = new LLMAnalysisRequest(
+            RequestId: GetOrCreateRequestId(frame),
+            RequesterAlgorithmName: GetRequesterAlgorithmName(frame),
+            CandidateEventId: frame.GetProperty<string>(LLMCandidateEventIdPropertyName),
+            SourceId: frame.SourceId,
+            FrameId: frame.FrameId,
+            OffsetMilliSec: frame.OffsetMilliSec,
+            UtcTimeStamp: frame.UtcTimeStamp,
+            ObjectId: null,
+            ObjectLocalId: null,
+            TrackKey: null,
+            Scope: LLMAnalysisScope.Frame,
+            QueuePolicy: GetQueuePolicy(frame, LLMQueuePolicy.LatestPerSource),
+            Prompt: frame.GetProperty<string>(LLMAnalysisPromptPropertyName) ?? string.Empty,
+            ImageJpeg: imageBytes,
+            DetectorConfidence: null,
+            EvidenceQualityScore: null,
+            CreatedAtUtc: nowUtc,
+            ExpireAtUtc: GetExpireAtUtc(frame, nowUtc));
+
+        if (!TryAddPendingEvidence(request, frame, imageBytes, null))
+        {
+            return false;
+        }
+
+        Log.Information("Create LLM frame request. RequestId: {RequestId}, SourceId: {SourceId}, Policy: {Policy}, ImageBytes: {ImageBytes}",
+            request.RequestId, request.SourceId, request.QueuePolicy, imageBytes.Length);
+        _metrics.Increment("llm_request_created_total", request.SourceId, request.QueuePolicy, request.RequesterAlgorithmName);
+
+        if (!_requestScheduler.TrySubmit(request))
+        {
+            _pendingEvidenceStore.TryRemove(request.RequestId, out _);
+            return false;
+        }
+
+        return true;
     }
 
     private bool EnqueueObjectLevelInference(Frame frame)
@@ -558,62 +447,139 @@ public class Executor : AlgorithmBase
             return true;
         }
 
-        lock (_objectInferenceSync)
+        foreach (var detectedObject in objectCandidates)
         {
-            foreach (var detectedObject in objectCandidates)
+            if (!LLMEvidenceBuilder.TryBuildObjectCropJpeg(
+                    frame,
+                    detectedObject,
+                    ObjectCropJpegQuality,
+                    ObjectCropPaddingRatio,
+                    out var imageBytes))
             {
-                var objectId = detectedObject.Id;
-                var confidence = detectedObject.Confidence;
+                Log.Warning("Skip LLM object inference because object evidence cannot be built. SourceId: {SourceId}, FrameId: {FrameId}, ObjectId: {ObjectId}",
+                    frame.SourceId, frame.FrameId, detectedObject.Id);
+                continue;
+            }
 
-                if (_latestObjectInferenceTasks.TryGetValue(objectId, out var oldTask))
-                {
-                    if (confidence <= oldTask.Confidence)
-                    {
-                        continue;
-                    }
+            var nowUtc = DateTime.UtcNow;
+            var request = new LLMAnalysisRequest(
+                RequestId: detectedObject.GetProperty<string>(LLMRequestIdPropertyName) ?? GetOrCreateRequestId(frame),
+                RequesterAlgorithmName: detectedObject.GetProperty<string>(LLMRequesterAlgorithmNamePropertyName)
+                    ?? GetRequesterAlgorithmName(frame),
+                CandidateEventId: detectedObject.GetProperty<string>(LLMCandidateEventIdPropertyName)
+                    ?? frame.GetProperty<string>(LLMCandidateEventIdPropertyName),
+                SourceId: frame.SourceId,
+                FrameId: frame.FrameId,
+                OffsetMilliSec: frame.OffsetMilliSec,
+                UtcTimeStamp: frame.UtcTimeStamp,
+                ObjectId: detectedObject.Id,
+                ObjectLocalId: detectedObject.LocalId,
+                TrackKey: detectedObject.TrackKey,
+                Scope: LLMAnalysisScope.Object,
+                QueuePolicy: GetQueuePolicy(detectedObject.GetProperty<string>(LLMQueuePolicyPropertyName)
+                    ?? frame.GetProperty<string>(LLMQueuePolicyPropertyName), LLMQueuePolicy.LatestBestPerObject),
+                Prompt: frame.GetProperty<string>(LLMAnalysisPromptPropertyName) ?? string.Empty,
+                ImageJpeg: imageBytes,
+                DetectorConfidence: detectedObject.Confidence,
+                EvidenceQualityScore: LLMEvidenceBuilder.CalculateObjectEvidenceQuality(detectedObject, frame.Scene.Width, frame.Scene.Height),
+                CreatedAtUtc: nowUtc,
+                ExpireAtUtc: GetExpireAtUtc(frame, nowUtc));
 
-                    frame.Retain();
-                    var replacementTask = new ObjectInferenceTask(frame, objectId, confidence);
-                    _latestObjectInferenceTasks[objectId] = replacementTask;
-                    DisposeObjectInferenceTask(oldTask);
-                }
-                else
-                {
-                    frame.Retain();
-                    _latestObjectInferenceTasks[objectId] = new ObjectInferenceTask(frame, objectId, confidence);
-                }
+            if (!TryAddPendingEvidence(request, frame, null, imageBytes))
+            {
+                continue;
+            }
 
-                if (_queuedObjectInferenceIds.TryAdd(objectId, 0))
-                {
-                    try
-                    {
-                        _objectInferenceIdBuffer.Add(objectId);
-                        _pendingInferenceSignal.Release();
-                    }
-                    catch
-                    {
-                        _queuedObjectInferenceIds.TryRemove(objectId, out _);
-                        if (_latestObjectInferenceTasks.TryRemove(objectId, out var pendingTask))
-                        {
-                            DisposeObjectInferenceTask(pendingTask);
-                        }
-                        throw;
-                    }
-                }
+            Log.Information("Create LLM object request. RequestId: {RequestId}, SourceId: {SourceId}, ObjectId: {ObjectId}, Policy: {Policy}, ImageBytes: {ImageBytes}",
+                request.RequestId, request.SourceId, request.ObjectId, request.QueuePolicy, imageBytes.Length);
+            _metrics.Increment("llm_request_created_total", request.SourceId, request.QueuePolicy, request.RequesterAlgorithmName);
+
+            if (!_requestScheduler.TrySubmit(request))
+            {
+                _pendingEvidenceStore.TryRemove(request.RequestId, out _);
             }
         }
 
         return true;
     }
 
-    private static void DisposeObjectInferenceTask(ObjectInferenceTask task)
+    private bool TryAddPendingEvidence(
+        LLMAnalysisRequest request,
+        Frame frame,
+        byte[]? frameJpeg,
+        byte[]? objectCropJpeg)
     {
-        task.Frame.Dispose();
+        _pendingEvidenceStore.CleanupExpired(DateTime.UtcNow);
+
+        var evidence = new PendingLLMEvidence(
+            request.RequestId,
+            request.CandidateEventId,
+            request.SourceId,
+            request.FrameId,
+            request.OffsetMilliSec,
+            request.UtcTimeStamp,
+            request.Scope,
+            frameJpeg,
+            objectCropJpeg,
+            frame.DetectedObjects.Select(DetectedObjectEvidence.FromDetectedObject).ToList(),
+            request.Prompt,
+            request.ExpireAtUtc);
+
+        if (_pendingEvidenceStore.TryAdd(evidence))
+        {
+            Log.Debug("LLM evidence stored. RequestId: {RequestId}, SourceId: {SourceId}, Scope: {Scope}, FrameBytes: {FrameBytes}, ObjectBytes: {ObjectBytes}, TotalBytes: {TotalBytes}",
+                request.RequestId,
+                request.SourceId,
+                request.Scope,
+                frameJpeg?.Length ?? 0,
+                objectCropJpeg?.Length ?? 0,
+                _pendingEvidenceStore.TotalBytes);
+            _metrics.SetGauge("llm_pending_evidence_bytes", _pendingEvidenceStore.TotalBytes, request.SourceId, request.QueuePolicy, request.RequesterAlgorithmName);
+            _metrics.SetGauge("llm_pending_evidence_count", _pendingEvidenceStore.Count, request.SourceId, request.QueuePolicy, request.RequesterAlgorithmName);
+            return true;
+        }
+
+        Log.Warning("Reject LLM request because pending evidence store is full. RequestId: {RequestId}, SourceId: {SourceId}, Policy: {Policy}",
+            request.RequestId, request.SourceId, request.QueuePolicy);
+        _metrics.Increment("llm_request_rejected_total", request.SourceId, request.QueuePolicy, request.RequesterAlgorithmName);
+        return false;
     }
 
-    private static void DisposeFrameInferenceTask(FrameInferenceTask task)
+    private string GetOrCreateRequestId(Frame frame)
     {
-        task.Frame.Dispose();
+        var requestId = frame.GetProperty<string>(LLMRequestIdPropertyName);
+        return string.IsNullOrWhiteSpace(requestId) ? Guid.NewGuid().ToString("N") : requestId;
+    }
+
+    private string GetRequesterAlgorithmName(Frame frame)
+    {
+        var requester = frame.GetProperty<string>(LLMRequesterAlgorithmNamePropertyName);
+        return string.IsNullOrWhiteSpace(requester) ? string.Empty : requester;
+    }
+
+    private DateTime GetExpireAtUtc(Frame frame, DateTime nowUtc)
+    {
+        var expireAtUtc = frame.GetProperty<DateTime?>(LLMExpireAtUtcPropertyName);
+        return expireAtUtc.HasValue && expireAtUtc.Value.Kind == DateTimeKind.Utc
+            ? expireAtUtc.Value
+            : nowUtc.AddSeconds(DefaultRequestTtlSeconds);
+    }
+
+    private static LLMQueuePolicy GetQueuePolicy(Frame frame, LLMQueuePolicy defaultPolicy)
+    {
+        return GetQueuePolicy(frame.GetProperty<string>(LLMQueuePolicyPropertyName), defaultPolicy);
+    }
+
+    private static LLMQueuePolicy GetQueuePolicy(string? queuePolicy, LLMQueuePolicy defaultPolicy)
+    {
+        if (string.IsNullOrWhiteSpace(queuePolicy))
+        {
+            return defaultPolicy;
+        }
+
+        return Enum.TryParse<LLMQueuePolicy>(queuePolicy, ignoreCase: true, out var parsed)
+            ? parsed
+            : defaultPolicy;
     }
 
     private bool IsFrameLevelAnalysis(Frame frame)
@@ -634,36 +600,11 @@ public class Executor : AlgorithmBase
         }
 
         _disposeCancellationTokenSource.Cancel();
-        _frameInferenceSourceIdBuffer.CompleteAdding();
-        _objectInferenceIdBuffer.CompleteAdding();
-        _pendingInferenceSignal.Release();
+        _requestScheduler.Complete();
         _inferenceWorkerThread?.Join();
-
-        while (_frameInferenceSourceIdBuffer.TryTake(out _))
-        {
-        }
-
-        while (_objectInferenceIdBuffer.TryTake(out _))
-        {
-        }
-
-        foreach (var frameTask in _latestFrameInferenceTasks.Values)
-        {
-            DisposeFrameInferenceTask(frameTask);
-        }
-
-        foreach (var objectTask in _latestObjectInferenceTasks.Values)
-        {
-            DisposeObjectInferenceTask(objectTask);
-        }
-
-        _latestFrameInferenceTasks.Clear();
-        _queuedFrameInferenceSourceIds.Clear();
-        _latestObjectInferenceTasks.Clear();
-        _queuedObjectInferenceIds.Clear();
-        _frameInferenceSourceIdBuffer.Dispose();
-        _objectInferenceIdBuffer.Dispose();
-        _pendingInferenceSignal.Dispose();
+        _requestScheduler.Dispose();
+        _frameInferenceConcurrency.Dispose();
+        _objectInferenceConcurrency.Dispose();
         _disposeCancellationTokenSource.Dispose();
         base.Dispose();
     }

@@ -84,7 +84,7 @@
     "FullQualifiedClassName": "Detector.YoloDotNet.YoloDetector",
     "Preferences": {
       "ModelPath": "Models/fire-base-x-20260105.onnx",
-      "ExecutionProvider": "cpu",
+      "ExecutionProvider": "cuda",
       "DeviceId": 0,
       "ConfThresh": 0.3,
       "TargetTypes": "",
@@ -184,7 +184,7 @@
         "ProximityThresholdRatio": 1.5,
         "ProximityReferenceObject": "fire",
         "ProximityReferenceDimension": "width", // "width" | "height"
-        "ObjTextShowTrackingId": false,
+        "ObjTextShowTrackingId": false,jmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmk
         "EventName": "火焰与烟雾",
         "PerformLLMAnalysis": true,
         "LLMPromptFile": "fire-smoke-prompt.md"

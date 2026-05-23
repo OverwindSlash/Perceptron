@@ -128,6 +128,7 @@
     <Project Path="test/5.Component/Tracker.Tests/Tracker.Tests.csproj" Id="cedb81dc-00cb-405d-b224-39dc91c52140" />
   </Folder>
   <Folder Name="/test/6.Algorithm/">
+    <Project Path="test/6.Algorithm/Algorithm.Common.Tests/Algorithm.Common.Tests.csproj" />
     <Project Path="test/6.Algorithm/MotionDetection.Tests/MotionDetection.Tests.csproj" Id="8c7d8fbb-f834-4751-a16c-9715ec10f6db" />
     <Project Path="test/6.Algorithm/ShipLables.Tests/ShipLables.Tests.csproj" Id="4a88dbdb-ba41-4c3d-9792-a6a9849296c0" />
   </Folder>

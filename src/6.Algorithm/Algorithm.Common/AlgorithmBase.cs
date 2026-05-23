@@ -24,6 +24,11 @@ public abstract class AlgorithmBase : IAlgorithmModule, IEventSubscriber<LLMInfe
     protected const string LLMAnalysisPropertyName = "LLMAnalysis";
     protected const string LLMAnalysisType = "LLMAnalysisType";
     protected const string LLMAnalysisPromptPropertyName = "LLMAnalysisPrompt";
+    protected const string LLMRequestIdPropertyName = "LLMRequestId";
+    protected const string LLMRequesterAlgorithmNamePropertyName = "LLMRequesterAlgorithmName";
+    protected const string LLMCandidateEventIdPropertyName = "LLMCandidateEventId";
+    protected const string LLMQueuePolicyPropertyName = "LLMQueuePolicy";
+    protected const string LLMExpireAtUtcPropertyName = "LLMExpireAtUtc";
 
     public string AlgorithmName { get; protected set; }
     public string AlgorithmVersion { get; protected set; }

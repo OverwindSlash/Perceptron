@@ -1,5 +1,6 @@
 ﻿using Algorithm.Common;
 using Algorithm.Common.Event;
+using Algorithm.Common.LLM;
 using Algorithm.Ship.LabelsByLLM.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,18 +21,39 @@ using System.Text.Json;
 
 namespace Algorithm.Ship.LabelsByLLM;
 
-public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
+public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILLMResultHandler
 {
     private const int DefaultStride = 5;   
 
     public int Stride { get; private set; }
     public bool WillGenerateObjLabelText { get; private set; }
     public int MinImageAreaOfLabelEvent { get; private set; }
+    public int ObjectExpiredWaitSeconds { get; private set; }
+    public LLMTimeoutPolicy ObjectExpiredTimeoutPolicy { get; private set; }
+    public string RequesterAlgorithmName => AlgorithmName;
 
     private int _frameCount = 0;
 
-    // objectId -> (confidence, label)
-    private readonly ConcurrentDictionary<string, ShipLabel> _cachedShipLabels = new();
+    // objectId -> verification lifecycle state
+    private readonly ConcurrentDictionary<string, ObjectVerificationState> _objectStates = new();
+
+    private sealed class ObjectVerificationState
+    {
+        public string ObjectId { get; init; } = string.Empty;
+        public string SourceId { get; init; } = string.Empty;
+        public long BestFrameId { get; set; }
+        public float BestDetectorConfidence { get; set; }
+        public double BestQualityScore { get; set; }
+        public string? PendingRequestId { get; set; }
+        public string? LatestResultRequestId { get; set; }
+        public ShipLabel? VerifiedPayload { get; set; }
+        public bool IsExpired { get; set; }
+        public DateTime LastSeenUtc { get; set; }
+        public DateTime? ExpiredAtUtc { get; set; }
+        public DateTime? FinalizeDeadlineUtc { get; set; }
+        public bool IsFinalized { get; set; }
+        public ObjectExpiredEvent? ExpiredEvent { get; set; }
+    }
 
     // event handler
     private ISubscriber<ObjectExpiredEvent> _objectExpiredEventPublisher;
@@ -55,6 +77,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         Stride = PreferenceParser.ParseIntValue(Preferences, "Stride", DefaultStride);
         WillGenerateObjLabelText = PreferenceParser.ParseBoolValue(Preferences, "WillGenerateObjLabelText", true);
         MinImageAreaOfLabelEvent = PreferenceParser.ParseIntValue(Preferences, "MinImageAreaOfLabelEvent", 50000);
+        ObjectExpiredWaitSeconds = PreferenceParser.ParseIntValue(Preferences, "ObjectExpiredWaitSeconds", 8);
+        ObjectExpiredTimeoutPolicy = ParseTimeoutPolicy(PreferenceParser.ParseStringValue(
+            Preferences,
+            "ObjectExpiredTimeoutPolicy",
+            LLMTimeoutPolicy.Drop.ToString()));
         
         return base.Initialize(); ;
     }
@@ -79,23 +106,46 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 continue;
             }
 
-            // 按以下规则判定是否需要调用 LLM 进行推理
-            // 1. _cachedShipLabels 中是否有指定 detectedObject.Id 的缓存，如果没有，代表对象第一次出现，需调用 LLM 进行推理
-            // 2. 如果 _cachedShipLabels 中有指定 detectedObject.Id 的缓存，则判断当前 detectedObject.Confidence 是否大于缓存的置信度，若大于则调用 LLM 进行推理，否则继续使用缓存标签，减少计算量
-            // 3. 需要调用 LLM 的，要设置
-            //      detectedObject.SetProperty(LLMAnalysisPropertyName, true);  需调用 LLM 的标志位
-            //      frame.SetProperty(LLMAnalysisType, "object");  LLM 处理类型，object 代表针对 detectedObject 进行分析，frame 代表针对整帧进行分析
-            //      detectedObject.SetProperty(LLMAnalysisPromptPropertyName, userPrompt);   LLM 用提示词
-            // 4. 设置完 LLM 分析标志位后，流水线后的 LLM 算法模块会进行后续分析
+            var state = _objectStates.GetOrAdd(detectedObject.Id, _ => new ObjectVerificationState
+            {
+                ObjectId = detectedObject.Id,
+                SourceId = frame.SourceId,
+                LastSeenUtc = frame.UtcTimeStamp
+            });
 
+            ShipLabel? shipLabels = null;
+            var qualityScore = LLMEvidenceBuilder.CalculateObjectEvidenceQuality(detectedObject, frame.Scene.Width, frame.Scene.Height);
             var shouldRunLLM = false;
-            if (!_cachedShipLabels.TryGetValue(detectedObject.Id, out var shipLabels))
+
+            lock (state)
             {
-                shouldRunLLM = true;
-            }
-            else if (isDetectionFrame && detectedObject.Confidence > shipLabels.Confidence)
-            {
-                shouldRunLLM = true;
+                state.LastSeenUtc = frame.UtcTimeStamp;
+
+                if (state.VerifiedPayload == null && state.PendingRequestId == null)
+                {
+                    shouldRunLLM = true;
+                }
+                else if (isDetectionFrame && qualityScore > state.BestQualityScore + 0.03)
+                {
+                    shouldRunLLM = true;
+                }
+
+                if (shouldRunLLM)
+                {
+                    var requestId = Guid.NewGuid().ToString("N");
+                    state.PendingRequestId = requestId;
+                    state.BestFrameId = frame.FrameId;
+                    state.BestDetectorConfidence = detectedObject.Confidence;
+                    state.BestQualityScore = qualityScore;
+
+                    detectedObject.SetProperty(LLMRequestIdPropertyName, requestId);
+                    detectedObject.SetProperty(LLMRequesterAlgorithmNamePropertyName, AlgorithmName);
+                    detectedObject.SetProperty(LLMQueuePolicyPropertyName, LLMQueuePolicy.LatestBestPerObject.ToString());
+                }
+                else
+                {
+                    shipLabels = state.VerifiedPayload;
+                }
             }
 
             if (shouldRunLLM)
@@ -105,14 +155,16 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 frame.SetProperty(LLMAnalysisPropertyName, true);
                 frame.SetProperty(LLMAnalysisType, "object");
                 frame.SetProperty(LLMAnalysisPromptPropertyName, _userPrompt);
+                frame.SetProperty(LLMRequesterAlgorithmNamePropertyName, AlgorithmName);
             }
-            else
+            else if (shipLabels != null)
             {
                 detectedObject.SetProperty("ShipLabel", shipLabels);
                 GenerateObjectLabelAnnotation(frame, detectedObject);
             }
         }
 
+        ProcessExpiredWaitTimeouts();
         frame.Dispose();
 
         return new AnalysisResult(true);
@@ -211,21 +263,72 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     // LLM 推理完毕结果事件处理
     public override void ProcessEvent(LLMInferenceResultEvent @event)
     {
+        if (@event.RequesterAlgorithmName != AlgorithmName || string.IsNullOrWhiteSpace(@event.DetectedObjectId))
+        {
+            DisposeSnapshot(@event.Snapshot);
+            return;
+        }
+
         if (!TryCreateShipLabel(@event, out var shipLabel))
         {
             DisposeSnapshot(@event.Snapshot);
             return;
         }
 
-        _cachedShipLabels.AddOrUpdate(
-            @event.DetectedObjectId,
-            shipLabel,
-            (key, oldValue) =>
+        var state = _objectStates.GetOrAdd(@event.DetectedObjectId, _ => new ObjectVerificationState
+        {
+            ObjectId = @event.DetectedObjectId,
+            SourceId = @event.SourceId
+        });
+
+        ObjectExpiredEvent? expiredEventToFinalize = null;
+        ShipLabel? labelToFinalize = null;
+
+        lock (state)
+        {
+            if (state.IsFinalized)
             {
-                DisposeSnapshot(oldValue.Snapshot);     // 释放旧的 snapshot 资源
-                return shipLabel;
+                DisposeSnapshot(shipLabel?.Snapshot);
+                return;
             }
-        );
+
+            DisposeSnapshot(state.VerifiedPayload?.Snapshot);
+            state.VerifiedPayload = shipLabel;
+            state.PendingRequestId = null;
+            state.LatestResultRequestId = @event.RequestId;
+            state.BestDetectorConfidence = Math.Max(state.BestDetectorConfidence, @event.Confidence);
+            state.BestFrameId = @event.FrameId;
+
+            if (state.IsExpired && state.ExpiredEvent != null)
+            {
+                var nowUtc = DateTime.UtcNow;
+                if (state.FinalizeDeadlineUtc == null || nowUtc <= state.FinalizeDeadlineUtc)
+                {
+                    expiredEventToFinalize = state.ExpiredEvent;
+                    labelToFinalize = state.VerifiedPayload;
+                    state.IsFinalized = true;
+                }
+                else
+                {
+                    DisposeSnapshot(state.VerifiedPayload?.Snapshot);
+                    state.VerifiedPayload = null;
+                    state.IsFinalized = true;
+                }
+            }
+        }
+
+        if (expiredEventToFinalize != null && labelToFinalize != null)
+        {
+            try
+            {
+                ProcessShipLabelEvent(expiredEventToFinalize, labelToFinalize);
+            }
+            finally
+            {
+                _objectStates.TryRemove(@event.DetectedObjectId, out _);
+                DisposeSnapshot(labelToFinalize.Snapshot);
+            }
+        }
     }
 
     // 对象过期事件处理，清理缓存并根据缓存信息生成事件消息
@@ -233,17 +336,58 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     {
         var objectId = @event.Id;
 
-        if (_cachedShipLabels.TryRemove(objectId, out var shipLabels))
+        if (!_objectStates.TryGetValue(objectId, out var state))
         {
+            return;
+        }
+
+        ShipLabel? labelToFinalize = null;
+        lock (state)
+        {
+            if (state.IsFinalized)
+            {
+                return;
+            }
+
+            state.IsExpired = true;
+            state.ExpiredAtUtc = DateTime.UtcNow;
+            state.ExpiredEvent = @event;
+
+            if (state.VerifiedPayload != null)
+            {
+                labelToFinalize = state.VerifiedPayload;
+                state.IsFinalized = true;
+            }
+            else if (state.PendingRequestId != null)
+            {
+                state.FinalizeDeadlineUtc = DateTime.UtcNow.AddSeconds(ObjectExpiredWaitSeconds);
+                Log.Information("Ship object expired and is waiting for LLM result. ObjectId: {ObjectId}, PendingRequestId: {PendingRequestId}, DeadlineUtc: {DeadlineUtc}",
+                    objectId,
+                    state.PendingRequestId,
+                    state.FinalizeDeadlineUtc);
+            }
+            else
+            {
+                state.IsFinalized = true;
+            }
+        }
+
+        if (labelToFinalize != null)
+        {
+            Log.Information("Finalize ship label after object expiration. ObjectId: {ObjectId}", objectId);
             try
             {
-                // 处理对象过期事件，生成标签事件消息，当前 shipLabels 包含了过期对象置信度最高的Snapshot和LLM推理结果
-                ProcessShipLabelEvent(@event, shipLabels);
+                ProcessShipLabelEvent(@event, labelToFinalize);
             }
             finally
             {
-                DisposeSnapshot(shipLabels.Snapshot);
+                _objectStates.TryRemove(objectId, out _);
+                DisposeSnapshot(labelToFinalize.Snapshot);
             }
+        }
+        else if (state.IsFinalized)
+        {
+            _objectStates.TryRemove(objectId, out _);
         }
     }
 
@@ -345,6 +489,13 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             return false;
         }
 
+        if (@event.Snapshot == null || @event.Snapshot.IsDisposed)
+        {
+            Log.Warning("LLM ship label result has no snapshot. SourceId: {SourceId}, ObjectId: {ObjectId}, Model: {ModelName}",
+                @event.SourceId, @event.DetectedObjectId, @event.ModelName);
+            return false;
+        }
+
         try
         {
             shipLabel = JsonSerializer.Deserialize<ShipLabel>(@event.JsonResult);
@@ -390,16 +541,106 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         return true;
     }
 
+    private void ProcessExpiredWaitTimeouts()
+    {
+        var nowUtc = DateTime.UtcNow;
+        foreach (var (objectId, state) in _objectStates.ToArray())
+        {
+            ShipLabel? payloadToDispose = null;
+            lock (state)
+            {
+                if (!state.IsExpired ||
+                    state.IsFinalized ||
+                    state.FinalizeDeadlineUtc == null ||
+                    nowUtc <= state.FinalizeDeadlineUtc)
+                {
+                    continue;
+                }
+
+                Log.Warning("Ship label verification timed out after object expired. ObjectId: {ObjectId}, PendingRequestId: {PendingRequestId}",
+                    objectId, state.PendingRequestId);
+                if (ObjectExpiredTimeoutPolicy == LLMTimeoutPolicy.PublishUnknown && state.ExpiredEvent != null)
+                {
+                    PublishUnknownShipLabelEvent(state.ExpiredEvent);
+                }
+
+                state.IsFinalized = true;
+                payloadToDispose = state.VerifiedPayload;
+                state.VerifiedPayload = null;
+            }
+
+            _objectStates.TryRemove(objectId, out _);
+            DisposeSnapshot(payloadToDispose?.Snapshot);
+        }
+    }
+
+    public bool CanHandle(LLMAnalysisResult result)
+    {
+        return result.RequesterAlgorithmName == AlgorithmName &&
+               !string.IsNullOrWhiteSpace(result.ObjectId) &&
+               result.Scope == LLMAnalysisScope.Object;
+    }
+
+    public Task HandleAsync(LLMAnalysisResult result, LLMReconcileContext context, CancellationToken cancellationToken)
+    {
+        var inferenceEvent = LLMInferenceResultEvent.FromAnalysisResult(result, EventName);
+        inferenceEvent.QueuePolicy = LLMQueuePolicy.LatestBestPerObject;
+        ProcessEvent(inferenceEvent);
+        return Task.CompletedTask;
+    }
+
+    private void PublishUnknownShipLabelEvent(ObjectExpiredEvent expiredEvent)
+    {
+        var unknownLabel = new ShipLabel
+        {
+            DetectedObjectId = expiredEvent.Id,
+            SourceId = expiredEvent.SourceId,
+            ShipType = "Unknown",
+            ShipDraught = "Unknown",
+            ShipColor = new List<string> { "Unknown" },
+            JsonLabel = "{\"status\":\"unknown\"}"
+        };
+
+        var shipLabelEvent = new ShipLabelEvent(
+            sourceId: expiredEvent.SourceId,
+            eventName: EventName,
+            algorithmName: AlgorithmName,
+            objectId: expiredEvent.Id,
+            objectLocalId: expiredEvent.LocalId,
+            confidence: 0,
+            labels: unknownLabel);
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                await EventRepository.SaveDomainEventAsync(shipLabelEvent);
+                MessagePoster.PostDomainEventMessage(shipLabelEvent);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error publishing unknown ship label timeout event. ObjectId: {ObjectId}", expiredEvent.Id);
+            }
+        });
+    }
+
+    private static LLMTimeoutPolicy ParseTimeoutPolicy(string value)
+    {
+        return Enum.TryParse<LLMTimeoutPolicy>(value, ignoreCase: true, out var policy)
+            ? policy
+            : LLMTimeoutPolicy.Drop;
+    }
+
     public override void Dispose()
     {
         _disposableOeSubscriber?.Dispose();
 
-        foreach (var shipLabel in _cachedShipLabels.Values)
+        foreach (var state in _objectStates.Values)
         {
-            DisposeSnapshot(shipLabel.Snapshot);
+            DisposeSnapshot(state.VerifiedPayload?.Snapshot);
         }
 
-        _cachedShipLabels.Clear();
+        _objectStates.Clear();
         base.Dispose();
     }
 

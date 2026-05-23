@@ -1,10 +1,13 @@
 ﻿using Algorithm.Common;
 using Algorithm.Common.Event;
+using Algorithm.Common.LLM;
+using Algorithm.General.ObjectOccurrenceByLLM.Event;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.RegionDefinition;
 using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using Perceptron.Domain.Entity.VideoStream;
+using Perceptron.Domain.Event;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
@@ -12,7 +15,7 @@ using System.Text.Json;
 
 namespace Algorithm.General.ObjectOccurrenceByLLM;
 
-public class Executor : AlgorithmBase
+public class Executor : AlgorithmBase, ILLMResultHandler
 {
     public const string DefaultOccurrenceCheckRegionName = "Occurrence Region";
     public const string DefaultTargetObjectNames = "person";
@@ -33,13 +36,25 @@ public class Executor : AlgorithmBase
     public string ProximityReferenceObject { get; private set; }
     public string ProximityReferenceDimension { get; private set; }
     public int MinDurationSec { get; private set; }
+    public int CandidateEventTimeoutSeconds { get; private set; }
+    public LLMTimeoutPolicy OnTimeout { get; private set; }
+    public string RequesterAlgorithmName => AlgorithmName;
 
     private DateTime? _firstOccurrenceTime;
+    private readonly CandidateEventStore _candidateEvents = new();
+    private readonly Dictionary<string, ObjectOccurrenceCandidatePayload> _candidatePayloads = new();
+    private readonly object _candidateSync = new();
+    private string? _activeCandidateEventId;
+
+    private sealed record ObjectOccurrenceCandidatePayload(
+        double Duration,
+        List<string> TargetObjectNames,
+        string Annotations);
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences) 
         : base(pipeline, preferences)
     {
-        AlgorithmName = "Object Occurrence by LLM;";
+        AlgorithmName = "Object Occurrence by LLM";
         AlgorithmVersion = "1.0.0";
         AlgorithmDescription = "Detects object occurrence in video frames using LLM inference.";
     }
@@ -64,6 +79,8 @@ public class Executor : AlgorithmBase
         }
 
         MinDurationSec = PreferenceParser.ParseIntValue(Preferences, "MinDurationSec", DefaultMinDurationSec);
+        CandidateEventTimeoutSeconds = PreferenceParser.ParseIntValue(Preferences, "CandidateEventTimeoutSeconds", 12);
+        OnTimeout = ParseTimeoutPolicy(PreferenceParser.ParseStringValue(Preferences, "OnTimeout", LLMTimeoutPolicy.Drop.ToString()));
 
         return base.Initialize();
     }
@@ -178,7 +195,10 @@ public class Executor : AlgorithmBase
         else
         {
             _firstOccurrenceTime = null;
+            _activeCandidateEventId = null;
         }
+
+        ProcessTimedOutCandidates();
 
         // 绘制区域与分析结果标注
         GenerateRegionAnnotation(frame, definition);
@@ -191,30 +211,305 @@ public class Executor : AlgorithmBase
     {
         if (!WillPublishEventMessage) return;
 
-        if (CheckLocalEventInterval()) return;
+        if (!string.IsNullOrWhiteSpace(_activeCandidateEventId))
+        {
+            return;
+        }
 
-        // 调用 LLM 对结果进行二次确认
+        var candidateEventId = Guid.NewGuid().ToString("N");
+        var requestId = Guid.NewGuid().ToString("N");
+        var nowUtc = DateTime.UtcNow;
+        var deadlineUtc = nowUtc.AddSeconds(CandidateEventTimeoutSeconds);
+        var annotations = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
+
+        var state = new CandidateEventState
+        {
+            CandidateEventId = candidateEventId,
+            SourceId = frame.SourceId,
+            FrameId = frame.FrameId,
+            OffsetMilliSec = frame.OffsetMilliSec,
+            UtcTimeStamp = frame.UtcTimeStamp,
+            AlgorithmName = AlgorithmName,
+            EventName = EventName,
+            Status = CandidateEventStatus.PendingLLM,
+            PendingRequestId = requestId,
+            CreatedAtUtc = nowUtc,
+            DeadlineUtc = deadlineUtc,
+            TraditionalPayload = duration
+        };
+
+        lock (_candidateSync)
+        {
+            if (!_candidateEvents.TryAdd(state))
+            {
+                return;
+            }
+
+            _candidatePayloads[candidateEventId] = new ObjectOccurrenceCandidatePayload(
+                duration,
+                TargetObjectNames.ToList(),
+                annotations);
+            _activeCandidateEventId = candidateEventId;
+        }
+
+        // 调用 LLM 对结果进行二次确认，使用 EventAnchored 保护触发证据不被后续帧替换。
         frame.SetProperty(LLMAnalysisPropertyName, true);
         frame.SetProperty(LLMAnalysisType, "frame");
         frame.SetProperty(LLMAnalysisPromptPropertyName, _userPrompt);
+        frame.SetProperty(LLMRequestIdPropertyName, requestId);
+        frame.SetProperty(LLMRequesterAlgorithmNamePropertyName, AlgorithmName);
+        frame.SetProperty(LLMCandidateEventIdPropertyName, candidateEventId);
+        frame.SetProperty(LLMQueuePolicyPropertyName, LLMQueuePolicy.EventAnchored.ToString());
+        frame.SetProperty(LLMExpireAtUtcPropertyName, deadlineUtc);
     }
 
     public override void ProcessEvent(LLMInferenceResultEvent @event)
     {
-        var result = JsonSerializer.Deserialize<OccurredObjectsLLMResult>(@event.JsonResult);
+        if (@event.RequesterAlgorithmName != AlgorithmName || string.IsNullOrWhiteSpace(@event.CandidateEventId))
+        {
+            return;
+        }
+
+        if (@event.IsExpiredResult)
+        {
+            Log.Warning("Ignore late LLM result for candidate event. CandidateEventId: {CandidateEventId}, RequestId: {RequestId}",
+                @event.CandidateEventId, @event.RequestId);
+            return;
+        }
+
+        var result = DeserializeResult(@event);
+        if (result == null)
+        {
+            RejectCandidate(@event);
+            return;
+        }
 
         if (result != null && result.isObjOccurred)
         {
-            char joiner = OccurrenceCondition == "or" ? '|' : '&';
-            Log.Warning($"Objects: {string.Join(joiner, TargetObjectNames)} have occurred in region:{OccurrenceCheckRegionName}.");
+            PublishConfirmedCandidate(@event);
+            return;
         }
 
-        //char joiner = OccurrenceCondition == "or" ? '|' : '&';
-        //Log.Warning($"Objects: {string.Join(joiner, TargetObjectNames)} have occurred in region:{OccurrenceCheckRegionName} for {duration:##} seconds.");
+        RejectCandidate(@event);
+    }
 
-        // TODO: 触发事件处理逻辑，例如发送通知或记录日志
+    private OccurredObjectsLLMResult? DeserializeResult(LLMInferenceResultEvent @event)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<OccurredObjectsLLMResult>(@event.JsonResult);
+        }
+        catch (JsonException ex)
+        {
+            Log.Warning(ex, "Failed to deserialize object occurrence LLM result. CandidateEventId: {CandidateEventId}, Result: {Result}",
+                @event.CandidateEventId, @event.JsonResult);
+            return null;
+        }
+    }
 
-        base.ProcessEvent(@event);
+    private void PublishConfirmedCandidate(LLMInferenceResultEvent @event)
+    {
+        if (!_candidateEvents.TryConfirm(@event.CandidateEventId!, ToAnalysisResult(@event)))
+        {
+            return;
+        }
+
+        if (CheckLocalEventInterval())
+        {
+            Log.Information("Suppress confirmed object occurrence by local interval. CandidateEventId: {CandidateEventId}",
+                @event.CandidateEventId);
+            _candidateEvents.TryPublish(@event.CandidateEventId!);
+            CleanupCandidate(@event.CandidateEventId!);
+            return;
+        }
+
+        ObjectOccurrenceCandidatePayload? payload;
+        lock (_candidateSync)
+        {
+            _candidatePayloads.TryGetValue(@event.CandidateEventId!, out payload);
+        }
+
+        if (payload == null)
+        {
+            Log.Warning("Candidate payload not found. CandidateEventId: {CandidateEventId}", @event.CandidateEventId);
+            return;
+        }
+
+        if (!_candidateEvents.TryPublish(@event.CandidateEventId!))
+        {
+            return;
+        }
+
+        var eventMessage = new ObjectOccurrenceLLMEvent(
+            @event.SourceId,
+            EventName,
+            AlgorithmName,
+            @event.CandidateEventId!,
+            OccurrenceCheckRegionName,
+            payload.TargetObjectNames,
+            (int)Math.Round(payload.Duration))
+        {
+            Annotations = payload.Annotations,
+            LLMJsonResult = @event.JsonResult
+        };
+
+        Log.Warning("{Message}", eventMessage.Message);
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                await EventRepository.SaveDomainEventAsync(eventMessage);
+                MessagePoster.PostDomainEventMessage(eventMessage);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error publishing object occurrence LLM event. CandidateEventId: {CandidateEventId}",
+                    @event.CandidateEventId);
+            }
+        });
+
+        CleanupCandidate(@event.CandidateEventId!);
+    }
+
+    private void RejectCandidate(LLMInferenceResultEvent @event)
+    {
+        if (_candidateEvents.TryReject(@event.CandidateEventId!, ToAnalysisResult(@event)))
+        {
+            Log.Information("LLM rejected object occurrence candidate. CandidateEventId: {CandidateEventId}, RequestId: {RequestId}",
+                @event.CandidateEventId, @event.RequestId);
+            CleanupCandidate(@event.CandidateEventId!);
+        }
+    }
+
+    private void ProcessTimedOutCandidates()
+    {
+        foreach (var candidate in _candidateEvents.ScanTimedOut(DateTime.UtcNow))
+        {
+            if (_candidateEvents.TryMarkTimedOut(candidate.CandidateEventId, DateTime.UtcNow))
+            {
+                Log.Warning("Object occurrence candidate timed out. CandidateEventId: {CandidateEventId}",
+                    candidate.CandidateEventId);
+                HandleTimedOutCandidate(candidate);
+            }
+        }
+    }
+
+    private void HandleTimedOutCandidate(CandidateEventState candidate)
+    {
+        switch (OnTimeout)
+        {
+            case LLMTimeoutPolicy.PublishTraditional:
+            case LLMTimeoutPolicy.PublishUnknown:
+                PublishTimeoutCandidate(candidate, OnTimeout);
+                break;
+            case LLMTimeoutPolicy.Retry:
+                Log.Information("Object occurrence candidate timeout policy is Retry. CandidateEventId: {CandidateEventId}", candidate.CandidateEventId);
+                break;
+            case LLMTimeoutPolicy.Drop:
+            default:
+                Log.Information("Drop timed out object occurrence candidate. CandidateEventId: {CandidateEventId}", candidate.CandidateEventId);
+                break;
+        }
+
+        CleanupCandidate(candidate.CandidateEventId);
+    }
+
+    private void PublishTimeoutCandidate(CandidateEventState candidate, LLMTimeoutPolicy timeoutPolicy)
+    {
+        ObjectOccurrenceCandidatePayload? payload;
+        lock (_candidateSync)
+        {
+            _candidatePayloads.TryGetValue(candidate.CandidateEventId, out payload);
+        }
+
+        if (payload == null)
+        {
+            return;
+        }
+
+        var eventMessage = new ObjectOccurrenceLLMEvent(
+            candidate.SourceId,
+            EventName,
+            AlgorithmName,
+            candidate.CandidateEventId,
+            OccurrenceCheckRegionName,
+            payload.TargetObjectNames,
+            (int)Math.Round(payload.Duration))
+        {
+            Annotations = payload.Annotations,
+            LLMJsonResult = timeoutPolicy == LLMTimeoutPolicy.PublishUnknown ? "{\"status\":\"unknown\"}" : string.Empty
+        };
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                await EventRepository.SaveDomainEventAsync(eventMessage);
+                MessagePoster.PostDomainEventMessage(eventMessage);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error publishing timed out object occurrence event. CandidateEventId: {CandidateEventId}",
+                    candidate.CandidateEventId);
+            }
+        });
+    }
+
+    private void CleanupCandidate(string candidateEventId)
+    {
+        lock (_candidateSync)
+        {
+            _candidatePayloads.Remove(candidateEventId);
+            if (_activeCandidateEventId == candidateEventId)
+            {
+                _activeCandidateEventId = null;
+            }
+        }
+    }
+
+    private static LLMAnalysisResult ToAnalysisResult(LLMInferenceResultEvent @event)
+    {
+        return new LLMAnalysisResult(
+            @event.RequestId,
+            @event.RequesterAlgorithmName,
+            @event.CandidateEventId,
+            @event.SourceId,
+            @event.FrameId,
+            @event.OffsetMilliSec,
+            @event.UtcTimeStamp,
+            string.IsNullOrWhiteSpace(@event.DetectedObjectId) ? null : @event.DetectedObjectId,
+            @event.Scope,
+            @event.ModelName,
+            @event.InferenceTime,
+            @event.JsonResult,
+            @event.IsSuccess,
+            @event.IsExpiredResult,
+            @event.ErrorCode,
+            @event.RequestedAtUtc,
+            @event.CompletedAtUtc);
+    }
+
+    public bool CanHandle(LLMAnalysisResult result)
+    {
+        return result.RequesterAlgorithmName == AlgorithmName &&
+               !string.IsNullOrWhiteSpace(result.CandidateEventId) &&
+               result.Scope == LLMAnalysisScope.Frame;
+    }
+
+    public Task HandleAsync(LLMAnalysisResult result, LLMReconcileContext context, CancellationToken cancellationToken)
+    {
+        var inferenceEvent = LLMInferenceResultEvent.FromAnalysisResult(result, EventName);
+        inferenceEvent.QueuePolicy = LLMQueuePolicy.EventAnchored;
+        ProcessEvent(inferenceEvent);
+        return Task.CompletedTask;
+    }
+
+    private static LLMTimeoutPolicy ParseTimeoutPolicy(string value)
+    {
+        return Enum.TryParse<LLMTimeoutPolicy>(value, ignoreCase: true, out var policy)
+            ? policy
+            : LLMTimeoutPolicy.Drop;
     }
 
     protected override VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)
