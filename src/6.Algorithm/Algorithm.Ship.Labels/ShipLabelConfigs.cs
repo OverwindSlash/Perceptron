@@ -18,4 +18,10 @@ public static class ShipLabelConfigs
     {
         "Shallow", "Medium", "Deep", "Unknown"
     };
+
+    public static readonly string[] ShipViewAngles = new[]
+    {
+        "Front", "Rear", "PortSide", "StarboardSide",
+        "ObliqueFront", "ObliqueRear", "TopView", "Unknown"
+    };
 }

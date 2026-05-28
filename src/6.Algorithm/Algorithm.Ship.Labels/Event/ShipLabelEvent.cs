@@ -1,4 +1,4 @@
-﻿using Perceptron.Domain.Event;
+using Perceptron.Domain.Event;
 using System.Text.Json;
 
 namespace Algorithm.Ship.Labels.Event;
@@ -23,7 +23,7 @@ public class ShipLabelEvent : DomainEvent
         ObjectLocalId = objectLocalId;
         Confidence = confidence;
         Labels = labels;
-        Message = $"{ObjectId} labels -> TypeGroup:{Labels.ShipTypeGroup}, Colors:{string.Join(',', Labels.ShipColor)}, Draught:{Labels.ShipDraught}";
+        Message = $"{ObjectId} labels -> TypeGroup:{Labels.ShipTypeGroup}, Colors:{string.Join(',', Labels.ShipColor)}, Draught:{Labels.ShipDraught}, ViewAngle:{Labels.ShipViewAngle}";
     }
 
     public override string GenerateJsonContent()

@@ -1,4 +1,4 @@
-﻿using Algorithm.Common;
+using Algorithm.Common;
 using Algorithm.Ship.Labels.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,7 +21,7 @@ namespace Algorithm.Ship.Labels;
 
 public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 {
-    private const string DefaultModelPath = "Models/ship-label-v2-32B-151130.onnx";
+    private const string DefaultModelPath = "Models/ship_labels_codex_enhanced.onnx";
     private const string DefaultExecutionProvider = "cpu";
     private const int DefaultDeviceId = 0;
     private const int DefaultStride = 5;
@@ -59,10 +59,10 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     {
         var provider = Pipeline.Provider;
 
-        var subscriber = provider.GetService<ISubscriber<ObjectExpiredEvent>>();
+        var subscriber = provider.GetRequiredService<ISubscriber<ObjectExpiredEvent>>();
         this.SetSubscriber(subscriber);
 
-        _shipLabelEventPublisher = provider.GetService<IPublisher<ShipLabelEvent>>();
+        _shipLabelEventPublisher = provider.GetRequiredService<IPublisher<ShipLabelEvent>>();
 
         ModelPath = PreferenceParser.ParseStringValue(Preferences, "ModelPath", DefaultModelPath);
         ExecProvider = PreferenceParser.ParseStringValue(Preferences, "ExecutionProvider", DefaultExecutionProvider);
@@ -86,6 +86,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     public override AnalysisResult Analyze(Frame frame)
     {
         frame.Retain();
+        var isDetectionFrame = _frameCount % Stride == 0;
+        _frameCount++;
 
         foreach (var detectedObject in frame.DetectedObjects)
         {
@@ -94,11 +96,15 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 continue;
             }
 
+            if (detectedObject.Snapshot == null || detectedObject.Snapshot.IsDisposed)
+            {
+                continue;
+            }
+
             if (!_cachedShipLabels.TryGetValue(detectedObject.Id, out var shipLabels))
             {
-                // 如果缓存中没有，则不管是否是检测帧都进行预测，保证第一次出现的船只能够被标注标签
                 var labels = _predictor.Run(detectedObject.Snapshot);
-                var shipLabel = JsonSerializer.Deserialize<ShipLabel>(labels);
+                var shipLabel = JsonSerializer.Deserialize<ShipLabel>(labels) ?? new ShipLabel();
                 shipLabel.Confidence = detectedObject.Confidence;
                 shipLabel.Frame = frame;
                 shipLabel.Snapshot = detectedObject.Snapshot.Clone(); // Clone snapshot for event use
@@ -118,10 +124,10 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 var cachedLabels = shipLabels.JsonLabel;
 
                 // 只有在检测帧且当前检测置信度高于缓存置信度时才进行预测更新，否则继续使用缓存标签，减少计算量
-                if ((_frameCount % Stride == 0) && (detectedObject.Confidence > cachedConf))
+                if (isDetectionFrame && (detectedObject.Confidence > cachedConf))
                 {
                     var labels = _predictor.Run(detectedObject.Snapshot);
-                    var shipLabel = JsonSerializer.Deserialize<ShipLabel>(labels);
+                    var shipLabel = JsonSerializer.Deserialize<ShipLabel>(labels) ?? new ShipLabel();
                     shipLabel.Confidence = detectedObject.Confidence;
                     shipLabel.Frame = frame;
                     shipLabel.Snapshot = detectedObject.Snapshot.Clone(); // Clone snapshot for event use
@@ -172,8 +178,12 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             var bbox = detectedObject.Bbox;
 
             var labels = detectedObject.GetProperty<string>("Labels");
+            if (string.IsNullOrWhiteSpace(labels))
+            {
+                return annotation;
+            }
 
-            var shipLabels = JsonSerializer.Deserialize<ShipLabel>(labels);
+            var shipLabels = JsonSerializer.Deserialize<ShipLabel>(labels) ?? new ShipLabel();
 
             // type annotation
             var textType = new Shape()
@@ -181,11 +191,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 Id = "text_label_type_" + detectedObject.Id,
                 Type = "text",
                 //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipTypeGroup},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
-                Content = $"TypeGroup:{shipLabels.ShipTypeGroup}",
+                Content = $"T:{shipLabels.ShipTypeGroup}",
                 Position = new Position()
                 {
                     X = bbox.X,
-                    Y = bbox.Y - 3 * base.ObjTextFontSize
+                    Y = bbox.Y - 4 * base.ObjTextFontSize
                 },
                 Style = new Style()
                 {
@@ -202,11 +212,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 Id = "text_label_color_" + detectedObject.Id,
                 Type = "text",
                 //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipTypeGroup},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
-                Content = $"Color:{string.Join(',', shipLabels.ShipColor)}",
+                Content = $"C:{string.Join(',', shipLabels.ShipColor)}",
                 Position = new Position()
                 {
                     X = bbox.X,
-                    Y = bbox.Y - 2 * base.ObjTextFontSize
+                    Y = bbox.Y - 3 * base.ObjTextFontSize
                 },
                 Style = new Style()
                 {
@@ -223,7 +233,27 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 Id = "text_label_color_" + detectedObject.Id,
                 Type = "text",
                 //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipTypeGroup},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
-                Content = $"Draught:{shipLabels.ShipDraught}",
+                Content = $"D:{shipLabels.ShipDraught}",
+                Position = new Position()
+                {
+                    X = bbox.X,
+                    Y = bbox.Y - 2 * base.ObjTextFontSize
+                },
+                Style = new Style()
+                {
+                    Color = base.ObjTextColor,
+                    FontSize = base.ObjTextFontSize,
+                }
+            };
+
+            annotation.Shapes.Add(draughtColor);
+
+            // view angle annotation
+            var viewAngleText = new Shape()
+            {
+                Id = "text_label_view_angle_" + detectedObject.Id,
+                Type = "text",
+                Content = $"V:{shipLabels.ShipViewAngle}",
                 Position = new Position()
                 {
                     X = bbox.X,
@@ -236,7 +266,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
                 }
             };
 
-            annotation.Shapes.Add(draughtColor);
+            annotation.Shapes.Add(viewAngleText);
         }
 
         return annotation;
@@ -261,8 +291,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         var snapshotArea = shipLabels.Snapshot.Width * shipLabels.Snapshot.Height;
         if (snapshotArea < MinImageAreaOfLabelEvent) return;
 
-        Log.Information("{ShipId} labels -> TypeGroup:{ShipTypeGroup}, Colors:{ShipColors}, Draught:{ShipDraught}",
-            @event.Id, shipLabels.ShipTypeGroup, string.Join(',', shipLabels.ShipColor), shipLabels.ShipDraught);
+        Log.Information("{ShipId} labels -> TypeGroup:{ShipTypeGroup}, Colors:{ShipColors}, Draught:{ShipDraught}, ViewAngle:{ShipViewAngle}",
+            @event.Id, shipLabels.ShipTypeGroup, string.Join(',', shipLabels.ShipColor), shipLabels.ShipDraught, shipLabels.ShipViewAngle);
 
         // 1. Create Event
         var shipLabelEvent = new ShipLabelEvent(
@@ -283,7 +313,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         {
             Id = "text_label_" + @event.Id,
             Type = "text",
-            Content = $"Id:{@event.LocalId}, T:{shipLabels.ShipTypeGroup}\nC:{string.Join(',', shipLabels.ShipColor)}\nD:{shipLabels.ShipDraught}",
+            Content = $"Id:{@event.LocalId}, T:{shipLabels.ShipTypeGroup}\nC:{string.Join(',', shipLabels.ShipColor)}\nD:{shipLabels.ShipDraught}\nV:{shipLabels.ShipViewAngle}",
             Position = new Position()
             {
                 X = 10,
