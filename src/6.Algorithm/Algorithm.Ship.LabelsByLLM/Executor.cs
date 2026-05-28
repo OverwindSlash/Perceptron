@@ -203,7 +203,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
                 Position = new Position()
                 {
                     X = bbox.X,
-                    Y = bbox.Y - 3 * base.ObjTextFontSize - 20
+                    Y = bbox.Y - 6 * base.ObjTextFontSize - 10
                 },
                 Style = new Style()
                 {
@@ -224,7 +224,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
                 Position = new Position()
                 {
                     X = bbox.X,
-                    Y = bbox.Y - 2 * base.ObjTextFontSize - 10
+                    Y = bbox.Y - 5 * base.ObjTextFontSize - 10
                 },
                 Style = new Style()
                 {
@@ -245,7 +245,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
                 Position = new Position()
                 {
                     X = bbox.X,
-                    Y = bbox.Y - base.ObjTextFontSize
+                    Y = bbox.Y - 4 * base.ObjTextFontSize - 10
                 },
                 Style = new Style()
                 {
@@ -255,6 +255,73 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
             };
 
             annotation.Shapes.Add(draughtColor);
+
+            // ShipViewAngle annotation
+            if (!string.IsNullOrWhiteSpace(shipLabels.ShipViewAngle))
+            {
+                var angleColor = new Shape()
+                {
+                    Id = "text_label_angle_" + detectedObject.Id,
+                    Type = "text",
+                    Content = $"ViewAngle:{shipLabels.ShipViewAngle}",
+                    Position = new Position()
+                    {
+                        X = bbox.X,
+                        Y = bbox.Y - 3 * base.ObjTextFontSize - 10
+                    },
+                    Style = new Style()
+                    {
+                        Color = base.ObjTextColor,
+                        FontSize = base.ObjTextFontSize,
+                    }
+                };
+                annotation.Shapes.Add(angleColor);
+            }
+
+            // ShipLoadTypes annotation
+            if (shipLabels.ShipLoadTypes != null && shipLabels.ShipLoadTypes.Count > 0)
+            {
+                var loadTypeColor = new Shape()
+                {
+                    Id = "text_label_loadtype_" + detectedObject.Id,
+                    Type = "text",
+                    Content = $"LoadType:{string.Join(',', shipLabels.ShipLoadTypes)}",
+                    Position = new Position()
+                    {
+                        X = bbox.X,
+                        Y = bbox.Y - 2 * base.ObjTextFontSize - 10
+                    },
+                    Style = new Style()
+                    {
+                        Color = base.ObjTextColor,
+                        FontSize = base.ObjTextFontSize,
+                    }
+                };
+                annotation.Shapes.Add(loadTypeColor);
+            }
+
+            // ShipPaintedText annotation
+            if (shipLabels.ShipPaintedText != null && shipLabels.ShipPaintedText.Count > 0 
+                                                   && !string.IsNullOrWhiteSpace(shipLabels.ShipPaintedText[0].Text))
+            {
+                var paintedTextColor = new Shape()
+                {
+                    Id = "text_label_paintedtext_" + detectedObject.Id,
+                    Type = "text",
+                    Content = $"PaintedText:{shipLabels.ShipPaintedText}",
+                    Position = new Position()
+                    {
+                        X = bbox.X,
+                        Y = bbox.Y + - base.ObjTextFontSize
+                    },
+                    Style = new Style()
+                    {
+                        Color = base.ObjTextColor,
+                        FontSize = base.ObjTextFontSize,
+                    }
+                };
+                annotation.Shapes.Add(paintedTextColor);
+            }
         }
 
         return annotation;

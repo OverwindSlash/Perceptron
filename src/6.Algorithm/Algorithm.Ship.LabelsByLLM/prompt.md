@@ -29,7 +29,6 @@
 
 ## 3. JSON 结构
 
-```json
 {
   "ShipTypeGroup": "Cargo",
   "ShipTypeDetail": "Container",
@@ -44,7 +43,6 @@
     }
   ]
 }
-```
 
 ---
 
@@ -52,9 +50,7 @@
 
 `ShipTypeGroup` 必须选一个：
 
-```text
 Cargo, Tanker, Passenger, Workboat, LawEnforcement, Military, Fishing, Leisure, Sailing, Other, Unknown
-```
 
 判断规则：
 
@@ -78,9 +74,7 @@ Cargo, Tanker, Passenger, Workboat, LawEnforcement, Military, Fishing, Leisure, 
 
 `ShipTypeDetail` 必须选一个：
 
-```text
 Container, Bulker, GeneralCargo, RoRo, CarCarrier, Tanker, LNG, Cruise, Ferry, Liner, Tug, Engineering, Research, Rescue, Supply, Pilot, Warship, CoastGuard, Police, Fishing, Yacht, Speedboat, Sail, Other, Unknown
-```
 
 兼容关系：
 
@@ -117,9 +111,7 @@ Container, Bulker, GeneralCargo, RoRo, CarCarrier, Tanker, LNG, Cruise, Ferry, L
 
 必须从以下值中选择：
 
-```text
 White, Blue, Gray, Black, Red, Orange, Yellow, Green, Brown, Silver, Other
-```
 
 规则：
 
@@ -135,9 +127,7 @@ White, Blue, Gray, Black, Red, Orange, Yellow, Green, Brown, Silver, Other
 
 `ShipDraught` 必须选一个：
 
-```text
 Shallow, Medium, Deep, Unknown
-```
 
 定义：
 
@@ -156,9 +146,7 @@ Shallow, Medium, Deep, Unknown
 
 `ShipViewAngle` 必须选一个：
 
-```text
 Front, Rear, PortSide, StarboardSide, ObliqueFront, ObliqueRear, TopView, Unknown
-```
 
 | 值 | 规则 |
 |---|---|
@@ -179,9 +167,7 @@ Front, Rear, PortSide, StarboardSide, ObliqueFront, ObliqueRear, TopView, Unknow
 
 必须从以下值中选择：
 
-```text
 Container, BulkCargo, Vehicle, Timber, SteelOrPipe, MachineryEquipment, DeckCargo, TankOrDrum, FishingGear, UnknownLoad, Other
-```
 
 如果没有清晰可见、明确位于主船上的载荷物，输出 `[]`。
 
@@ -223,12 +209,10 @@ Container, BulkCargo, Vehicle, Timber, SteelOrPipe, MachineryEquipment, DeckCarg
 
 对象格式：
 
-```json
 {
   "text": "TEXT",
   "bbox": [x_center, y_center, width, height]
 }
-```
 
 规则：
 
