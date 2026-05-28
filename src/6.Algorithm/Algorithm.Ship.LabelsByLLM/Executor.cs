@@ -199,7 +199,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
                 Id = "text_label_type_" + detectedObject.Id,
                 Type = "text",
                 //Content = $"Id:{detectedObject.LocalId},T:{shipLabels.ShipType},C:{string.Join(',', shipLabels.ShipColor)},D:{shipLabels.ShipDraught}",
-                Content = $"Type:{shipLabels.ShipType}",
+                Content = $"Type:{shipLabels.ShipTypeGroup}|{shipLabels.ShipTypeDetail}",
                 Position = new Position()
                 {
                     X = bbox.X,
@@ -398,8 +398,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
         var snapshotArea = shipLabels.Snapshot.Width * shipLabels.Snapshot.Height;
         if (snapshotArea < MinImageAreaOfLabelEvent) return;
 
-        Log.Information("{ShipId} labels -> Type:{ShipType}, Colors:{ShipColors}, Draught:{ShipDraught}",
-            @event.Id, shipLabels.ShipType, string.Join(',', shipLabels.ShipColor), shipLabels.ShipDraught);
+        Log.Information("{ShipId} labels -> Type:{ShipType}, Detail:{ShipDetail}, Colors:{ShipColors}, Draught:{ShipDraught}",
+            @event.Id, shipLabels.ShipTypeGroup, shipLabels.ShipTypeDetail, string.Join(',', shipLabels.ShipColor), shipLabels.ShipDraught);
 
         // 1. Create Event
         var shipLabelEvent = new ShipLabelEvent(
@@ -419,7 +419,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
         {
             Id = "text_label_" + @event.Id,
             Type = "text",
-            Content = $"Id:{@event.LocalId}, T:{shipLabels.ShipType}\nC:{string.Join(',', shipLabels.ShipColor)}\nD:{shipLabels.ShipDraught}",
+            Content = $"Id:{@event.LocalId}, T:{shipLabels.ShipTypeGroup}|{shipLabels.ShipTypeDetail}\nC:{string.Join(',', shipLabels.ShipColor)}\nD:{shipLabels.ShipDraught}",
             Position = new Position()
             {
                 X = 10,
@@ -527,16 +527,17 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
         shipLabel.UtcTimeStamp = @event.UtcTimeStamp;
         shipLabel.Snapshot = @event.Snapshot;
         shipLabel.JsonLabel = @event.JsonResult;
-        shipLabel.ShipType = string.IsNullOrWhiteSpace(shipLabel.ShipType) ? "Unknown" : shipLabel.ShipType;
-        shipLabel.ShipDraught = string.IsNullOrWhiteSpace(shipLabel.ShipDraught) ? "Unknown" : shipLabel.ShipDraught;
-        shipLabel.ShipColor = shipLabel.ShipColor?
-            .Where(color => !string.IsNullOrWhiteSpace(color))
-            .ToList() ?? new List<string>();
 
-        if (shipLabel.ShipColor.Count == 0)
-        {
-            shipLabel.ShipColor = new List<string> { "Unknown" };
-        }
+        // shipLabel.ShipType = string.IsNullOrWhiteSpace(shipLabel.ShipType) ? "Unknown" : shipLabel.ShipType;
+        // shipLabel.ShipDraught = string.IsNullOrWhiteSpace(shipLabel.ShipDraught) ? "Unknown" : shipLabel.ShipDraught;
+        // shipLabel.ShipColor = shipLabel.ShipColor?
+        //     .Where(color => !string.IsNullOrWhiteSpace(color))
+        //     .ToList() ?? new List<string>();
+        //
+        // if (shipLabel.ShipColor.Count == 0)
+        // {
+        //     shipLabel.ShipColor = new List<string> { "Unknown" };
+        // }
 
         return true;
     }
@@ -595,7 +596,8 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
         {
             DetectedObjectId = expiredEvent.Id,
             SourceId = expiredEvent.SourceId,
-            ShipType = "Unknown",
+            ShipTypeGroup = "Unknown",
+            ShipTypeDetail = "Unknown",
             ShipDraught = "Unknown",
             ShipColor = new List<string> { "Unknown" },
             JsonLabel = "{\"status\":\"unknown\"}"
