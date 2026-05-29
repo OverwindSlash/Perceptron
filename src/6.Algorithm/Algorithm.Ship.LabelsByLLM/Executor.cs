@@ -565,7 +565,9 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>, ILL
 
         try
         {
-            shipLabel = JsonSerializer.Deserialize<ShipLabel>(@event.JsonResult);
+            // 移除 @event.JsonResult 前后可能有的 '''json ''' Markdown 格式
+            var json = @event.JsonResult.TrimStart("'''json").TrimEnd("'''");
+            shipLabel = JsonSerializer.Deserialize<ShipLabel>(json);
         }
         catch (JsonException ex)
         {

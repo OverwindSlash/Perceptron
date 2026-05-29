@@ -244,9 +244,9 @@
         "ServerUrl": "http://192.168.1.103:4321",
         "ApiKey": "lmstudio",
         "ModelName": "qwen/qwen3-vl-8b",
-        //"ServerUrl": "http://192.168.1.111:1234",
-        //"ApiKey": "lmstudio",
-        //"ModelName": "unsloth/qwen3-vl-30b-a3b-instruct",
+        //"ServerUrl": "http://192.168.1.111:8000",
+        //"ApiKey": "cs202304",
+        //"ModelName": "Qwen3-VL-30B-A3B-Instruct-NVFP4",
         "SystemPrompt": ""
       }
     }
