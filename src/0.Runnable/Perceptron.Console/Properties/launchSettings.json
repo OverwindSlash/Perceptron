@@ -2,7 +2,7 @@
   "profiles": {
     "Perceptron.Console": {
       "commandName": "Project",
-      "commandLineArgs": "-c Config/suzhou-shiplabels-llm-settings.json"
+      "commandLineArgs": "-c Config/smuggling-settings.json"
     },
     "Container (Dockerfile)": {
       "commandName": "Docker"

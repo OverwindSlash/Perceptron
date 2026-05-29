@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\5.Component\SnapshotManager.InMemory\SnapshotManager.InMemory.csproj" />
     <ProjectReference Include="..\..\5.Component\Tracker.DeepSort\Tracker.DeepSort.csproj" />
     <ProjectReference Include="..\..\5.Component\Tracker.Sort\Tracker.Sort.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.CoastGuard.SmugglingDetection\Algorithm.CoastGuard.SmugglingDetection.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.Classify\Algorithm.General.Classify.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.LLM\Algorithm.General.LLM.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.MotionDetection\Algorithm.General.MotionDetection.csproj" />
@@ -70,6 +71,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Config\suzhou-shiplabels-llm-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Config\smuggling-settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Config\suzhou-shiplabels-settings.json">

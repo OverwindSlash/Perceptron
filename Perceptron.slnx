@@ -95,7 +95,9 @@
     <Project Path="src/5.Component/Tracker.Sort/Tracker.Sort.csproj" Id="e9a8f91b-20fc-4bd0-8080-f40f75b53d62" />
   </Folder>
   <Folder Name="/src/6.Algorithm/">
-    <Project Path="src/6.Algorithm/Algorithm.CoastGuard.SmugglingDetection/Algorithm.CoastGuard.SmugglingDetection.csproj" Id="e69d936a-fbab-41fc-90b9-613910defb0e" />
+    <Project Path="src/6.Algorithm/Algorithm.CoastGuard.SmugglingDetection/Algorithm.CoastGuard.SmugglingDetection.csproj" Id="e69d936a-fbab-41fc-90b9-613910defb0e">
+      <Build Solution="Debug|*" Project="false" />
+    </Project>
     <Project Path="src/6.Algorithm/Algorithm.Common/Algorithm.Common.csproj" Id="5c770453-4618-400f-816f-b25fabd34a23" />
     <Project Path="src/6.Algorithm/Algorithm.General.Classify/Algorithm.General.Classify.csproj" Id="c42bad2d-98fc-42a5-a521-ffc3afdcdfdf" />
     <Project Path="src/6.Algorithm/Algorithm.General.LLM/Algorithm.General.LLM.csproj" />
