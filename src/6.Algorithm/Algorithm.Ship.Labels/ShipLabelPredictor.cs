@@ -10,7 +10,7 @@ public class ShipLabelPredictor : IDisposable
     // ImageNet Normalization
     private static readonly float[] Mean = { 0.485f, 0.456f, 0.406f };
     private static readonly float[] Std = { 0.229f, 0.224f, 0.225f };
-    private const int DefaultImageSize = 384;
+    private const int ImageSize = 384;
     private const float ColorThreshold = 0.5f;
 
     private readonly string _modelPath;
@@ -18,7 +18,6 @@ public class ShipLabelPredictor : IDisposable
     private readonly int _deviceId;
 
     private InferenceSession _session;
-    private readonly ModelInputInfo _inputInfo;
 
     public ShipLabelPredictor(string modelPath, string execProvider, int deviceId)
     {
@@ -45,7 +44,6 @@ public class ShipLabelPredictor : IDisposable
         }
 
         _session = new InferenceSession(_modelPath, option);
-        _inputInfo = GetInputInfo(_session);
     }
 
     public string Run(Mat image)
@@ -54,7 +52,7 @@ public class ShipLabelPredictor : IDisposable
 
         var inputs = new List<NamedOnnxValue>
         {
-            NamedOnnxValue.CreateFromTensor(_inputInfo.Name, inputTensor)
+            NamedOnnxValue.CreateFromTensor("input", inputTensor)
         };
 
         using var results = _session.Run(inputs);
@@ -86,35 +84,12 @@ public class ShipLabelPredictor : IDisposable
         return json;
     }
 
-    private static ModelInputInfo GetInputInfo(InferenceSession session)
-    {
-        var input = session.InputMetadata.First();
-        var shape = input.Value.Dimensions.ToArray();
-
-        if (shape.Length != 4)
-        {
-            throw new InvalidOperationException(
-                $"Expected model input to have 4 dimensions (NCHW), but got {shape.Length}.");
-        }
-
-        if (shape[1] > 0 && shape[1] != 3)
-        {
-            throw new InvalidOperationException(
-                $"Expected model input to have 3 channels, but got {shape[1]}.");
-        }
-
-        int height = shape[2] > 0 ? shape[2] : DefaultImageSize;
-        int width = shape[3] > 0 ? shape[3] : DefaultImageSize;
-
-        return new ModelInputInfo(input.Key, shape, width, height);
-    }
-
-    private DenseTensor<float> PreprocessImage(Mat image)
+    static DenseTensor<float> PreprocessImage(Mat image)
     {
         using var resized = new Mat();
-        Cv2.Resize(image, resized, new Size(_inputInfo.Width, _inputInfo.Height), 0, 0, InterpolationFlags.Area);
+        Cv2.Resize(image, resized, new Size(ImageSize, ImageSize), 0, 0, InterpolationFlags.Area);
 
-        var denseTensor = new DenseTensor<float>(new[] { 1, 3, _inputInfo.Height, _inputInfo.Width });
+        var denseTensor = new DenseTensor<float>(new[] { 1, 3, ImageSize, ImageSize });
 
         for (int y = 0; y < resized.Rows; y++)
         {
@@ -133,8 +108,6 @@ public class ShipLabelPredictor : IDisposable
 
         return denseTensor;
     }
-
-    private sealed record ModelInputInfo(string Name, int[] Shape, int Width, int Height);
 
     static int GetArgMax(Tensor<float> logits)
     {
