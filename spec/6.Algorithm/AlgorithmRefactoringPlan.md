@@ -226,12 +226,14 @@ public override void Dispose()
 第一轮迁移只收敛结构，不主动改变：
 
 - 事件触发条件。
-- 事件发布时机。
 - 是否生成视频。
 - 是否发送 MessagePipe 事件。
 - LLM 超时和候选状态机。
 
-行为统一应在结构迁移完成后单独评审。
+已明确批准的两项行为统一除外：
+
+- MessagePipe 在持久化和外部投递成功后发布。
+- 事件文件名使用 24 小时制、毫秒和序列号格式。
 
 ### 5.5 异常不应被无声吞掉
 
@@ -531,26 +533,11 @@ public sealed record EventPublicationRequest<TEvent>
     public string? StableArtifactId { get; init; }
 
     public Action<TEvent>? PublishInProcess { get; init; }
-    public InProcessPublishStage PublishStage { get; init; }
-        = InProcessPublishStage.AfterPersistence;
 
     public bool SaveSnapshot { get; init; }
     public bool SaveVideoClip { get; init; }
 }
 ```
-
-可选枚举：
-
-```csharp
-public enum InProcessPublishStage
-{
-    None,
-    BeforePersistence,
-    AfterPersistence
-}
-```
-
-第一轮迁移时，应按各模块现有行为设置 `PublishStage`，避免无意改变订阅者看到事件的时机。结构稳定后再决定是否全局统一为 `AfterPersistence`。
 
 ### 9.4 基类发布入口
 
@@ -621,7 +608,7 @@ internal sealed class AlgorithmEventDispatcher : IDisposable
 
 ### 9.6 建议的持久化顺序
 
-推荐默认顺序：
+已确认的统一顺序：
 
 ```text
 保存截图/标注/视频
@@ -636,7 +623,7 @@ internal sealed class AlgorithmEventDispatcher : IDisposable
 - 不会发布一个最终未能入库的“成功事件”。
 - 同步和异步算法具有一致语义。
 
-但 `RegionAccess` 当前存在先 MessagePipe 发布的行为。第一轮迁移必须保持现状，待业务确认后再统一。
+所有迁移后的算法必须遵守该顺序。`RegionAccess` 等尚未迁移的模块暂时保留现状，并在各自迁移阶段统一调整。
 
 ### 9.7 文件命名
 
@@ -651,13 +638,13 @@ yyyyMMddhhmmss
 - `hh` 是 12 小时制。
 - 同一秒内多个事件可能覆盖文件。
 
-推荐新格式：
+已确认统一使用：
 
 ```text
 {stable-id-or-prefix}_{yyyyMMddHHmmssfff}_{sequence}
 ```
 
-是否立即修改文件命名属于兼容性决策。若外部系统依赖当前目录或文件名，第一轮应保持原命名策略，并仅通过内部序列号避免覆盖。
+新事件调度器从首次实现开始采用该格式，并保留各算法现有目录层级和业务前缀。后续算法迁移到调度器时同步切换。
 
 ---
 
@@ -970,7 +957,6 @@ src/6.Algorithm/Algorithm.Common/
         IAnnotatedAlgorithmEvent.cs
         EventPublicationRequest.cs
         AlgorithmEventDispatcher.cs
-        InProcessPublishStage.cs
 ```
 
 任务：
@@ -991,12 +977,20 @@ src/6.Algorithm/Algorithm.Common/
 - [ ] 增加 `InitializeCore()`。
 - [ ] 增加 `AnalyzeCore(Frame)`。
 - [ ] 增加 `DisposeCore()`。
-- [ ] 使公共 `Initialize()`、`Analyze()` 和 `Dispose()` 不可重写。
 - [ ] 统一 `Frame.Retain/Dispose`。
 - [ ] 将 LLM 配置和订阅移出 `AlgorithmBase`。
 - [ ] 将 `CheckLocalEventInterval()` 重命名或增加语义清晰的包装方法。
+- [ ] 过渡期保留公共方法的旧 override 兼容入口。
+- [ ] 为未迁移算法提供默认 Core 钩子，保证分批迁移时可编译。
+- [ ] 增加约束测试，确保已迁移算法不再 override 公共生命周期方法。
 
-此阶段必须与第一批派生类迁移在同一可编译提交中完成，避免所有现有 `override Analyze()` 同时失效。
+此阶段必须与第一批派生类迁移在同一可编译提交中完成。当前里程碑只有已迁移算法执行模板流程；未迁移算法暂时继续使用旧 override。
+
+当全部算法迁移完成后：
+
+- [ ] 使公共 `Initialize()`、`Analyze()` 和 `Dispose()` 不可重写。
+- [ ] 将 Core 钩子收紧为最终目标约束。
+- [ ] 删除旧 override 兼容入口。
 
 ### 阶段 3：迁移低风险同步算法
 
@@ -1013,6 +1007,10 @@ src/6.Algorithm/Algorithm.Common/
 - Motion 和 Density 事件字段不变。
 - 截图、标注、视频、仓储和消息投递正常。
 - MessagePipe 发布次数保持一致。
+- MessagePipe 在持久化和外部投递成功后发布。
+- 事件文件名使用 24 小时制、毫秒和序列号格式。
+
+本轮已确认的实施范围截止到阶段 3。阶段 3 完成并通过评审后，再决定是否启动阶段 4 及后续迁移。
 
 ### 阶段 4：迁移普通业务事件算法
 
@@ -1041,7 +1039,7 @@ src/6.Algorithm/Algorithm.Common/
 - 三种区域事件统一实现 `IAnnotatedAlgorithmEvent`。
 - 删除 `ProcessRegionEventCommon` 中的类型判断。
 - 修复隐藏基类 `Dispose()` 的问题。
-- 保持 Enter/In/Leave 三种事件的发布时机。
+- 将 Enter/In/Leave 三种事件统一调整为持久化和外部投递成功后发布 MessagePipe。
 - 保持对象状态清理逻辑。
 
 `Ship.Labels` 重点：
@@ -1264,13 +1262,13 @@ dotnet test Perceptron.slnx --no-build
 
 ## 18. 后台任务关闭策略
 
-建议增加公共配置：
+增加公共配置：
 
 ```text
 EventTaskShutdownTimeoutSeconds
 ```
 
-推荐默认值：`10` 秒。
+该配置允许覆盖，默认值为 `10` 秒。
 
 关闭流程：
 
@@ -1307,9 +1305,9 @@ EventTaskShutdownTimeoutSeconds
 
 应对：
 
-- `EventPublicationRequest` 显式携带发布阶段。
-- 第一轮保持模块现状。
-- 全局统一顺序另开决策。
+- 迁移后的模块统一在持久化和外部投递成功后发布 MessagePipe。
+- 在每个模块迁移前识别依赖旧发布时机的订阅者。
+- 对发布顺序增加回归测试，并在模块迁移说明中标注这一行为变化。
 
 ### 19.3 snapshot 双重释放或泄漏
 
@@ -1363,7 +1361,25 @@ MessagePipe 和 `LLMResultReconciler` 同时启用时，同一结果可能被处
 
 ## 20. 实施完成标准
 
-满足以下全部条件后，本次重构才视为完成：
+### 20.1 当前实施里程碑
+
+当前里程碑仅包含阶段 0 至阶段 3。满足以下条件后，可提交首批同步算法评审：
+
+1. 公共事件调度器和订阅注册器完成。
+2. `AlgorithmBase` 已提供生命周期模板，三个已迁移算法均通过 Core 钩子进入模板流程。
+3. `Algorithm.GenerateDebugAnnotations`、`Algorithm.General.MotionDetection` 和 `Algorithm.General.ObjectDensity` 已迁移。
+4. 三个算法不再手工调用模板对应的 `frame.Retain/Dispose`。
+5. Motion 和 Density 的事件保存使用 `AlgorithmEventDispatcher`。
+6. MessagePipe 在持久化和外部投递成功后发布。
+7. 事件文件名使用 24 小时制、毫秒和序列号格式。
+8. 后台任务关闭等待可配置，默认 10 秒。
+9. 当前里程碑新增测试全部通过。
+10. 全解决方案构建无错误。
+11. 未迁移算法仍可通过旧 override 兼容入口正常编译。
+
+### 20.2 全部迁移完成标准
+
+后续阶段全部实施时，满足以下全部条件后整体重构才视为完成：
 
 1. 所有算法不再手工调用模板对应的 `frame.Retain/Dispose`。
 2. 所有算法使用 `AnalyzeCore()`。
@@ -1382,49 +1398,50 @@ MessagePipe 和 `LLMResultReconciler` 同时启用时，同一结果可能被处
 
 ---
 
-## 21. 实施前需要确认的决策
+## 21. 已确认的实施决策
 
 ### 决策 1：MessagePipe 默认发布时机
 
-推荐：
+已确认：
 
 ```text
 持久化和外部投递成功后发布 MessagePipe
 ```
 
-迁移策略：
-
-第一轮允许模块按原行为配置，第二轮再统一。
+迁移后的模块不再保留持久化前发布分支。尚未迁移的模块在各自迁移阶段切换。
 
 ### 决策 2：后台任务关闭等待
 
-推荐：
+已确认：
 
+- 等待时间可配置。
 - 默认等待 10 秒。
 - 超时只记录，不强制终止线程。
 
 ### 决策 3：事件文件命名
 
-推荐：
+已确认：
 
 - 使用 24 小时制。
 - 增加毫秒和序列号。
-- 保留现有目录层级，除非确认没有外部依赖。
+- 新事件调度器立即采用新格式。
+- 保留现有目录层级和业务前缀。
 
 ### 决策 4：LLM 结果唯一运行路径
 
-推荐：
+已确认：
 
-- 本轮继续使用 MessagePipe。
+- 运行时继续使用 MessagePipe。
 - `ILLMResultHandler` 作为适配接口保留。
 - 不同时启用直接订阅和 Reconciler。
 
 ### 决策 5：迁移范围
 
-推荐：
+已确认：
 
-- 按本文阶段迁移全部算法模块。
-- 每个阶段单独评审，避免一次性大提交。
+- 当前只实施到阶段 3。
+- 当前迁移 `Algorithm.GenerateDebugAnnotations`、`Algorithm.General.MotionDetection` 和 `Algorithm.General.ObjectDensity`。
+- 首批同步算法完成并评审后，再决定是否启动阶段 4 及后续迁移。
 
 ---
 
@@ -1435,6 +1452,7 @@ MessagePipe 和 `LLMResultReconciler` 同时启用时，同一结果可能被处
   -> 事件调度器和订阅注册器
   -> AlgorithmBase 生命周期模板
   -> 低风险同步算法
+  -> 首批评审检查点
   -> 普通事件算法
   -> RegionAccess / Ship.Labels
   -> LlmAlgorithmBase
@@ -1444,4 +1462,4 @@ MessagePipe 和 `LLMResultReconciler` 同时启用时，同一结果可能被处
   -> 全量回归与文档更新
 ```
 
-该顺序优先验证基础模板，再逐步处理状态机和资源所有权复杂的模块，可以将每次变更的影响控制在可审查范围内。
+当前实施在“首批评审检查点”结束。后续顺序保留为下一阶段路线，待首批同步算法评审通过后启动。
