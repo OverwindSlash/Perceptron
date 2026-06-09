@@ -24,6 +24,7 @@ public abstract class AlgorithmBase : IAlgorithmModule, IEventSubscriber<LLMInfe
     protected const string LLMAnalysisPropertyName = "LLMAnalysis";
     protected const string LLMAnalysisType = "LLMAnalysisType";
     protected const string LLMAnalysisPromptPropertyName = "LLMAnalysisPrompt";
+    protected const string LLMAnalysisImageJpegPropertyName = "LLMAnalysisImageJpeg";
     protected const string LLMRequestIdPropertyName = "LLMRequestId";
     protected const string LLMRequesterAlgorithmNamePropertyName = "LLMRequesterAlgorithmName";
     protected const string LLMCandidateEventIdPropertyName = "LLMCandidateEventId";

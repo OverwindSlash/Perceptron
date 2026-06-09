@@ -17,6 +17,13 @@ public static class LLMEvidenceBuilder
 
         try
         {
+            var analysisImageJpeg = frame.GetProperty<byte[]>(LLMPropertyNames.AnalysisImageJpeg);
+            if (analysisImageJpeg is { Length: > 0 })
+            {
+                imageBytes = analysisImageJpeg;
+                return true;
+            }
+
             frame.ThrowIfDisposed();
             if (frame.Scene.Empty())
             {

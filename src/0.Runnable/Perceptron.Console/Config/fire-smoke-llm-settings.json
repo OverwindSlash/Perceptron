@@ -184,7 +184,7 @@
         "ProximityThresholdRatio": 1.5,
         "ProximityReferenceObject": "fire",
         "ProximityReferenceDimension": "width", // "width" | "height"
-        "ObjTextShowTrackingId": false,jmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmk
+        "ObjTextShowTrackingId": false,
         "EventName": "火焰与烟雾",
         "PerformLLMAnalysis": true,
         "LLMPromptFile": "fire-smoke-prompt.md"

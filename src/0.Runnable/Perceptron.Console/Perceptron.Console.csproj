@@ -40,6 +40,7 @@
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrenceByLLM\Algorithm.General.ObjectOccurrenceByLLM.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrence\Algorithm.General.ObjectOccurrence.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.RegionAccess\Algorithm.General.RegionAccess.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.SequenceToImage\Algorithm.General.SequenceToImage.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.Ship.LabelsByLLM\Algorithm.Ship.LabelsByLLM.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.Ship.Labels\Algorithm.Ship.Labels.csproj" />
@@ -68,6 +69,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Config\shiplabels-demo-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Config\fight-llm-settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Config\suzhou-shiplabels-llm-settings.json">

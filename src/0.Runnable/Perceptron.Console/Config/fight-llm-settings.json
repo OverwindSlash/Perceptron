@@ -16,8 +16,8 @@
       "AssemblyFile": "MediaLoader.OpenCV.dll",
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
-        "SourceId": "Suzhou-Cam-001",
-        "VideoUri": "D:\\Video\\Ship\\test - Trim.mp4",
+        "SourceId": "Fight-Cam-001",
+        "VideoUri": "F:\\DataSet\\fight_fall\\fight\\negative\\14.264.mp4",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -48,8 +48,8 @@
       "AssemblyFile": "RegionManager.DefinitionBased.dll",
       "FullQualifiedClassName": "RegionManager.DefinitionBased.RegionManager",
       "Preferences": {
-        "SourceId": "Suzhou-Cam-001",
-        "RegionDefinitionFile": "RegionDefinitions/suzhou-region.json"
+        "SourceId": "Fight-Cam-001",
+        "RegionDefinitionFile": "RegionDefinitions/default-region.json"
       }
     }
     //{
@@ -89,7 +89,7 @@
       "DeviceId": 0,
       "ClassNum": 80,
       "ConfThresh": 0.2,
-      "TargetTypes": "person,boat",
+      "TargetTypes": "person",
       "DetectionStride": 2,
       "FilterSmallObject": true,
       "MinBboxWidth": 100,
@@ -222,19 +222,19 @@
     //  }
     //},
     {
-      "AssemblyFile": "Algorithm.Ship.LabelsByLLM.dll",
-      "FullQualifiedClassName": "Algorithm.Ship.LabelsByLLM.Executor",
+      "AssemblyFile": "Algorithm.General.SequenceToImage.dll",
+      "FullQualifiedClassName": "Algorithm.General.SequenceToImage.Executor",
       "Preferences": {
-        "Stride": 10,
-        "GenerateObjText": false,
-        "WillGenerateObjLabelText": true,
-        "MinImageAreaOfLabelEvent": 60000,
-        "ObjTextColor": "#FFFF33",
-        "ObjTextFontSize": 30,
-        "EventName": "船舶属性识别",
-        "EventSnapshotDir": "Events/ShipLabels",
+        "SequenceLength": 7,
+        "FrameStride": 20,
+        "Layout": "Horizontal",
+        "TileWidth": 640,
+        "DrawFrameLabels": true,
         "PerformLLMAnalysis": true,
-        "LLMPromptFile": "prompt.md"
+        "LLMPromptFile": "fight-detection-prompt.md",
+        "QueuePolicy": "EventAnchored",
+        "RequestTtlSeconds": 120,
+        "EventName": "Sequence Image Analysis"
       }
     },
     {
