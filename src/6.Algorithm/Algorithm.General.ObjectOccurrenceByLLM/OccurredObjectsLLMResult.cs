@@ -9,7 +9,7 @@ public record OccurredObjectsLLMResult
 public record OccurredObject
 {
     public string type { get; set; }
-    public float confidence { get; set; }
+    public float conf { get; set; }
     public int[] bbox_2d { get; set; }
 }
 
