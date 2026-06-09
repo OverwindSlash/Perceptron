@@ -2,12 +2,16 @@
 using Algorithm.Common.Event;
 using Algorithm.Common.LLM;
 using Algorithm.General.ObjectOccurrenceByLLM.Event;
+using MessagePipe;
+using Microsoft.Extensions.DependencyInjection;
+using OpenCvSharp;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.RegionDefinition;
 using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event;
+using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
@@ -45,11 +49,14 @@ public class Executor : AlgorithmBase, ILLMResultHandler
     private readonly Dictionary<string, ObjectOccurrenceCandidatePayload> _candidatePayloads = new();
     private readonly object _candidateSync = new();
     private string? _activeCandidateEventId;
+    private IPublisher<ObjectOccurrenceLLMEvent> _occurrenceEventPublisher;
 
     private sealed record ObjectOccurrenceCandidatePayload(
         double Duration,
         List<string> TargetObjectNames,
-        string Annotations);
+        string Annotations,
+        long FrameId,
+        Mat? Snapshot);
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences) 
         : base(pipeline, preferences)
@@ -61,6 +68,9 @@ public class Executor : AlgorithmBase, ILLMResultHandler
 
     public override bool Initialize()
     {
+        var provider = Pipeline.Provider;
+        _occurrenceEventPublisher = provider.GetRequiredService<IPublisher<ObjectOccurrenceLLMEvent>>();
+
         OccurrenceCheckRegionName = PreferenceParser.ParseStringValue(Preferences, "OccurrenceCheckRegionName", DefaultOccurrenceCheckRegionName);
 
         var objectNames = PreferenceParser.ParseStringValue(Preferences, "TargetObjectNames", DefaultTargetObjectNames);
@@ -221,6 +231,11 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         var nowUtc = DateTime.UtcNow;
         var deadlineUtc = nowUtc.AddSeconds(CandidateEventTimeoutSeconds);
         var annotations = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
+        Mat? snapshot = null;
+        if (WillSaveEventSnapshot)
+        {
+            snapshot = frame.Scene.Clone();
+        }
 
         var state = new CandidateEventState
         {
@@ -248,7 +263,9 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             _candidatePayloads[candidateEventId] = new ObjectOccurrenceCandidatePayload(
                 duration,
                 TargetObjectNames.ToList(),
-                annotations);
+                annotations,
+                frame.FrameId,
+                snapshot);
             _activeCandidateEventId = candidateEventId;
         }
 
@@ -355,19 +372,7 @@ public class Executor : AlgorithmBase, ILLMResultHandler
 
         Log.Warning("{Message}", eventMessage.Message);
 
-        Task.Run(async () =>
-        {
-            try
-            {
-                await EventRepository.SaveDomainEventAsync(eventMessage);
-                MessagePoster.PostDomainEventMessage(eventMessage);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error publishing object occurrence LLM event. CandidateEventId: {CandidateEventId}",
-                    @event.CandidateEventId);
-            }
-        });
+        PersistOccurrenceEvent(eventMessage, payload);
 
         CleanupCandidate(@event.CandidateEventId!);
     }
@@ -441,17 +446,60 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             LLMJsonResult = timeoutPolicy == LLMTimeoutPolicy.PublishUnknown ? "{\"status\":\"unknown\"}" : string.Empty
         };
 
+        Log.Warning("{Message}", eventMessage.Message);
+
+        PersistOccurrenceEvent(eventMessage, payload);
+    }
+
+    private void PersistOccurrenceEvent(ObjectOccurrenceLLMEvent eventMessage, ObjectOccurrenceCandidatePayload payload)
+    {
+        Mat? snapshot = null;
+        if (payload.Snapshot != null && !payload.Snapshot.IsDisposed)
+        {
+            snapshot = payload.Snapshot.Clone();
+        }
+
+        string annotationJson = eventMessage.Annotations;
+        string now = DateTime.Now.ToString("yyyyMMddhhmmss");
         Task.Run(async () =>
         {
             try
             {
-                await EventRepository.SaveDomainEventAsync(eventMessage);
-                MessagePoster.PostDomainEventMessage(eventMessage);
+                using (snapshot)
+                {
+                    string savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"));
+                    savePath.EnsureDirExistence();
+
+                    if (snapshot != null && !snapshot.IsDisposed)
+                    {
+                        string imagePath = Path.Combine(savePath, $"objectOccurrenceLLM_{now}.jpg");
+                        snapshot.SaveImage(imagePath);
+
+                        string annotationPath = Path.Combine(savePath, $"objectOccurrenceLLM_{now}.json");
+                        await File.WriteAllTextAsync(annotationPath, annotationJson);
+
+                        eventMessage.ImageLocalPath = imagePath;
+                        eventMessage.ImageJsonLocalPath = annotationPath;
+                    }
+
+                    if (WillSaveEventVideoClip)
+                    {
+                        string videoPath = Path.Combine(savePath, $"objectOccurrenceLLM_{now}.mp4");
+                        await SnapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, payload.FrameId);
+
+                        eventMessage.VideoLocalPath = videoPath;
+                    }
+
+                    await EventRepository.SaveDomainEventAsync(eventMessage);
+                    MessagePoster.PostDomainEventMessage(eventMessage);
+
+                    _occurrenceEventPublisher.Publish(eventMessage);
+                }
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error publishing timed out object occurrence event. CandidateEventId: {CandidateEventId}",
-                    candidate.CandidateEventId);
+                Log.Error(ex, "Error processing object occurrence LLM event. CandidateEventId: {CandidateEventId}",
+                    eventMessage.CandidateEventId);
             }
         });
     }
@@ -460,7 +508,11 @@ public class Executor : AlgorithmBase, ILLMResultHandler
     {
         lock (_candidateSync)
         {
-            _candidatePayloads.Remove(candidateEventId);
+            if (_candidatePayloads.Remove(candidateEventId, out var payload))
+            {
+                payload.Snapshot?.Dispose();
+            }
+
             if (_activeCandidateEventId == candidateEventId)
             {
                 _activeCandidateEventId = null;

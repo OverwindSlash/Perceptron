@@ -1,12 +1,19 @@
 ﻿using Algorithm.Common;
+using Algorithm.General.ObjectOccurrence.Event;
+using MessagePipe;
+using Microsoft.Extensions.DependencyInjection;
+using OpenCvSharp;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.RegionDefinition;
 using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using Perceptron.Domain.Entity.VideoStream;
+using Perceptron.Domain.Event;
+using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
+using System.Text.Json;
 
 namespace Algorithm.General.ObjectOccurrence;
 
@@ -33,17 +40,21 @@ public class Executor : AlgorithmBase
     public int MinDurationSec { get; private set; }
 
     private DateTime? _firstOccurrenceTime;
+    private IPublisher<ObjectOccurrenceEvent> _occurrenceEventPublisher;
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
     {
-        AlgorithmName = "Object Occurrence;";
+        AlgorithmName = "Object Occurrence";
         AlgorithmVersion = "1.0.0";
         AlgorithmDescription = "Detects object occurrence in video frames.";
     }
 
     public override bool Initialize()
     {
+        var provider = Pipeline.Provider;
+        _occurrenceEventPublisher = provider.GetRequiredService<IPublisher<ObjectOccurrenceEvent>>();
+
         OccurrenceCheckRegionName = PreferenceParser.ParseStringValue(Preferences, "OccurrenceCheckRegionName", DefaultOccurrenceCheckRegionName);
         
         var objectNames = PreferenceParser.ParseStringValue(Preferences, "TargetObjectNames", DefaultTargetObjectNames);
@@ -191,10 +202,80 @@ public class Executor : AlgorithmBase
 
         if (CheckLocalEventInterval()) return;
 
-        // TODO: 触发事件处理逻辑，例如发送通知或记录日志
+        var occurredObjectNames = frame.DetectedObjects
+            .Where(o => o.HasProperty("Occurrence") && o.GetProperty<bool>("Occurrence"))
+            .Select(o => o.Label.ToLower())
+            .Distinct()
+            .ToList();
 
-        char joiner = OccurrenceCondition == "or" ? '|' : '&';
-        Log.Warning($"Objects: {string.Join(joiner, TargetObjectNames)} have occurred in region:{OccurrenceCheckRegionName} for {duration:##} seconds.");
+        if (occurredObjectNames.Count == 0)
+        {
+            occurredObjectNames = TargetObjectNames.ToList();
+        }
+
+        Log.Warning("Objects: {ObjectNames} have occurred in region:{RegionName} for {Duration} seconds.",
+            string.Join(", ", occurredObjectNames), OccurrenceCheckRegionName, (int)Math.Round(duration));
+
+        var occurrenceEvent = new ObjectOccurrenceEvent(
+            sourceId: frame.SourceId,
+            eventType: ObjectOccurrenceEvent.EventType,
+            eventName: EventName,
+            algorithmName: AlgorithmName,
+            regionName: OccurrenceCheckRegionName,
+            occurredObjectNames: occurredObjectNames,
+            durationSec: (int)Math.Round(duration));
+
+        var annotationJson = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
+        occurrenceEvent.Annotations = annotationJson;
+
+        Mat? snapshot = null;
+        if (WillSaveEventSnapshot)
+        {
+            snapshot = frame.Scene.Clone();
+        }
+
+        var frameId = frame.FrameId;
+        string now = DateTime.Now.ToString("yyyyMMddhhmmss");
+        Task.Run(async () =>
+        {
+            try
+            {
+                using (snapshot)
+                {
+                    string savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"));
+                    savePath.EnsureDirExistence();
+
+                    if (snapshot != null && !snapshot.IsDisposed)
+                    {
+                        string imagePath = Path.Combine(savePath, $"objectOccurrence_{now}.jpg");
+                        snapshot.SaveImage(imagePath);
+
+                        string annotationPath = Path.Combine(savePath, $"objectOccurrence_{now}.json");
+                        await File.WriteAllTextAsync(annotationPath, annotationJson);
+
+                        occurrenceEvent.ImageLocalPath = imagePath;
+                        occurrenceEvent.ImageJsonLocalPath = annotationPath;
+                    }
+
+                    if (WillSaveEventVideoClip)
+                    {
+                        string videoPath = Path.Combine(savePath, $"objectOccurrence_{now}.mp4");
+                        await SnapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
+
+                        occurrenceEvent.VideoLocalPath = videoPath;
+                    }
+
+                    await EventRepository.SaveDomainEventAsync(occurrenceEvent);
+                    MessagePoster.PostDomainEventMessage(occurrenceEvent);
+
+                    _occurrenceEventPublisher.Publish(occurrenceEvent);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error processing object occurrence event {EventName}", EventName);
+            }
+        });
     }
 
     protected override VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)

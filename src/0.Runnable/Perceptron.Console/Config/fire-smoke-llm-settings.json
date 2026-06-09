@@ -185,9 +185,10 @@
         "ProximityReferenceObject": "fire",
         "ProximityReferenceDimension": "width", // "width" | "height"
         "ObjTextShowTrackingId": false,
-        "EventName": "火焰与烟雾",
         "PerformLLMAnalysis": true,
-        "LLMPromptFile": "fire-smoke-prompt.md"
+        "LLMPromptFile": "fire-smoke-prompt.md",
+        "EventName": "火焰与烟雾",
+        "EventSnapshotDir": "Events/FireSmoke"
       }
     },
     {
@@ -200,7 +201,7 @@
         //"ServerUrl": "http://192.168.1.111:1234",
         //"ApiKey": "lmstudio",
         //"ModelName": "unsloth/qwen3-vl-30b-a3b-instruct",
-        "SystemPrompt": ""
+        "SystemPrompt": ""        
       }
     }
   ]

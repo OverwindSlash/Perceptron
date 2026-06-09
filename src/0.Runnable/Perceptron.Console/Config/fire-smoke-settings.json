@@ -17,7 +17,7 @@
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
         "SourceId": "Fire-Cam-001",
-        "VideoUri": "D:\\Video\\Fire-Smoke\\anlu.avi",
+        "VideoUri": "D:\\Video\\Fire-Smoke\\2_Trim.mp4",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -135,7 +135,8 @@
     "FullQualifiedClassName": "MessagePoster.RestfulJson.MessagePoster",
     "Preferences": {
       "WillPostMessage": true,
-      "DestinationUrl": "http://192.168.1.232:8080/api/marinemind/event/pipeline_warn",
+      "DestinationUrl": "http://127.0.0.1:5000/pipeline_event",
+      //"DestinationUrl": "http://192.168.1.232:8080/api/marinemind/event/pipeline_warn",
       "CheckDuplicateEvent": true,
       "EventSuppressionIntervals": "火焰与烟雾:30"
     }
@@ -144,10 +145,14 @@
     "AssemblyFile": "Repository.MinioMySQL.dll",
     "FullQualifiedClassName": "Repository.MinioMySQL.EventRepository",
     "Preferences": {
-      "RdbConnectionString": "server=192.168.1.232;port=3308;uid=root;pwd=root;database=marinemind",
-      "StorageUrl": "192.168.1.220:9002",
-      "StorageUsername": "minioadmin",
-      "StoragePassword": "minioadmin",
+      //"RdbConnectionString": "server=192.168.1.232;port=3308;uid=root;pwd=root;database=marinemind",
+      //"StorageUrl": "192.168.1.220:9002",
+      //"StorageUsername": "minioadmin",
+      //"StoragePassword": "minioadmin",
+      "RdbConnectionString": "server=127.0.0.1;port=3306;uid=root;pwd=cs202304;database=perceptron",
+      "StorageUrl": "127.0.0.1:9000",
+      "StorageUsername": "admin",
+      "StoragePassword": "cs202304",
       "WillStoreSnapshot": true,
       "WillStoreVideoClip": false
     }
@@ -185,6 +190,7 @@
         "ProximityReferenceObject": "fire",
         "ProximityReferenceDimension": "width", // "width" | "height"
         "ObjTextShowTrackingId": false,
+        "EventSnapshotDir": "Events/FireSmoke",
         "EventName": "火焰与烟雾"
       }
     }
