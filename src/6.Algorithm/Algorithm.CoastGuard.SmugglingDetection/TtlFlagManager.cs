@@ -35,4 +35,9 @@ internal sealed class TtlFlagManager<TKey> where TKey : notnull
         isActive = true;
         return true;
     }
+
+    public void Clear()
+    {
+        _expiresAtUtc.Clear();
+    }
 }

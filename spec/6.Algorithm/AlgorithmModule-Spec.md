@@ -1,5 +1,9 @@
 # 算法模块模板方法与视觉 LLM 异步确认架构设计
 
+## 实施状态
+
+截至 2026-06-09，本规范定义的阶段 0 至阶段 8 已完成。当前代码以 `AlgorithmBase` 固化公共生命周期，以 `LlmAlgorithmBase` 隔离 LLM 请求方职责，并已删除过渡期兼容入口。迁移结果由 `Algorithm.Common.Tests` 中的生命周期、事件调度、订阅释放、LLM 路由、重复结果、错误结果和 snapshot 所有权测试覆盖。
+
 ## 1. 背景
 
 当前项目是一个 AI 视频分析流水线，主要使用传统视觉模型，尤其是基于 YOLO 的目标检测模型，对视频帧中的目标对象进行识别，然后再执行后续业务分析算法。
@@ -431,15 +435,13 @@ protected virtual void DisposeCore()
 
 最终目标中，公共 `Initialize()`、`Analyze()` 和 `Dispose()` 不允许派生类重写，派生类只能使用受保护的变化点。
 
-这是最终目标形态。由于当前只先迁移三个同步算法，实施期间需要一个兼容过渡期：
+当前代码已经达到最终目标形态：
 
-- `Initialize()`、`Analyze()` 和 `Dispose()` 暂时保留 `virtual`，供未迁移算法继续使用旧 override。
-- `InitializeCore()`、`AnalyzeCore()` 和 `DisposeCore()` 在过渡期提供默认实现。
-- 已迁移算法不再 override 公共方法，只 override Core 钩子，因此实际执行模板流程。
-- 未迁移算法继续按旧方式运行，但必须列入后续迁移清单。
-- 全部算法迁移完成后，公共方法改为不可重写，Core 钩子再改为抽象或按目标约束收紧。
-
-过渡期只解决分批迁移的编译兼容，不代表允许新增算法继续使用旧模式。新算法必须直接使用模板钩子。
+- `Initialize()`、`Analyze()` 和 `Dispose()` 不允许派生类重写。
+- 派生算法只通过 `InitializeCore()`、`AnalyzeCore()` 和 `DisposeCore()` 扩展业务行为。
+- `AlgorithmBase` 负责公共生命周期，`LlmAlgorithmBase` 负责 LLM 请求方协议。
+- 阶段 8 已删除分批迁移期间使用的旧 override 兼容入口。
+- 新增算法必须直接使用模板钩子。
 
 单帧调用时序如下：
 
@@ -1398,7 +1400,7 @@ public sealed class FrameEvidence
 - 新增 `IAnnotatedAlgorithmEvent`。
 - 新增 `EventPublicationRequest<TEvent>`。
 - 增加事件后台任务、文件冲突和 snapshot 所有权测试。
-- 暂时保留旧 API，允许分批迁移。
+- 分批迁移期间曾保留旧 API，阶段 8 已删除。
 
 ### 阶段 2：重构 `AlgorithmBase` 生命周期模板
 
@@ -1407,10 +1409,10 @@ public sealed class FrameEvidence
 - 统一 `Frame.Retain/Dispose`。
 - 将 LLM 配置和结果订阅移出 `AlgorithmBase`。
 - 将现有限频方法包装为语义清晰的 `ShouldSuppressLocalEvent()`。
-- 当前里程碑保留旧 override 兼容入口，只有已迁移算法进入模板流程。
-- 全部算法迁移后再将公共方法改为不可重写，并删除兼容入口。
+- 公共生命周期方法现已不可重写，全部算法均进入模板流程。
+- 阶段 8 已删除旧 override 兼容入口。
 
-该阶段必须与第一批派生类迁移一起提交，并通过默认 Core 钩子保持未迁移算法可编译。
+该阶段已与第一批派生类迁移共同完成；默认 Core 钩子曾用于保证过渡期编译兼容。
 
 ### 阶段 3：迁移低风险同步算法
 
@@ -1422,7 +1424,7 @@ public sealed class FrameEvidence
 
 重点验证生命周期模板、实时标注和公共事件调度器。
 
-本轮已确认的实施范围截止到阶段 3。阶段 3 完成并通过评审后，再决定是否启动阶段 4 及后续迁移。
+阶段 0 至阶段 8 均已完成，后续修改按本规范的最终目标形态执行。
 
 ### 阶段 4：迁移普通业务事件算法
 
@@ -1461,6 +1463,8 @@ public sealed class FrameEvidence
 - 确保模块不订阅自己的结果事件。
 
 ### 阶段 8：删除兼容层并更新规范
+
+实施状态：已完成。
 
 - 删除旧 `SetSubscriber()`。
 - 删除 `AlgorithmBase.ProcessEvent(LLMInferenceResultEvent)`。
@@ -1648,7 +1652,7 @@ dotnet test Perceptron.slnx --no-build
 ### 15.1 已选设计
 
 - 使用 `AlgorithmBase + LlmAlgorithmBase` 两级基类。
-- 分批迁移期间保留旧 override 兼容入口；全部算法迁移后封闭公共生命周期方法。
+- 公共生命周期方法已封闭，分批迁移期间使用的旧 override 兼容入口已删除。
 - 事件 IO 和后台任务交给 `AlgorithmEventDispatcher`，不直接堆入基类。
 - MessagePipe 订阅交给 `AlgorithmSubscriptionRegistry`。
 - 同步算法不依赖 prompt 和 LLM 结果订阅。
@@ -1662,7 +1666,7 @@ dotnet test Perceptron.slnx --no-build
   - `Algorithm.GenerateDebugAnnotations`
   - `Algorithm.General.MotionDetection`
   - `Algorithm.General.ObjectDensity`
-- 首批同步算法完成并评审后，再启动其他同步算法和 LLM 算法迁移。
+- 同步算法、LLM 请求方算法和 LLM 提供者均已完成迁移。
 
 ## 16. 最终设计原则
 

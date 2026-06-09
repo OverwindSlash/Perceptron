@@ -1,9 +1,11 @@
 ﻿using Perceptron.Domain.Event;
 using System.Text.Json;
 
+using Algorithm.Common;
+
 namespace Algorithm.General.ObjectDensity.Event;
 
-public class DensityExceedThresholdEvent : DomainEvent
+public class DensityExceedThresholdEvent : DomainEvent, IAnnotatedAlgorithmEvent
 {
     public const string EventType = "Object Density Exceed Event";
 
@@ -12,7 +14,7 @@ public class DensityExceedThresholdEvent : DomainEvent
     public int ObjectCount { get; }
     public int MaxCountThresh { get; }
 
-    public string Annotations { get; set; }
+    public string Annotations { get; set; } = string.Empty;
 
     public DensityExceedThresholdEvent(string sourceId, string eventName, string algorithmName, 
         string regionName, string objectToBeCount, int objectCount, int maxCountThresh)

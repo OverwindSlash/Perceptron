@@ -1,8 +1,117 @@
-﻿# 算法模块实现流程
-1. 算法核心执行类为 Executor，并继承自 AlgorithmBase
-2. 在 Executor 的构造函数中给 AlgorithmName，AlgorithmVersion，AlgorithmDescription 赋值
-3. override Initialize() 函数，在此函数中可以获得用于 DI 的 provider，以及使用 PreferenceParser 解析算法参数
-4. 创建 Event 目录，并在其中创建事件类，事件类需要继承自 DomainEvent。并在事件类中定义 EventType，使用 EventType 调用基类构造函数。
-5. 在事件类的构造函数中，给 Message 赋值
-6. 在 Executor 中创建事件发布器：private IPublisher<XXXEvent> _xxxEventPublisher;
-7. Analyze() 函数中，第一行使用 frame.Retain() 保留帧，最后一行使用 frame.Dispose() 释放帧
+# 算法模块实现指南
+
+## 同步算法模板
+
+```csharp
+public sealed class Executor : AlgorithmBase
+{
+    public Executor(
+        AnalysisPipeline pipeline,
+        Dictionary<string, string> preferences)
+        : base(pipeline, preferences)
+    {
+        AlgorithmName = "Example";
+        AlgorithmVersion = "1.0.0";
+        AlgorithmDescription = "Example algorithm.";
+    }
+
+    protected override void InitializeCore()
+    {
+        // 解析业务配置并从 Services 获取业务依赖。
+    }
+
+    protected override AnalysisResult AnalyzeCore(Frame frame)
+    {
+        // 不要手动 Retain/Dispose frame。
+        return new AnalysisResult(true);
+    }
+
+    protected override void DisposeCore()
+    {
+        // 释放模型、缓存和业务资源。
+    }
+}
+```
+
+## LLM 请求方模板
+
+```csharp
+public sealed class Executor : LlmAlgorithmBase
+{
+    public Executor(
+        AnalysisPipeline pipeline,
+        Dictionary<string, string> preferences)
+        : base(pipeline, preferences)
+    {
+        AlgorithmName = "LLM Example";
+        AlgorithmVersion = "1.0.0";
+        AlgorithmDescription = "Example LLM requester.";
+    }
+
+    protected override AnalysisResult AnalyzeCore(Frame frame)
+    {
+        MarkFrameForLlm(frame, new LlmRequestOptions
+        {
+            Scope = LLMAnalysisScope.Frame,
+            QueuePolicy = LLMQueuePolicy.EventAnchored
+        });
+        return new AnalysisResult(true);
+    }
+
+    protected override void HandleLlmResult(
+        LLMInferenceResultEvent result)
+    {
+        // 当前结果已通过 RequesterAlgorithmName 过滤。
+        // 命中处理器负责 snapshot 的释放或所有权转移。
+    }
+}
+```
+
+## 订阅
+
+在 `InitializeCore()` 中使用基类注册器：
+
+```csharp
+Subscribe(
+    Services.GetRequiredService<ISubscriber<ObjectExpiredEvent>>(),
+    HandleObjectExpired);
+```
+
+不要暴露独立 `SetSubscriber()`，也不要手动保存订阅 `IDisposable`。
+
+## 事件
+
+事件类实现 `IAnnotatedAlgorithmEvent`：
+
+```csharp
+public sealed class ExampleEvent
+    : DomainEvent, IAnnotatedAlgorithmEvent
+{
+    public string Annotations { get; set; } = string.Empty;
+}
+```
+
+提交事件：
+
+```csharp
+TryQueueEvent(new EventPublicationRequest<ExampleEvent>
+{
+    Event = eventMessage,
+    AnnotationJson = annotationJson,
+    CloneSnapshot = () => frame.Scene.Clone(),
+    FrameId = frame.FrameId,
+    FilePrefix = "example",
+    SaveSnapshot = WillSaveEventSnapshot,
+    SaveVideoClip = WillSaveEventVideoClip
+});
+```
+
+## 约束
+
+- 不覆盖公共 `Initialize/Analyze/Dispose`。
+- 不在派生算法中手动管理帧引用。
+- 不使用未被公共调度器跟踪的事件保存 `Task.Run`。
+- 同步算法不读取 prompt，也不订阅 LLM 结果。
+- LLM 请求方必须使用 `MarkFrameForLlm` 或 `MarkObjectForLlm`。
+- 非目标 LLM 结果的 snapshot 保持原所有者管理。
+- 缓存 `Mat` 时必须明确所有权，并在替换、过期和 `DisposeCore()` 中释放。

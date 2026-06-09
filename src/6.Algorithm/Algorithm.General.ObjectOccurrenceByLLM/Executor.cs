@@ -1,4 +1,4 @@
-﻿using Algorithm.Common;
+using Algorithm.Common;
 using Algorithm.Common.Event;
 using Algorithm.Common.LLM;
 using Algorithm.General.ObjectOccurrenceByLLM.Event;
@@ -11,7 +11,6 @@ using Perceptron.Domain.Entity.RegionDefinition;
 using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event;
-using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
@@ -19,7 +18,7 @@ using System.Text.Json;
 
 namespace Algorithm.General.ObjectOccurrenceByLLM;
 
-public class Executor : AlgorithmBase, ILLMResultHandler
+public class Executor : LlmAlgorithmBase
 {
     public const string DefaultOccurrenceCheckRegionName = "Occurrence Region";
     public const string DefaultTargetObjectNames = "person";
@@ -28,31 +27,30 @@ public class Executor : AlgorithmBase, ILLMResultHandler
     public const float DefaultProximityThresholdRatio = 1.5f;
     public const string DefaultProximityReferenceObject = "person";
     public const string DefaultProximityReferenceDimension = "width"; // width or height
-    public const int DefaultMinDurationSec = 3;
+    public const int DefaultMinDurationFrames = 3;
 
-    public string OccurrenceCheckRegionName { get; private set; }
-    public HashSet<string> TargetObjectNames { get; private set; }
-    public string OccurrenceCondition { get; private set; }
+    public string OccurrenceCheckRegionName { get; private set; } = string.Empty;
+    public HashSet<string> TargetObjectNames { get; private set; } = [];
+    public string OccurrenceCondition { get; private set; } = string.Empty;
     public bool EnableProximityCheck { get; private set; }
-    public string ProximityObject1Label { get; private set; }
-    public string ProximityObject2Label { get; private set; }
+    public string ProximityObject1Label { get; private set; } = string.Empty;
+    public string ProximityObject2Label { get; private set; } = string.Empty;
     public float ProximityThresholdRatio { get; private set; }
-    public string ProximityReferenceObject { get; private set; }
-    public string ProximityReferenceDimension { get; private set; }
-    public int MinDurationSec { get; private set; }
+    public string ProximityReferenceObject { get; private set; } = string.Empty;
+    public string ProximityReferenceDimension { get; private set; } = string.Empty;
+    public int MinDurationFrames { get; private set; }
     public int CandidateEventTimeoutSeconds { get; private set; }
     public LLMTimeoutPolicy OnTimeout { get; private set; }
-    public string RequesterAlgorithmName => AlgorithmName;
 
-    private DateTime? _firstOccurrenceTime;
+    private int _continuousOccurrenceFrames;
     private readonly CandidateEventStore _candidateEvents = new();
     private readonly Dictionary<string, ObjectOccurrenceCandidatePayload> _candidatePayloads = new();
     private readonly object _candidateSync = new();
     private string? _activeCandidateEventId;
-    private IPublisher<ObjectOccurrenceLLMEvent> _occurrenceEventPublisher;
+    private IPublisher<ObjectOccurrenceLLMEvent> _occurrenceEventPublisher = null!;
 
     private sealed record ObjectOccurrenceCandidatePayload(
-        double Duration,
+        int DurationFrames,
         List<string> TargetObjectNames,
         string Annotations,
         long FrameId,
@@ -66,10 +64,10 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         AlgorithmDescription = "Detects object occurrence in video frames using LLM inference.";
     }
 
-    public override bool Initialize()
+    protected override void InitializeCore()
     {
-        var provider = Pipeline.Provider;
-        _occurrenceEventPublisher = provider.GetRequiredService<IPublisher<ObjectOccurrenceLLMEvent>>();
+        _occurrenceEventPublisher =
+            Services.GetRequiredService<IPublisher<ObjectOccurrenceLLMEvent>>();
 
         OccurrenceCheckRegionName = PreferenceParser.ParseStringValue(Preferences, "OccurrenceCheckRegionName", DefaultOccurrenceCheckRegionName);
 
@@ -88,18 +86,14 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             ProximityReferenceDimension = PreferenceParser.ParseStringValue(Preferences, "ProximityReferenceDimension", DefaultProximityReferenceDimension).ToLower();
         }
 
-        MinDurationSec = PreferenceParser.ParseIntValue(Preferences, "MinDurationSec", DefaultMinDurationSec);
+        MinDurationFrames = PreferenceParser.ParseIntValue(Preferences, "MinDurationFrames", DefaultMinDurationFrames);
         CandidateEventTimeoutSeconds = PreferenceParser.ParseIntValue(Preferences, "CandidateEventTimeoutSeconds", 12);
         OnTimeout = ParseTimeoutPolicy(PreferenceParser.ParseStringValue(Preferences, "OnTimeout", LLMTimeoutPolicy.Drop.ToString()));
-
-        return base.Initialize();
     }
 
-    public override AnalysisResult Analyze(Frame frame)
+    protected override AnalysisResult AnalyzeCore(Frame frame)
     {
-        frame.Retain();
-
-        var regionManager = Pipeline.RegionManagers.First(rm => rm.SourceId == frame.SourceId);
+        var regionManager = RegionManagers.First(rm => rm.SourceId == frame.SourceId);
         var definition = regionManager.RegionDefinition;
 
         var interestArea = definition.InterestAreas.FirstOrDefault(ia => ia.Name == OccurrenceCheckRegionName);
@@ -186,25 +180,17 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         // 根据持续时间判断是否最终认定为对象出现
         if (isOccurrence)
         {
-            frame.SetProperty("ObjectOccurrence", true);
+            _continuousOccurrenceFrames++;
 
-            if (MinDurationSec > 0)
+            if (MinDurationFrames <= 0 || _continuousOccurrenceFrames >= MinDurationFrames)
             {
-                if (_firstOccurrenceTime == null)
-                {
-                    _firstOccurrenceTime = frame.UtcTimeStamp;
-                }
-
-                var duration = (frame.UtcTimeStamp - _firstOccurrenceTime.Value).TotalSeconds;
-                if (duration >= MinDurationSec)
-                {
-                    ProcessObjectOccurrenceEvent(frame, duration);
-                }
+                frame.SetProperty("ObjectOccurrence", true);
+                ProcessObjectOccurrenceEvent(frame, _continuousOccurrenceFrames);
             }
         }
         else
         {
-            _firstOccurrenceTime = null;
+            _continuousOccurrenceFrames = 0;
             _activeCandidateEventId = null;
         }
 
@@ -213,13 +199,12 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         // 绘制区域与分析结果标注
         GenerateRegionAnnotation(frame, definition);
 
-        frame.Dispose();
         return new AnalysisResult(true);
     }
 
-    private void ProcessObjectOccurrenceEvent(Frame frame, double duration)
+    private void ProcessObjectOccurrenceEvent(Frame frame, int durationFrames)
     {
-        if (!WillPublishEventMessage) return;
+        if (!WillPublishEventMessage || !WillPerformLlmAnalysis) return;
 
         if (!string.IsNullOrWhiteSpace(_activeCandidateEventId))
         {
@@ -250,7 +235,7 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             PendingRequestId = requestId,
             CreatedAtUtc = nowUtc,
             DeadlineUtc = deadlineUtc,
-            TraditionalPayload = duration
+            TraditionalPayload = durationFrames
         };
 
         lock (_candidateSync)
@@ -261,7 +246,7 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             }
 
             _candidatePayloads[candidateEventId] = new ObjectOccurrenceCandidatePayload(
-                duration,
+                durationFrames,
                 TargetObjectNames.ToList(),
                 annotations,
                 frame.FrameId,
@@ -270,51 +255,56 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         }
 
         // 调用 LLM 对结果进行二次确认，使用 EventAnchored 保护触发证据不被后续帧替换。
-        frame.SetProperty(LLMAnalysisPropertyName, true);
-        frame.SetProperty(LLMAnalysisType, "frame");
-        frame.SetProperty(LLMAnalysisPromptPropertyName, _userPrompt);
-        frame.SetProperty(LLMRequestIdPropertyName, requestId);
-        frame.SetProperty(LLMRequesterAlgorithmNamePropertyName, AlgorithmName);
-        frame.SetProperty(LLMCandidateEventIdPropertyName, candidateEventId);
-        frame.SetProperty(LLMQueuePolicyPropertyName, LLMQueuePolicy.EventAnchored.ToString());
-        frame.SetProperty(LLMExpireAtUtcPropertyName, deadlineUtc);
+        MarkFrameForLlm(
+            frame,
+            new LlmRequestOptions
+            {
+                Scope = LLMAnalysisScope.Frame,
+                QueuePolicy = LLMQueuePolicy.EventAnchored,
+                RequestId = requestId,
+                CandidateEventId = candidateEventId,
+                ExpireAtUtc = deadlineUtc
+            });
     }
 
-    public override void ProcessEvent(LLMInferenceResultEvent @event)
+    protected override bool CanHandleLlmResult(LLMInferenceResultEvent result)
     {
-        if (@event.RequesterAlgorithmName != AlgorithmName || string.IsNullOrWhiteSpace(@event.CandidateEventId))
-        {
-            return;
-        }
+        return base.CanHandleLlmResult(result) &&
+               !string.IsNullOrWhiteSpace(result.CandidateEventId) &&
+               result.Scope == LLMAnalysisScope.Frame;
+    }
 
-        if (@event.IsExpiredResult)
+    protected override void HandleLlmResult(LLMInferenceResultEvent result)
+    {
+        if (result.IsExpiredResult)
         {
             Log.Warning("Ignore late LLM result for candidate event. CandidateEventId: {CandidateEventId}, RequestId: {RequestId}",
-                @event.CandidateEventId, @event.RequestId);
+                result.CandidateEventId, result.RequestId);
             return;
         }
 
-        var result = DeserializeResult(@event);
-        if (result == null)
+        var occurrenceResult = DeserializeResult(result);
+        if (occurrenceResult == null)
         {
-            RejectCandidate(@event);
+            RejectCandidate(result);
             return;
         }
 
-        if (result != null && result.isObjOccurred)
+        if (occurrenceResult.isObjOccurred)
         {
-            PublishConfirmedCandidate(@event);
+            PublishConfirmedCandidate(result);
             return;
         }
 
-        RejectCandidate(@event);
+        RejectCandidate(result);
     }
 
     private OccurredObjectsLLMResult? DeserializeResult(LLMInferenceResultEvent @event)
     {
         try
         {
-            return JsonSerializer.Deserialize<OccurredObjectsLLMResult>(@event.JsonResult);
+            var json = LLMJsonSanitizer.StripMarkdownCodeFence(@event.JsonResult);
+            return JsonSerializer.Deserialize<OccurredObjectsLLMResult>(json);
         }
         catch (JsonException ex)
         {
@@ -364,7 +354,7 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             @event.CandidateEventId!,
             OccurrenceCheckRegionName,
             payload.TargetObjectNames,
-            (int)Math.Round(payload.Duration))
+            payload.DurationFrames)
         {
             Annotations = payload.Annotations,
             LLMJsonResult = @event.JsonResult
@@ -372,7 +362,7 @@ public class Executor : AlgorithmBase, ILLMResultHandler
 
         Log.Warning("{Message}", eventMessage.Message);
 
-        PersistOccurrenceEvent(eventMessage, payload);
+        QueueOccurrenceEvent(eventMessage, payload);
 
         CleanupCandidate(@event.CandidateEventId!);
     }
@@ -440,7 +430,7 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             candidate.CandidateEventId,
             OccurrenceCheckRegionName,
             payload.TargetObjectNames,
-            (int)Math.Round(payload.Duration))
+            payload.DurationFrames)
         {
             Annotations = payload.Annotations,
             LLMJsonResult = timeoutPolicy == LLMTimeoutPolicy.PublishUnknown ? "{\"status\":\"unknown\"}" : string.Empty
@@ -448,60 +438,44 @@ public class Executor : AlgorithmBase, ILLMResultHandler
 
         Log.Warning("{Message}", eventMessage.Message);
 
-        PersistOccurrenceEvent(eventMessage, payload);
+        QueueOccurrenceEvent(eventMessage, payload);
     }
 
-    private void PersistOccurrenceEvent(ObjectOccurrenceLLMEvent eventMessage, ObjectOccurrenceCandidatePayload payload)
+    private void QueueOccurrenceEvent(
+        ObjectOccurrenceLLMEvent eventMessage,
+        ObjectOccurrenceCandidatePayload payload)
     {
-        Mat? snapshot = null;
-        if (payload.Snapshot != null && !payload.Snapshot.IsDisposed)
+        TryQueueEvent(
+            new EventPublicationRequest<ObjectOccurrenceLLMEvent>
+            {
+                Event = eventMessage,
+                AnnotationJson = payload.Annotations,
+                CloneSnapshot = () =>
+                    payload.Snapshot == null || payload.Snapshot.IsDisposed
+                        ? null
+                        : payload.Snapshot.Clone(),
+                FrameId = payload.FrameId,
+                FilePrefix = "objectOccurrenceLLM",
+                StableArtifactId = eventMessage.CandidateEventId,
+                PublishInProcess = @event =>
+                    _occurrenceEventPublisher.Publish(@event),
+                SaveSnapshot = WillSaveEventSnapshot,
+                SaveVideoClip = WillSaveEventVideoClip
+            });
+    }
+
+    protected override void DisposeCore()
+    {
+        lock (_candidateSync)
         {
-            snapshot = payload.Snapshot.Clone();
+            foreach (var payload in _candidatePayloads.Values)
+            {
+                payload.Snapshot?.Dispose();
+            }
+
+            _candidatePayloads.Clear();
+            _activeCandidateEventId = null;
         }
-
-        string annotationJson = eventMessage.Annotations;
-        string now = DateTime.Now.ToString("yyyyMMddhhmmss");
-        Task.Run(async () =>
-        {
-            try
-            {
-                using (snapshot)
-                {
-                    string savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"));
-                    savePath.EnsureDirExistence();
-
-                    if (snapshot != null && !snapshot.IsDisposed)
-                    {
-                        string imagePath = Path.Combine(savePath, $"objectOccurrenceLLM_{now}.jpg");
-                        snapshot.SaveImage(imagePath);
-
-                        string annotationPath = Path.Combine(savePath, $"objectOccurrenceLLM_{now}.json");
-                        await File.WriteAllTextAsync(annotationPath, annotationJson);
-
-                        eventMessage.ImageLocalPath = imagePath;
-                        eventMessage.ImageJsonLocalPath = annotationPath;
-                    }
-
-                    if (WillSaveEventVideoClip)
-                    {
-                        string videoPath = Path.Combine(savePath, $"objectOccurrenceLLM_{now}.mp4");
-                        await SnapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, payload.FrameId);
-
-                        eventMessage.VideoLocalPath = videoPath;
-                    }
-
-                    await EventRepository.SaveDomainEventAsync(eventMessage);
-                    MessagePoster.PostDomainEventMessage(eventMessage);
-
-                    _occurrenceEventPublisher.Publish(eventMessage);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error processing object occurrence LLM event. CandidateEventId: {CandidateEventId}",
-                    eventMessage.CandidateEventId);
-            }
-        });
     }
 
     private void CleanupCandidate(string candidateEventId)
@@ -542,18 +516,21 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             @event.CompletedAtUtc);
     }
 
-    public bool CanHandle(LLMAnalysisResult result)
+    public override bool CanHandle(LLMAnalysisResult result)
     {
         return result.RequesterAlgorithmName == AlgorithmName &&
                !string.IsNullOrWhiteSpace(result.CandidateEventId) &&
                result.Scope == LLMAnalysisScope.Frame;
     }
 
-    public Task HandleAsync(LLMAnalysisResult result, LLMReconcileContext context, CancellationToken cancellationToken)
+    public override Task HandleAsync(
+        LLMAnalysisResult result,
+        LLMReconcileContext context,
+        CancellationToken cancellationToken)
     {
         var inferenceEvent = LLMInferenceResultEvent.FromAnalysisResult(result, EventName);
         inferenceEvent.QueuePolicy = LLMQueuePolicy.EventAnchored;
-        ProcessEvent(inferenceEvent);
+        HandleLlmResult(inferenceEvent);
         return Task.CompletedTask;
     }
 

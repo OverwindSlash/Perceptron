@@ -8,7 +8,7 @@ namespace Algorithm.Common.Event;
 
 public class LLMInferenceResultEvent : DomainEvent
 {
-    public const string EventType = "LLM Inference Result Event";
+    public new const string EventType = "LLM Inference Result Event";
 
     public string ModelName { get; }
     public TimeSpan InferenceTime { get; }
@@ -38,14 +38,14 @@ public class LLMInferenceResultEvent : DomainEvent
 
     public LLMInferenceResultEvent(string sourceId, string eventType, string eventName, string algorithmName,
         string detectedObjectId, float confidence, string modelName, TimeSpan inferenceTime, string jsonResult)
-        : base(sourceId, EventType, eventName, algorithmName)
+        : base(sourceId, eventType, eventName, algorithmName)
     {
         DetectedObjectId = detectedObjectId;
         Confidence = confidence;
         ModelName = modelName;
         InferenceTime = inferenceTime;
         JsonResult = jsonResult;
-        Message = $"LLM '{modelName}', Elapse: {inferenceTime}, Result：{jsonResult} .";
+        Message = $"LLM '{modelName}', Elapse: {inferenceTime}, Result: {jsonResult}.";
     }
 
     public static LLMInferenceResultEvent FromAnalysisResult(LLMAnalysisResult result, string eventName, float confidence = 0)

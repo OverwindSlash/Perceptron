@@ -45,9 +45,9 @@ public class Executor : AlgorithmBase
     private LLMRequestScheduler _requestScheduler = null!;
     private PendingEvidenceStore _pendingEvidenceStore = null!;
     private readonly LLMRuntimeMetrics _metrics = new();
-    private SemaphoreSlim _frameInferenceConcurrency = new(1);
-    private SemaphoreSlim _objectInferenceConcurrency = new(1);
-    private readonly CancellationTokenSource _disposeCancellationTokenSource = new();
+    private SemaphoreSlim _frameInferenceConcurrency = null!;
+    private SemaphoreSlim _objectInferenceConcurrency = null!;
+    private CancellationTokenSource _disposeCancellationTokenSource = null!;
     private Thread? _inferenceWorkerThread;
     private int _isDisposing;
 
@@ -59,11 +59,20 @@ public class Executor : AlgorithmBase
         AlgorithmDescription = "Call LLM inference using OpenAI API.";
     }
 
-    public override bool Initialize()
+    public Executor(
+        AlgorithmRuntimeDependencies dependencies,
+        Dictionary<string, string> preferences)
+        : base(dependencies, preferences)
     {
-        var provider = Pipeline.Provider;
-        _inferenceResultEventPublisher = provider.GetRequiredService<IPublisher<LLMInferenceResultEvent>>();
+        AlgorithmName = "LLM Inference Module";
+        AlgorithmVersion = "1.0.0";
+        AlgorithmDescription = "Call LLM inference using OpenAI API.";
+    }
 
+    protected override void InitializeCore()
+    {
+        _inferenceResultEventPublisher =
+            Services.GetRequiredService<IPublisher<LLMInferenceResultEvent>>();
         ServerUrl = PreferenceParser.ParseStringValue(Preferences, "ServerUrl", string.Empty);
         ServerUrl = NormalizeServerUrl(ServerUrl);
         ApiKey = PreferenceParser.ParseStringValue(Preferences, "ApiKey", string.Empty);
@@ -80,10 +89,6 @@ public class Executor : AlgorithmBase
         MaxPendingEvidenceTotalBytes = PreferenceParser.ParseIntValue(Preferences, "MaxPendingEvidenceTotalBytes", 128 * 1024 * 1024);
         MaxConcurrentFrameRequests = PreferenceParser.ParseIntValue(Preferences, "MaxConcurrentFrameRequests", 1);
         MaxConcurrentObjectRequests = PreferenceParser.ParseIntValue(Preferences, "MaxConcurrentObjectRequests", 2);
-        _frameInferenceConcurrency = new SemaphoreSlim(Math.Max(1, MaxConcurrentFrameRequests));
-        _objectInferenceConcurrency = new SemaphoreSlim(Math.Max(1, MaxConcurrentObjectRequests));
-        _requestScheduler = new LLMRequestScheduler(MaxQueueCapacity);
-        _pendingEvidenceStore = new PendingEvidenceStore(MaxPendingEvidencePerSource, MaxPendingEvidenceTotalBytes);
 
         if (string.IsNullOrWhiteSpace(ApiKey))
         {
@@ -108,9 +113,15 @@ public class Executor : AlgorithmBase
                 options: new OpenAIClientOptions { Endpoint = new Uri(ServerUrl) });
         }
 
+        Volatile.Write(ref _isDisposing, 0);
+        _disposeCancellationTokenSource = new CancellationTokenSource();
+        _frameInferenceConcurrency = new SemaphoreSlim(Math.Max(1, MaxConcurrentFrameRequests));
+        _objectInferenceConcurrency = new SemaphoreSlim(Math.Max(1, MaxConcurrentObjectRequests));
+        _requestScheduler = new LLMRequestScheduler(MaxQueueCapacity);
+        _pendingEvidenceStore = new PendingEvidenceStore(
+            MaxPendingEvidencePerSource,
+            MaxPendingEvidenceTotalBytes);
         StartInferenceWorker();
-
-        return base.Initialize();
     }
 
     private void StartInferenceWorker()
@@ -339,26 +350,17 @@ public class Executor : AlgorithmBase
         return serverUrl.TrimEnd('/');
     }
 
-    public override AnalysisResult Analyze(Frame frame)
+    protected override AnalysisResult AnalyzeCore(Frame frame)
     {
-        frame.Retain();
-
         // 显示当前 _inferenceBuffer 中待处理图片的数量
         // Log.Information("LLM inference buffer size: {BufferSize}", _inferenceBuffer.Count);
 
-        try
+        if (!frame.HasProperty(LLMPropertyNames.Analysis))
         {
-            if (!frame.HasProperty(LLMAnalysisPropertyName))
-            {
-                return new AnalysisResult(true);
-            }
+            return new AnalysisResult(true);
+        }
 
-            return new AnalysisResult(EnqueueFrameForInference(frame));
-        }
-        finally
-        {
-            frame.Dispose();
-        }
+        return new AnalysisResult(EnqueueFrameForInference(frame));
     }
 
     private bool EnqueueFrameForInference(Frame frame)
@@ -397,7 +399,7 @@ public class Executor : AlgorithmBase
         var request = new LLMAnalysisRequest(
             RequestId: GetOrCreateRequestId(frame),
             RequesterAlgorithmName: GetRequesterAlgorithmName(frame),
-            CandidateEventId: frame.GetProperty<string>(LLMCandidateEventIdPropertyName),
+            CandidateEventId: frame.GetProperty<string>(LLMPropertyNames.CandidateEventId),
             SourceId: frame.SourceId,
             FrameId: frame.FrameId,
             OffsetMilliSec: frame.OffsetMilliSec,
@@ -407,7 +409,7 @@ public class Executor : AlgorithmBase
             TrackKey: null,
             Scope: LLMAnalysisScope.Frame,
             QueuePolicy: GetQueuePolicy(frame, LLMQueuePolicy.LatestPerSource),
-            Prompt: frame.GetProperty<string>(LLMAnalysisPromptPropertyName) ?? string.Empty,
+            Prompt: frame.GetProperty<string>(LLMPropertyNames.AnalysisPrompt) ?? string.Empty,
             ImageJpeg: imageBytes,
             DetectorConfidence: null,
             EvidenceQualityScore: null,
@@ -435,7 +437,7 @@ public class Executor : AlgorithmBase
     private bool EnqueueObjectLevelInference(Frame frame)
     {
         var objectCandidates = frame.DetectedObjects
-            .Where(detectedObject => detectedObject.GetProperty<bool>(LLMAnalysisPropertyName))
+            .Where(detectedObject => detectedObject.GetProperty<bool>(LLMPropertyNames.Analysis))
             .GroupBy(detectedObject => detectedObject.Id)
             .Select(group => group
                 .OrderByDescending(detectedObject => detectedObject.Confidence)
@@ -463,11 +465,11 @@ public class Executor : AlgorithmBase
 
             var nowUtc = DateTime.UtcNow;
             var request = new LLMAnalysisRequest(
-                RequestId: detectedObject.GetProperty<string>(LLMRequestIdPropertyName) ?? GetOrCreateRequestId(frame),
-                RequesterAlgorithmName: detectedObject.GetProperty<string>(LLMRequesterAlgorithmNamePropertyName)
+                RequestId: detectedObject.GetProperty<string>(LLMPropertyNames.RequestId) ?? GetOrCreateRequestId(frame),
+                RequesterAlgorithmName: detectedObject.GetProperty<string>(LLMPropertyNames.RequesterAlgorithmName)
                     ?? GetRequesterAlgorithmName(frame),
-                CandidateEventId: detectedObject.GetProperty<string>(LLMCandidateEventIdPropertyName)
-                    ?? frame.GetProperty<string>(LLMCandidateEventIdPropertyName),
+                CandidateEventId: detectedObject.GetProperty<string>(LLMPropertyNames.CandidateEventId)
+                    ?? frame.GetProperty<string>(LLMPropertyNames.CandidateEventId),
                 SourceId: frame.SourceId,
                 FrameId: frame.FrameId,
                 OffsetMilliSec: frame.OffsetMilliSec,
@@ -476,9 +478,9 @@ public class Executor : AlgorithmBase
                 ObjectLocalId: detectedObject.LocalId,
                 TrackKey: detectedObject.TrackKey,
                 Scope: LLMAnalysisScope.Object,
-                QueuePolicy: GetQueuePolicy(detectedObject.GetProperty<string>(LLMQueuePolicyPropertyName)
-                    ?? frame.GetProperty<string>(LLMQueuePolicyPropertyName), LLMQueuePolicy.LatestBestPerObject),
-                Prompt: frame.GetProperty<string>(LLMAnalysisPromptPropertyName) ?? string.Empty,
+                QueuePolicy: GetQueuePolicy(detectedObject.GetProperty<string>(LLMPropertyNames.QueuePolicy)
+                    ?? frame.GetProperty<string>(LLMPropertyNames.QueuePolicy), LLMQueuePolicy.LatestBestPerObject),
+                Prompt: frame.GetProperty<string>(LLMPropertyNames.AnalysisPrompt) ?? string.Empty,
                 ImageJpeg: imageBytes,
                 DetectorConfidence: detectedObject.Confidence,
                 EvidenceQualityScore: LLMEvidenceBuilder.CalculateObjectEvidenceQuality(detectedObject, frame.Scene.Width, frame.Scene.Height),
@@ -547,19 +549,19 @@ public class Executor : AlgorithmBase
 
     private string GetOrCreateRequestId(Frame frame)
     {
-        var requestId = frame.GetProperty<string>(LLMRequestIdPropertyName);
+        var requestId = frame.GetProperty<string>(LLMPropertyNames.RequestId);
         return string.IsNullOrWhiteSpace(requestId) ? Guid.NewGuid().ToString("N") : requestId;
     }
 
     private string GetRequesterAlgorithmName(Frame frame)
     {
-        var requester = frame.GetProperty<string>(LLMRequesterAlgorithmNamePropertyName);
+        var requester = frame.GetProperty<string>(LLMPropertyNames.RequesterAlgorithmName);
         return string.IsNullOrWhiteSpace(requester) ? string.Empty : requester;
     }
 
     private DateTime GetExpireAtUtc(Frame frame, DateTime nowUtc)
     {
-        var expireAtUtc = frame.GetProperty<DateTime?>(LLMExpireAtUtcPropertyName);
+        var expireAtUtc = frame.GetProperty<DateTime?>(LLMPropertyNames.ExpireAtUtc);
         return expireAtUtc.HasValue && expireAtUtc.Value.Kind == DateTimeKind.Utc
             ? expireAtUtc.Value
             : nowUtc.AddSeconds(DefaultRequestTtlSeconds);
@@ -567,7 +569,7 @@ public class Executor : AlgorithmBase
 
     private static LLMQueuePolicy GetQueuePolicy(Frame frame, LLMQueuePolicy defaultPolicy)
     {
-        return GetQueuePolicy(frame.GetProperty<string>(LLMQueuePolicyPropertyName), defaultPolicy);
+        return GetQueuePolicy(frame.GetProperty<string>(LLMPropertyNames.QueuePolicy), defaultPolicy);
     }
 
     private static LLMQueuePolicy GetQueuePolicy(string? queuePolicy, LLMQueuePolicy defaultPolicy)
@@ -584,28 +586,41 @@ public class Executor : AlgorithmBase
 
     private bool IsFrameLevelAnalysis(Frame frame)
     {
-        return NormalizeAnalysisType(frame.GetProperty<string>(LLMAnalysisType)) == FrameAnalysisType;
+        return NormalizeAnalysisType(frame.GetProperty<string>(LLMPropertyNames.AnalysisType)) == FrameAnalysisType;
     }
 
     private bool IsObjectLevelAnalysis(Frame frame)
     {
-        return NormalizeAnalysisType(frame.GetProperty<string>(LLMAnalysisType)) == ObjectAnalysisType;
+        return NormalizeAnalysisType(frame.GetProperty<string>(LLMPropertyNames.AnalysisType)) == ObjectAnalysisType;
     }
 
-    public override void Dispose()
+    protected override void DisposeCore()
     {
         if (Interlocked.Exchange(ref _isDisposing, 1) == 1)
         {
             return;
         }
 
-        _disposeCancellationTokenSource.Cancel();
-        _requestScheduler.Complete();
-        _inferenceWorkerThread?.Join();
-        _requestScheduler.Dispose();
-        _frameInferenceConcurrency.Dispose();
-        _objectInferenceConcurrency.Dispose();
-        _disposeCancellationTokenSource.Dispose();
-        base.Dispose();
+        var cancellationTokenSource = _disposeCancellationTokenSource;
+        var requestScheduler = _requestScheduler;
+        var inferenceWorkerThread = _inferenceWorkerThread;
+        var frameInferenceConcurrency = _frameInferenceConcurrency;
+        var objectInferenceConcurrency = _objectInferenceConcurrency;
+
+        cancellationTokenSource?.Cancel();
+        requestScheduler?.Complete();
+        inferenceWorkerThread?.Join();
+
+        _disposeCancellationTokenSource = null!;
+        _requestScheduler = null!;
+        _inferenceWorkerThread = null;
+        _frameInferenceConcurrency = null!;
+        _objectInferenceConcurrency = null!;
+        _pendingEvidenceStore = null!;
+
+        requestScheduler?.Dispose();
+        frameInferenceConcurrency?.Dispose();
+        objectInferenceConcurrency?.Dispose();
+        cancellationTokenSource?.Dispose();
     }
 }

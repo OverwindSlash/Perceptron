@@ -2,14 +2,12 @@
 using Algorithm.General.ObjectOccurrence.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
-using OpenCvSharp;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.RegionDefinition;
 using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event;
-using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
@@ -28,19 +26,19 @@ public class Executor : AlgorithmBase
     public const string DefaultProximityReferenceDimension = "width"; // width or height
     public const int DefaultMinDurationSec = 3;
 
-    public string OccurrenceCheckRegionName { get; private set; }
-    public HashSet<string> TargetObjectNames { get; private set; }
-    public string OccurrenceCondition { get; private set; }
+    public string OccurrenceCheckRegionName { get; private set; } = string.Empty;
+    public HashSet<string> TargetObjectNames { get; private set; } = [];
+    public string OccurrenceCondition { get; private set; } = string.Empty;
     public bool EnableProximityCheck { get; private set; }
-    public string ProximityObject1Label { get; private set; }
-    public string ProximityObject2Label { get; private set; }
+    public string ProximityObject1Label { get; private set; } = string.Empty;
+    public string ProximityObject2Label { get; private set; } = string.Empty;
     public float ProximityThresholdRatio { get; private set; }
-    public string ProximityReferenceObject { get; private set; }
-    public string ProximityReferenceDimension { get; private set; }
+    public string ProximityReferenceObject { get; private set; } = string.Empty;
+    public string ProximityReferenceDimension { get; private set; } = string.Empty;
     public int MinDurationSec { get; private set; }
 
     private DateTime? _firstOccurrenceTime;
-    private IPublisher<ObjectOccurrenceEvent> _occurrenceEventPublisher;
+    private IPublisher<ObjectOccurrenceEvent> _occurrenceEventPublisher = null!;
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
@@ -50,10 +48,10 @@ public class Executor : AlgorithmBase
         AlgorithmDescription = "Detects object occurrence in video frames.";
     }
 
-    public override bool Initialize()
+    protected override void InitializeCore()
     {
-        var provider = Pipeline.Provider;
-        _occurrenceEventPublisher = provider.GetRequiredService<IPublisher<ObjectOccurrenceEvent>>();
+        _occurrenceEventPublisher =
+            Services.GetRequiredService<IPublisher<ObjectOccurrenceEvent>>();
 
         OccurrenceCheckRegionName = PreferenceParser.ParseStringValue(Preferences, "OccurrenceCheckRegionName", DefaultOccurrenceCheckRegionName);
         
@@ -73,15 +71,11 @@ public class Executor : AlgorithmBase
         }
 
         MinDurationSec = PreferenceParser.ParseIntValue(Preferences, "MinDurationSec", DefaultMinDurationSec);
-
-        return base.Initialize();
     }
 
-    public override AnalysisResult Analyze(Frame frame)
+    protected override AnalysisResult AnalyzeCore(Frame frame)
     {
-        frame.Retain();
-
-        var regionManager = Pipeline.RegionManagers.First(rm => rm.SourceId == frame.SourceId);
+        var regionManager = RegionManagers.First(rm => rm.SourceId == frame.SourceId);
         var definition = regionManager.RegionDefinition;
         
         var interestArea = definition.InterestAreas.FirstOrDefault(ia => ia.Name == OccurrenceCheckRegionName);
@@ -192,16 +186,11 @@ public class Executor : AlgorithmBase
         // 绘制区域与分析结果标注
         GenerateRegionAnnotation(frame, definition);
 
-        frame.Dispose();
         return new AnalysisResult(true);
     }
 
     private void ProcessObjectOccurrenceEvent(Frame frame, double duration)
     {
-        if (!WillPublishEventMessage) return;
-
-        if (CheckLocalEventInterval()) return;
-
         var occurredObjectNames = frame.DetectedObjects
             .Where(o => o.HasProperty("Occurrence") && o.GetProperty<bool>("Occurrence"))
             .Select(o => o.Label.ToLower())
@@ -228,54 +217,24 @@ public class Executor : AlgorithmBase
         var annotationJson = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
         occurrenceEvent.Annotations = annotationJson;
 
-        Mat? snapshot = null;
-        if (WillSaveEventSnapshot)
-        {
-            snapshot = frame.Scene.Clone();
-        }
-
-        var frameId = frame.FrameId;
-        string now = DateTime.Now.ToString("yyyyMMddhhmmss");
-        Task.Run(async () =>
-        {
-            try
+        TryQueueThrottledEvent(
+            new EventPublicationRequest<ObjectOccurrenceEvent>
             {
-                using (snapshot)
-                {
-                    string savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"));
-                    savePath.EnsureDirExistence();
+                Event = occurrenceEvent,
+                AnnotationJson = annotationJson,
+                CloneSnapshot = () => frame.Scene.Clone(),
+                FrameId = frame.FrameId,
+                FilePrefix = "objectOccurrence",
+                PublishInProcess = @event =>
+                    _occurrenceEventPublisher.Publish(@event),
+                SaveSnapshot = WillSaveEventSnapshot,
+                SaveVideoClip = WillSaveEventVideoClip
+            });
+    }
 
-                    if (snapshot != null && !snapshot.IsDisposed)
-                    {
-                        string imagePath = Path.Combine(savePath, $"objectOccurrence_{now}.jpg");
-                        snapshot.SaveImage(imagePath);
-
-                        string annotationPath = Path.Combine(savePath, $"objectOccurrence_{now}.json");
-                        await File.WriteAllTextAsync(annotationPath, annotationJson);
-
-                        occurrenceEvent.ImageLocalPath = imagePath;
-                        occurrenceEvent.ImageJsonLocalPath = annotationPath;
-                    }
-
-                    if (WillSaveEventVideoClip)
-                    {
-                        string videoPath = Path.Combine(savePath, $"objectOccurrence_{now}.mp4");
-                        await SnapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
-
-                        occurrenceEvent.VideoLocalPath = videoPath;
-                    }
-
-                    await EventRepository.SaveDomainEventAsync(occurrenceEvent);
-                    MessagePoster.PostDomainEventMessage(occurrenceEvent);
-
-                    _occurrenceEventPublisher.Publish(occurrenceEvent);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error processing object occurrence event {EventName}", EventName);
-            }
-        });
+    protected override void DisposeCore()
+    {
+        _firstOccurrenceTime = null;
     }
 
     protected override VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)

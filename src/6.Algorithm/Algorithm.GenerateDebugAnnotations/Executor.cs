@@ -15,10 +15,8 @@ public class Executor : AlgorithmBase
         AlgorithmDescription = "Generates debug annotations for detected objects, regions, and labels.";
     }
 
-    public override AnalysisResult Analyze(Frame frame)
+    protected override AnalysisResult AnalyzeCore(Frame frame)
     {
-        frame.Retain();
-
         var regionManager = RegionManagers.First(rm => rm.SourceId == frame.SourceId);
         GenerateRegionAnnotation(frame, regionManager.RegionDefinition);
 
@@ -26,8 +24,6 @@ public class Executor : AlgorithmBase
         {
             GenerateDetectedObjectAnnotation(frame, detectedObject);
         }
-
-        frame.Dispose();
 
         return new AnalysisResult(true);
     }

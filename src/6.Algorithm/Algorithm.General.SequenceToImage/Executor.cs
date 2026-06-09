@@ -7,7 +7,6 @@ using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event;
-using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
@@ -18,7 +17,7 @@ using CvSize = OpenCvSharp.Size;
 
 namespace Algorithm.General.SequenceToImage;
 
-public class Executor : AlgorithmBase, ILLMResultHandler
+public class Executor : LlmAlgorithmBase
 {
     public const int DefaultSequenceLength = 4;
     public const int DefaultFrameStride = 1;
@@ -42,8 +41,6 @@ public class Executor : AlgorithmBase, ILLMResultHandler
     public int RequestTtlSeconds { get; private set; }
     public LLMQueuePolicy QueuePolicy { get; private set; }
     public LLMTimeoutPolicy OnTimeout { get; private set; }
-    public string RequesterAlgorithmName => AlgorithmName;
-
     private readonly object _bufferSync = new();
     private readonly Dictionary<string, Queue<BufferedFrame>> _sourceBuffers = new();
     private readonly Dictionary<string, long> _sourceFrameCounters = new();
@@ -57,11 +54,14 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         AlgorithmDescription = "Stitch consecutive video frames into one image and optionally submit it for frame-level LLM analysis.";
     }
 
-    public override bool Initialize()
+    protected override void ConfigureDefaultPreferences()
     {
         EnsureDefaultPreference("PerformLLMAnalysis", "true");
-        EnsureDefaultPreference("LLMPromptFile", "sequence-to-image-prompt.md");
+        EnsureDefaultPreference("LLMPromptFile", "fight-detection-prompt.md");
+    }
 
+    protected override void InitializeCore()
+    {
         SequenceLength = Math.Max(1, PreferenceParser.ParseIntValue(Preferences, "SequenceLength", DefaultSequenceLength));
         FrameStride = Math.Max(1, PreferenceParser.ParseIntValue(Preferences, "FrameStride", DefaultFrameStride));
         SequenceImageJpegQuality = Math.Clamp(
@@ -75,14 +75,10 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         RequestTtlSeconds = Math.Max(1, PreferenceParser.ParseIntValue(Preferences, "RequestTtlSeconds", DefaultRequestTtlSeconds));
         QueuePolicy = ParseQueuePolicy(PreferenceParser.ParseStringValue(Preferences, "QueuePolicy", DefaultQueuePolicy));
         OnTimeout = ParseTimeoutPolicy(PreferenceParser.ParseStringValue(Preferences, "OnTimeout", DefaultTimeoutPolicy));
-
-        return base.Initialize();
     }
 
-    public override AnalysisResult Analyze(Frame frame)
+    protected override AnalysisResult AnalyzeCore(Frame frame)
     {
-        frame.Retain();
-
         List<BufferedFrame>? sequenceFrames = null;
         try
         {
@@ -101,9 +97,9 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             using var sequenceImage = BuildSequenceImage(sequenceFrames);
             var sequenceImageJpeg = SetSequenceProperties(frame, sequenceFrames, sequenceImage);
 
-            if (WillPerformLLMAnalysis)
+            if (WillPerformLlmAnalysis)
             {
-                MarkFrameForLLM(frame, sequenceFrames, sequenceImage, sequenceImageJpeg);
+                CreateLlmRequest(frame, sequenceFrames, sequenceImage, sequenceImageJpeg);
             }
 
             Log.Information("Sequence image built. SourceId: {SourceId}, FrameIds: {FrameIds}, FrameStride: {FrameStride}, Layout: {Layout}, Size: {Width}x{Height}",
@@ -125,7 +121,6 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         finally
         {
             DisposeBufferedFrames(sequenceFrames);
-            frame.Dispose();
         }
     }
 
@@ -332,7 +327,11 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         return imageBytes;
     }
 
-    private void MarkFrameForLLM(Frame frame, IReadOnlyList<BufferedFrame> sequenceFrames, Mat sequenceImage, byte[] sequenceImageJpeg)
+    private void CreateLlmRequest(
+        Frame frame,
+        IReadOnlyList<BufferedFrame> sequenceFrames,
+        Mat sequenceImage,
+        byte[] sequenceImageJpeg)
     {
         var requestId = Guid.NewGuid().ToString("N");
         var sequenceId = Guid.NewGuid().ToString("N");
@@ -355,15 +354,17 @@ public class Executor : AlgorithmBase, ILLMResultHandler
 
         _pendingSequences[requestId] = pending;
 
-        frame.SetProperty(LLMAnalysisPropertyName, true);
-        frame.SetProperty(LLMAnalysisType, "frame");
-        frame.SetProperty(LLMAnalysisPromptPropertyName, _userPrompt);
-        frame.SetProperty(LLMAnalysisImageJpegPropertyName, sequenceImageJpeg);
-        frame.SetProperty(LLMRequestIdPropertyName, requestId);
-        frame.SetProperty(LLMRequesterAlgorithmNamePropertyName, AlgorithmName);
-        frame.SetProperty(LLMCandidateEventIdPropertyName, sequenceId);
-        frame.SetProperty(LLMQueuePolicyPropertyName, QueuePolicy.ToString());
-        frame.SetProperty(LLMExpireAtUtcPropertyName, expireAtUtc);
+        MarkFrameForLlm(
+            frame,
+            new LlmRequestOptions
+            {
+                Scope = LLMAnalysisScope.Frame,
+                QueuePolicy = QueuePolicy,
+                RequestId = requestId,
+                CandidateEventId = sequenceId,
+                ExpireAtUtc = expireAtUtc,
+                ImageJpeg = sequenceImageJpeg
+            });
 
         Log.Information("Create sequence image LLM request. RequestId: {RequestId}, SequenceId: {SequenceId}, SourceId: {SourceId}, Policy: {Policy}, ExpireAtUtc: {ExpireAtUtc}",
             requestId,
@@ -373,38 +374,39 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             expireAtUtc);
     }
 
-    public override void ProcessEvent(LLMInferenceResultEvent @event)
+    protected override bool CanHandleLlmResult(LLMInferenceResultEvent result)
     {
-        if (@event.RequesterAlgorithmName != AlgorithmName || @event.Scope != LLMAnalysisScope.Frame)
-        {
-            return;
-        }
+        return base.CanHandleLlmResult(result) &&
+               result.Scope == LLMAnalysisScope.Frame;
+    }
 
-        if (!_pendingSequences.TryRemove(@event.RequestId, out var pending))
+    protected override void HandleLlmResult(LLMInferenceResultEvent result)
+    {
+        if (!_pendingSequences.TryRemove(result.RequestId, out var pending))
         {
             Log.Debug("Ignore sequence image LLM result without pending request. RequestId: {RequestId}, SourceId: {SourceId}",
-                @event.RequestId, @event.SourceId);
+                result.RequestId, result.SourceId);
             return;
         }
 
         try
         {
-            if (@event.IsExpiredResult)
+            if (result.IsExpiredResult)
             {
                 Log.Warning("Ignore expired sequence image LLM result. RequestId: {RequestId}, SequenceId: {SequenceId}",
-                    @event.RequestId, pending.SequenceId);
+                    result.RequestId, pending.SequenceId);
                 HandleTimedOutSequence(pending);
                 return;
             }
 
             PublishSequenceImageEvent(
                 pending,
-                @event.ModelName,
-                @event.InferenceTime,
-                @event.IsSuccess,
-                @event.IsExpiredResult,
-                @event.ErrorCode,
-                @event.JsonResult);
+                result.ModelName,
+                result.InferenceTime,
+                result.IsSuccess,
+                result.IsExpiredResult,
+                result.ErrorCode,
+                result.JsonResult);
         }
         finally
         {
@@ -412,15 +414,18 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         }
     }
 
-    public bool CanHandle(LLMAnalysisResult result)
+    public override bool CanHandle(LLMAnalysisResult result)
     {
         return result.RequesterAlgorithmName == AlgorithmName &&
                result.Scope == LLMAnalysisScope.Frame;
     }
 
-    public Task HandleAsync(LLMAnalysisResult result, LLMReconcileContext context, CancellationToken cancellationToken)
+    public override Task HandleAsync(
+        LLMAnalysisResult result,
+        LLMReconcileContext context,
+        CancellationToken cancellationToken)
     {
-        ProcessEvent(LLMInferenceResultEvent.FromAnalysisResult(result, EventName));
+        HandleLlmResult(LLMInferenceResultEvent.FromAnalysisResult(result, EventName));
         return Task.CompletedTask;
     }
 
@@ -523,51 +528,20 @@ public class Executor : AlgorithmBase, ILLMResultHandler
             Annotations = pending.AnnotationJson
         };
 
-        var snapshot = pending.Snapshot?.Clone();
-        Task.Run(async () =>
-        {
-            try
+        TryQueueEvent(
+            new EventPublicationRequest<SequenceImageLLMEvent>
             {
-                await SaveAndPublishEventAsync(eventMessage, snapshot);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error publishing sequence image LLM event. RequestId: {RequestId}, SequenceId: {SequenceId}",
-                    pending.RequestId, pending.SequenceId);
-                snapshot?.Dispose();
-            }
-        });
-    }
-
-    private async Task SaveAndPublishEventAsync(SequenceImageLLMEvent eventMessage, Mat? snapshot)
-    {
-        try
-        {
-            if (WillSaveEventSnapshot && snapshot != null && !snapshot.IsDisposed)
-            {
-                var savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"));
-                savePath.EnsureDirExistence();
-
-                var now = DateTime.Now.ToString("yyyyMMddHHmmssfff");
-                var imagePath = Path.Combine(savePath, $"{eventMessage.SequenceId}_{now}.jpg");
-                snapshot.SaveImage(imagePath);
-                eventMessage.ImageLocalPath = imagePath;
-
-                if (!string.IsNullOrWhiteSpace(eventMessage.Annotations))
-                {
-                    var annotationPath = Path.Combine(savePath, $"{eventMessage.SequenceId}_{now}.json");
-                    await File.WriteAllTextAsync(annotationPath, eventMessage.Annotations);
-                    eventMessage.ImageJsonLocalPath = annotationPath;
-                }
-            }
-
-            await EventRepository.SaveDomainEventAsync(eventMessage);
-            MessagePoster.PostDomainEventMessage(eventMessage);
-        }
-        finally
-        {
-            snapshot?.Dispose();
-        }
+                Event = eventMessage,
+                AnnotationJson = pending.AnnotationJson,
+                CloneSnapshot = () =>
+                    pending.Snapshot == null || pending.Snapshot.IsDisposed
+                        ? null
+                        : pending.Snapshot.Clone(),
+                FrameId = pending.Frames.LastOrDefault()?.FrameId,
+                FilePrefix = "sequenceImageLLM",
+                StableArtifactId = pending.SequenceId,
+                SaveSnapshot = WillSaveEventSnapshot
+            });
     }
 
     private static string SerializeAnnotation(VisualAnnotation annotation)
@@ -629,7 +603,7 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         }
     }
 
-    public override void Dispose()
+    protected override void DisposeCore()
     {
         lock (_bufferSync)
         {
@@ -651,7 +625,6 @@ public class Executor : AlgorithmBase, ILLMResultHandler
         }
 
         _pendingSequences.Clear();
-        base.Dispose();
     }
 
     private sealed class BufferedFrame : IDisposable

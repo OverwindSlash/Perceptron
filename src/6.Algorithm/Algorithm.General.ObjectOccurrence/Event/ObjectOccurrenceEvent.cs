@@ -1,9 +1,11 @@
 ﻿using Perceptron.Domain.Event;
 using System.Text.Json;
 
+using Algorithm.Common;
+
 namespace Algorithm.General.ObjectOccurrence.Event;
 
-public class ObjectOccurrenceEvent : DomainEvent
+public class ObjectOccurrenceEvent : DomainEvent, IAnnotatedAlgorithmEvent
 {
     public const string EventType = "Object Occurrence Event";
 
@@ -11,7 +13,7 @@ public class ObjectOccurrenceEvent : DomainEvent
     public List<string> OccurredObjectNames { get; }
     public int DurationSec { get; }
 
-    public string Annotations { get; set; }
+    public string Annotations { get; set; } = string.Empty;
 
     public ObjectOccurrenceEvent(string sourceId, string eventType, string eventName, string algorithmName,
         string regionName, List<string> occurredObjectNames, int durationSec)

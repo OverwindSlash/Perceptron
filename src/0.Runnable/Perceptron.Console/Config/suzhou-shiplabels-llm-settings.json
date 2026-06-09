@@ -17,7 +17,7 @@
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
         "SourceId": "Suzhou-Cam-001",
-        "VideoUri": "D:\\Video\\Ship\\test - Trim.mp4",
+        "VideoUri": "D:\\Video\\Ship\\suzhou.mp4",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,

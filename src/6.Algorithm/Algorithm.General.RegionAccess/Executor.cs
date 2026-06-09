@@ -2,10 +2,6 @@ using Algorithm.Common;
 using Algorithm.General.RegionAccess.Event;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
-using OpenCvSharp;
-using Perceptron.Domain.Abstraction.EventHandler;
-using Perceptron.Domain.Abstraction.Repository;
-using Perceptron.Domain.Abstraction.SnapshotManager;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
@@ -14,7 +10,6 @@ using Perceptron.Domain.Entity.RegionDefinition.Geometric;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event;
 using Perceptron.Domain.Event.Pipeline;
-using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
@@ -23,7 +18,7 @@ using System.Text.Json;
 
 namespace Algorithm.General.RegionAccess;
 
-public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
+public class Executor : AlgorithmBase
 {
     private const string DefaultRegionName = "RestrictedArea";
     private static readonly List<string> DefaultRelativeTypes = [];
@@ -36,34 +31,31 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     private const string DefaultLeavingEventName = "LeaveRegion";
     private const string DefaultLeavingAnnotationColor = "#0000FF";
 
-    public string RegionName { get; private set; }
-    public List<string> RegionRelativeTypes { get; private set; }
+    public string RegionName { get; private set; } = string.Empty;
+    public List<string> RegionRelativeTypes { get; private set; } = [];
 
     // 状态变化阈值：对象状态需要稳定多少帧后才发布事件（默认3帧）
     public int StateStabilityThreshold { get; private set; }
 
     public int FontSize { get; private set; }
-    public string EnteringEventName { get; private set; }
-    public string EnteringAnnotationColor { get; private set; }
-    public string InEventName { get; private set; }
-    public string InAnnotationColor { get; private set; }
-    public string LeavingEventName { get; private set; }
-    public string LeavingAnnotationColor { get; private set; }
+    public string EnteringEventName { get; private set; } = string.Empty;
+    public string EnteringAnnotationColor { get; private set; } = string.Empty;
+    public string InEventName { get; private set; } = string.Empty;
+    public string InAnnotationColor { get; private set; } = string.Empty;
+    public string LeavingEventName { get; private set; } = string.Empty;
+    public string LeavingAnnotationColor { get; private set; } = string.Empty;
 
 
-    private IPublisher<EnterRegionEvent> _enterEventPublisher;
-    private IPublisher<InRegionEvent> _inEventPublisher;
-    private IPublisher<LeaveRegionEvent> _leaveEventPublisher;
+    private IPublisher<EnterRegionEvent> _enterEventPublisher = null!;
+    private IPublisher<InRegionEvent> _inEventPublisher = null!;
+    private IPublisher<LeaveRegionEvent> _leaveEventPublisher = null!;
 
-    private ISubscriber<ObjectExpiredEvent> _oeSubscriber;
-    private IDisposable _disposableOeSubscriber;
-
-    private ConcurrentDictionary<string, ObjectRegionState> _objRegionStates = new();
+    private readonly ConcurrentDictionary<string, ObjectRegionState> _objRegionStates = new();
 
     // 状态稳定性跟踪：记录每个对象在当前状态下的持续帧数
-    private ConcurrentDictionary<string, int> _objStateStabilityCounter = new();
+    private readonly ConcurrentDictionary<string, int> _objStateStabilityCounter = new();
 
-    private ConcurrentDictionary<string, bool> _objLastInRegionStatus;
+    private readonly ConcurrentDictionary<string, bool> _objLastInRegionStatus = new();
 
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
@@ -73,19 +65,19 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         AlgorithmVersion = "1.0.0";
         AlgorithmDescription = "Detects access to specific regions in the video stream.";
 
-        _objLastInRegionStatus = new ConcurrentDictionary<string, bool>();
     }
 
-    public override bool Initialize()
+    protected override void InitializeCore()
     {
-        var provider = Pipeline.Provider;
-
-        _enterEventPublisher = provider.GetRequiredService<IPublisher<EnterRegionEvent>>();
-        _inEventPublisher = provider.GetRequiredService<IPublisher<InRegionEvent>>();
-        _leaveEventPublisher = provider.GetRequiredService<IPublisher<LeaveRegionEvent>>();
-
-        var subscriber = provider.GetService<ISubscriber<ObjectExpiredEvent>>();
-        this.SetSubscriber(subscriber);
+        _enterEventPublisher =
+            Services.GetRequiredService<IPublisher<EnterRegionEvent>>();
+        _inEventPublisher =
+            Services.GetRequiredService<IPublisher<InRegionEvent>>();
+        _leaveEventPublisher =
+            Services.GetRequiredService<IPublisher<LeaveRegionEvent>>();
+        Subscribe(
+            Services.GetRequiredService<ISubscriber<ObjectExpiredEvent>>(),
+            ProcessEvent);
 
         // settings
         RegionName = PreferenceParser.ParseStringValue(Preferences, "RegionName", DefaultRegionName);
@@ -109,14 +101,10 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         LeavingEventName =
             PreferenceParser.ParseStringValue(Preferences, "LeavingEventName", DefaultLeavingEventName);
         LeavingAnnotationColor = PreferenceParser.ParseStringValue(Preferences, "LeavingAnnotationColor", DefaultLeavingAnnotationColor);
-
-        return base.Initialize();
     }
 
-    public override AnalysisResult Analyze(Frame frame)
+    protected override AnalysisResult AnalyzeCore(Frame frame)
     {
-        frame.Retain();
-
         var regionManager = RegionManagers.First(rm => rm.SourceId == frame.SourceId);
         var definition = regionManager.RegionDefinition;
 
@@ -205,7 +193,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             bool reachStableThresh = stabilityCounter == StateStabilityThreshold;
             
             // 根据当前状态设置属性
-            string now = DateTime.Now.ToString("yyyyMMddhhmmss");
             switch (currentState)
             {
                 case ObjectRegionState.Entering:
@@ -217,7 +204,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
                     if (reachStableThresh)
                     {
-                        ProcessEnteringEvent(frame, detectedObject, stabilityCounter, now, SnapshotManager, EventRepository);
+                        ProcessEnteringEvent(frame, detectedObject, stabilityCounter);
                     }
 
                     break;
@@ -231,7 +218,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
                     if (reachStableThresh)
                     {
-                        ProcessInRegionEvent(frame, detectedObject, stabilityCounter, now, SnapshotManager, EventRepository);
+                        ProcessInRegionEvent(frame, detectedObject, stabilityCounter);
                     }
 
                     break;
@@ -245,7 +232,7 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
 
                     if (reachStableThresh)
                     {
-                        ProcessLeavingEvent(frame, detectedObject, stabilityCounter, now, SnapshotManager, EventRepository);
+                        ProcessLeavingEvent(frame, detectedObject, stabilityCounter);
                     }
 
                     break;
@@ -263,8 +250,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
             // 更新对象的当前状态
             _objRegionStates[detectedObject.Id] = currentState;
         }
-
-        frame.Dispose();
 
         return new AnalysisResult(true);
     }
@@ -319,94 +304,61 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         return ObjectRegionState.Outside;
     }
 
-    private void ProcessEnteringEvent(Frame frame, DetectedObject detectedObject, int stabilityCounter, string now,
-        ISnapshotManager? snapshotManager, IEventRepository repository)
+    private void ProcessEnteringEvent(
+        Frame frame,
+        DetectedObject detectedObject,
+        int stabilityCounter)
     {
         ProcessRegionEventCommon(
-            frame, 
-            detectedObject, 
-            stabilityCounter, 
-            now, 
+            frame,
+            detectedObject,
+            stabilityCounter,
             EnteringEventName,
             _enterEventPublisher,
-            snapshotManager,
-            repository,
             (sourceId, evtName, algoName, objId, regionName) => new EnterRegionEvent(sourceId, evtName, algoName, objId, regionName),
-            "entering",
-            (evt, imgPath, jsonPath) =>
-            {
-                if (evt is EnterRegionEvent enEvt)
-                {
-                    enEvt.ImageJsonLocalPath = jsonPath;
-                }
-            }
-        );
+            "entering");
     }
 
-    private void ProcessInRegionEvent(Frame frame, DetectedObject detectedObject, int stabilityCounter, string now, 
-        ISnapshotManager? snapshotManager, IEventRepository repository)
+    private void ProcessInRegionEvent(
+        Frame frame,
+        DetectedObject detectedObject,
+        int stabilityCounter)
     {
         ProcessRegionEventCommon(
-            frame, 
-            detectedObject, 
-            stabilityCounter, 
-            now, 
+            frame,
+            detectedObject,
+            stabilityCounter,
             InEventName,
             _inEventPublisher,
-            snapshotManager,
-            repository,
             (sourceId, evtName, algoName, objId, regionName) => new InRegionEvent(sourceId, evtName, algoName, objId, regionName),
-            "inRegion",
-            (evt, imgPath, jsonPath) => 
-            {
-                if (evt is InRegionEvent inEvt)
-                {
-                    inEvt.ImageJsonLocalPath = jsonPath;
-                }
-            }
-        );
+            "inRegion");
     }
 
-    private void ProcessLeavingEvent(Frame frame, DetectedObject detectedObject, int stabilityCounter, string now,
-        ISnapshotManager? snapshotManager, IEventRepository repository)
+    private void ProcessLeavingEvent(
+        Frame frame,
+        DetectedObject detectedObject,
+        int stabilityCounter)
     {
         ProcessRegionEventCommon(
-            frame, 
-            detectedObject, 
-            stabilityCounter, 
-            now, 
+            frame,
+            detectedObject,
+            stabilityCounter,
             LeavingEventName,
             _leaveEventPublisher,
-            snapshotManager,
-            repository,
             (sourceId, evtName, algoName, objId, regionName) => new LeaveRegionEvent(sourceId, evtName, algoName, objId, regionName),
-            "leaving",
-            (evt, imgPath, jsonPath) =>
-            {
-                if (evt is LeaveRegionEvent lvEvt)
-                {
-                    lvEvt.ImageJsonLocalPath = jsonPath;
-                }
-            }
-        );
+            "leaving");
     }
 
     private void ProcessRegionEventCommon<TEvent>(
         Frame frame, 
         DetectedObject detectedObject, 
-        int stabilityCounter, 
-        string now, 
+        int stabilityCounter,
         string eventName,
         IPublisher<TEvent> publisher,
-        ISnapshotManager? snapshotManager, 
-        IEventRepository repository,
         Func<string, string, string, string, string, TEvent> eventFactory,
-        string filePrefix,
-        Action<TEvent, string, string>? extraPathSetter = null) 
-        where TEvent : DomainEvent
+        string filePrefix)
+        where TEvent : DomainEvent, IAnnotatedAlgorithmEvent
     {
-        if (!WillPublishEventMessage) return;
-
         Log.Information("{DetectedObjectId} is {EventName} region: '{RegionName}' (stable for {StabilityCounter} frames)", detectedObject.Id, eventName, RegionName, stabilityCounter);
         
         // 1. Create Event
@@ -416,75 +368,23 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         // 2. Serialize Annotations (Synchronously)
         var annotationJson = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
         
-        // Set Annotations property dynamically if it exists
-        // (EnterRegionEvent, InRegionEvent, LeaveRegionEvent all have 'Annotations' property)
-        if (domainEvent is EnterRegionEvent enterEvt) enterEvt.Annotations = annotationJson;
-        else if (domainEvent is InRegionEvent inEvt) inEvt.Annotations = annotationJson;
-        else if (domainEvent is LeaveRegionEvent leaveEvt) leaveEvt.Annotations = annotationJson;
+        domainEvent.Annotations = annotationJson;
 
-        publisher.Publish(domainEvent);
-
-        // 3. Prepare Snapshot (Synchronously - critical for thread safety)
-        Mat? snapshot = null;
-        if (WillSaveEventSnapshot)
-        {
-            // Clone the scene because frame.Scene might be disposed/reused in the main loop
-            snapshot = frame.Scene.Clone();
-        }
-        
-        var frameId = frame.FrameId;
-        var objId = detectedObject.Id;
-
-        // 4. Async Saving
-        Task.Run(async () =>
-        {
-            try 
+        TryQueueEvent(
+            new EventPublicationRequest<TEvent>
             {
-                using (snapshot) // Ensure disposal of the cloned snapshot
-                {
-                    string savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"), objId);
-                    savePath.EnsureDirExistence();
-
-                    if (snapshot != null && !snapshot.IsDisposed)
-                    {
-                        string imagePath = Path.Combine(savePath, $"{filePrefix}_{now}.jpg");
-                        snapshot.SaveImage(imagePath);
-
-                        string annotationPath = Path.Combine(savePath, $"{filePrefix}_{now}.json");
-                        await File.WriteAllTextAsync(annotationPath, annotationJson);
-
-                        // Set ImageLocalPath (Available on DomainEvent or specific events)
-                        // Assuming DomainEvent or specific events have ImageLocalPath. 
-                        // Using dynamic to avoid casting if base class support is unsure, 
-                        // but strictly we should cast.
-                        if (domainEvent is EnterRegionEvent e) e.ImageLocalPath = imagePath;
-                        else if (domainEvent is InRegionEvent i) i.ImageLocalPath = imagePath;
-                        else if (domainEvent is LeaveRegionEvent l) l.ImageLocalPath = imagePath;
-
-                        extraPathSetter?.Invoke(domainEvent, imagePath, annotationPath);
-                    }
-
-                    if (WillSaveEventVideoClip && snapshotManager != null)
-                    {
-                        string videoPath = Path.Combine(savePath, $"{filePrefix}_{now}.mp4");
-                        // Note: GenerateVideoClipAroundFrameAsync might be fire-and-forget or long running.
-                        await snapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
-                        
-                        if (domainEvent is EnterRegionEvent e) e.VideoLocalPath = videoPath;
-                        else if (domainEvent is InRegionEvent i) i.VideoLocalPath = videoPath;
-                        else if (domainEvent is LeaveRegionEvent l) l.VideoLocalPath = videoPath;
-                    }
-
-                    await repository.SaveDomainEventAsync(domainEvent);
-
-                    MessagePoster.PostDomainEventMessage(domainEvent);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error processing region event {EventName} for object {ObjectId}", eventName, objId);
-            }
-        });
+                Event = domainEvent,
+                AnnotationJson = annotationJson,
+                CloneSnapshot = () => frame.Scene.Clone(),
+                FrameId = frame.FrameId,
+                FilePrefix = filePrefix,
+                RelativeDirectory = Path.Combine(
+                    DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                    detectedObject.Id),
+                PublishInProcess = @event => publisher.Publish(@event),
+                SaveSnapshot = WillSaveEventSnapshot,
+                SaveVideoClip = WillSaveEventVideoClip
+            });
     }
 
     protected override VisualAnnotation GenerateRegionAnnotation(Frame frame, ImageRegionDefinition regionDefinition)
@@ -541,12 +441,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         return annotation;
     }
 
-    public void SetSubscriber(ISubscriber<ObjectExpiredEvent> subscriber)
-    {
-        _oeSubscriber = subscriber;
-        _disposableOeSubscriber = _oeSubscriber.Subscribe(ProcessEvent);
-    }
-
     public void ProcessEvent(ObjectExpiredEvent @event)
     {
         if (_objLastInRegionStatus.ContainsKey(@event.Id))
@@ -566,8 +460,10 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         }
     }
 
-    public void Dispose()
+    protected override void DisposeCore()
     {
-        _disposableOeSubscriber.Dispose();
+        _objLastInRegionStatus.Clear();
+        _objRegionStates.Clear();
+        _objStateStabilityCounter.Clear();
     }
 }

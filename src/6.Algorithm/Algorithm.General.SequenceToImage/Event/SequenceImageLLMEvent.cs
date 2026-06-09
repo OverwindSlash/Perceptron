@@ -1,9 +1,10 @@
+using Algorithm.Common;
 using Perceptron.Domain.Event;
 using System.Text.Json;
 
 namespace Algorithm.General.SequenceToImage.Event;
 
-public class SequenceImageLLMEvent : DomainEvent
+public class SequenceImageLLMEvent : DomainEvent, IAnnotatedAlgorithmEvent
 {
     public new const string EventType = "Sequence Image LLM Result Event";
 

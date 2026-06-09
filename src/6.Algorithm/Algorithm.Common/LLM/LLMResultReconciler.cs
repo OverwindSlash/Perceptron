@@ -46,6 +46,7 @@ public sealed class LLMResultReconciler
 
         if (!string.IsNullOrWhiteSpace(result.CandidateEventId) &&
             (!_context.CandidateEvents.TryGet(result.CandidateEventId, out var candidate) ||
+             candidate == null ||
              candidate.Status is CandidateEventStatus.Published
                  or CandidateEventStatus.Rejected
                  or CandidateEventStatus.TimedOut

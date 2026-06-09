@@ -1,9 +1,10 @@
+using Algorithm.Common;
 using Perceptron.Domain.Event;
 using System.Text.Json;
 
 namespace Algorithm.General.ObjectOccurrenceByLLM.Event;
 
-public class ObjectOccurrenceLLMEvent : DomainEvent
+public class ObjectOccurrenceLLMEvent : DomainEvent, IAnnotatedAlgorithmEvent
 {
     public const string EventType = "Object Occurrence LLM Confirmed Event";
 

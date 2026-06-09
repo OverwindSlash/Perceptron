@@ -1,9 +1,11 @@
 using Perceptron.Domain.Event;
 using System.Text.Json;
 
+using Algorithm.Common;
+
 namespace Algorithm.CoastGuard.SmugglingDetection.Event;
 
-public class SmugglingEvent : DomainEvent
+public class SmugglingEvent : DomainEvent, IAnnotatedAlgorithmEvent
 {
     public new const string EventType = "Smuggling Event";
 

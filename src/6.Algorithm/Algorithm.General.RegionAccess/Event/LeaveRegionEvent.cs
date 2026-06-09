@@ -1,15 +1,17 @@
 using Perceptron.Domain.Event;
 using System.Text.Json;
 
+using Algorithm.Common;
+
 namespace Algorithm.General.RegionAccess.Event;
 
-public class LeaveRegionEvent : DomainEvent
+public class LeaveRegionEvent : DomainEvent, IAnnotatedAlgorithmEvent
 {
     public const string EventType = "Leave Region Event";
 
     public string ObjectId { get; }
     public string RegionName { get; }
-    public string Annotations { get; set; }
+    public string Annotations { get; set; } = string.Empty;
 
     public LeaveRegionEvent(string sourceId, string eventName, string algorithmName, string objectId, string regionName)
         : base(sourceId, EventType, eventName, algorithmName)

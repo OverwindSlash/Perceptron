@@ -1,9 +1,11 @@
 ﻿using Perceptron.Domain.Event;
 using System.Text.Json;
 
+using Algorithm.Common;
+
 namespace Algorithm.General.Classify.Event;
 
-public class ObjectClassifiedEvent : DomainEvent
+public class ObjectClassifiedEvent : DomainEvent, IAnnotatedAlgorithmEvent
 {
     public const string EventType = "Object Classified Event";
 
@@ -11,7 +13,7 @@ public class ObjectClassifiedEvent : DomainEvent
     public string Label { get; }
     public double Confidence { get; }
 
-    public string Annotations { get; set; }
+    public string Annotations { get; set; } = string.Empty;
 
     public ObjectClassifiedEvent(string sourceId, string eventName, string algorithmName,
         string objectId, string label, double conf) 

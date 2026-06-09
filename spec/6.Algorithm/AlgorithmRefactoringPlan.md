@@ -1,12 +1,23 @@
 # 算法模块 Template Method 重构计划
 
+## 实施状态
+
+截至 2026-06-09，阶段 0 至阶段 8 已完成。全部算法均已迁移到模板生命周期：
+
+- 同步算法和 `Algorithm.General.LLM` 直接继承 `AlgorithmBase`。
+- 三个 LLM 请求方算法继承 `LlmAlgorithmBase`。
+- 公共事件由 `AlgorithmEventDispatcher` 调度。
+- MessagePipe 订阅由 `AlgorithmSubscriptionRegistry` 统一释放。
+- `AlgorithmBase` 的旧 LLM 兼容入口与可重写公共生命周期已删除。
+- 新增测试位于 `test/6.Algorithm/Algorithm.Common.Tests`。
+
 ## 1. 文档目的
 
 本文档用于指导 `src/6.Algorithm` 下算法模块的分阶段重构。
 
 本次重构的核心目标是使用 Template Method（模板方法）模式固定算法模块中稳定、重复且容易出错的处理步骤，同时保留各派生算法的业务判断、状态机、模型调用和标注差异。
 
-本文档仅定义计划、目标结构、接口草案、迁移顺序和验收标准。在计划确认之前，不修改现有算法实现。
+本文档保留目标结构、迁移顺序和验收标准，并同步记录实际实施结果。
 
 ---
 
@@ -929,13 +940,13 @@ public sealed class Executor : LlmAlgorithmBase
 
 任务：
 
-- [ ] 保存当前全解决方案构建结果。
-- [ ] 保存 `Algorithm.Common.Tests` 测试结果。
-- [ ] 为典型同步事件记录字段、标注、路径和发布顺序。
-- [ ] 为典型 LLM 事件记录请求属性和结果过滤逻辑。
-- [ ] 明确各算法 MessagePipe 发布是在持久化之前还是之后。
-- [ ] 明确各算法 snapshot 的来源和当前释放者。
-- [ ] 记录所有现有配置键及默认值。
+- [x] 保存当前全解决方案构建结果。
+- [x] 保存 `Algorithm.Common.Tests` 测试结果。
+- [x] 为典型同步事件记录字段、标注、路径和发布顺序。
+- [x] 为典型 LLM 事件记录请求属性和结果过滤逻辑。
+- [x] 明确各算法 MessagePipe 发布是在持久化之前还是之后。
+- [x] 明确各算法 snapshot 的来源和当前释放者。
+- [x] 记录所有现有配置键及默认值。
 
 当前已知基线：
 
@@ -961,36 +972,36 @@ src/6.Algorithm/Algorithm.Common/
 
 任务：
 
-- [ ] 实现订阅注册器。
-- [ ] 实现事件发布请求参数对象。
-- [ ] 实现事件调度器。
-- [ ] 增加后台任务跟踪和关闭等待。
-- [ ] 增加 snapshot 所有权测试。
-- [ ] 增加文件名冲突测试。
-- [ ] 暂不删除旧基类 API，保证项目可逐步迁移。
+- [x] 实现订阅注册器。
+- [x] 实现事件发布请求参数对象。
+- [x] 实现事件调度器。
+- [x] 增加后台任务跟踪和关闭等待。
+- [x] 增加 snapshot 所有权测试。
+- [x] 增加文件名冲突测试。
+- [x] 迁移期间保留旧基类 API，保证项目可逐步迁移。
 
 ### 阶段 2：重构 `AlgorithmBase` 生命周期模板
 
 任务：
 
-- [ ] 将公共初始化拆分为私有步骤。
-- [ ] 增加 `InitializeCore()`。
-- [ ] 增加 `AnalyzeCore(Frame)`。
-- [ ] 增加 `DisposeCore()`。
-- [ ] 统一 `Frame.Retain/Dispose`。
-- [ ] 将 LLM 配置和订阅移出 `AlgorithmBase`。
-- [ ] 将 `CheckLocalEventInterval()` 重命名或增加语义清晰的包装方法。
-- [ ] 过渡期保留公共方法的旧 override 兼容入口。
-- [ ] 为未迁移算法提供默认 Core 钩子，保证分批迁移时可编译。
-- [ ] 增加约束测试，确保已迁移算法不再 override 公共生命周期方法。
+- [x] 将公共初始化拆分为私有步骤。
+- [x] 增加 `InitializeCore()`。
+- [x] 增加 `AnalyzeCore(Frame)`。
+- [x] 增加 `DisposeCore()`。
+- [x] 统一 `Frame.Retain/Dispose`。
+- [x] 将 LLM 配置和订阅移出 `AlgorithmBase`。
+- [x] 将 `CheckLocalEventInterval()` 重命名或增加语义清晰的包装方法。
+- [x] 过渡期保留公共方法的旧 override 兼容入口。
+- [x] 为未迁移算法提供默认 Core 钩子，保证分批迁移时可编译。
+- [x] 增加约束测试，确保已迁移算法不再 override 公共生命周期方法。
 
-此阶段必须与第一批派生类迁移在同一可编译提交中完成。当前里程碑只有已迁移算法执行模板流程；未迁移算法暂时继续使用旧 override。
+此阶段已与第一批派生类迁移共同完成；过渡期内未迁移算法曾继续使用旧 override，阶段 8 已删除该兼容路径。
 
 当全部算法迁移完成后：
 
-- [ ] 使公共 `Initialize()`、`Analyze()` 和 `Dispose()` 不可重写。
-- [ ] 将 Core 钩子收紧为最终目标约束。
-- [ ] 删除旧 override 兼容入口。
+- [x] 使公共 `Initialize()`、`Analyze()` 和 `Dispose()` 不可重写。
+- [x] 将 Core 钩子收紧为最终目标约束。
+- [x] 删除旧 override 兼容入口。
 
 ### 阶段 3：迁移低风险同步算法
 
@@ -1010,7 +1021,7 @@ src/6.Algorithm/Algorithm.Common/
 - MessagePipe 在持久化和外部投递成功后发布。
 - 事件文件名使用 24 小时制、毫秒和序列号格式。
 
-本轮已确认的实施范围截止到阶段 3。阶段 3 完成并通过评审后，再决定是否启动阶段 4 及后续迁移。
+阶段 4 和阶段 5 已按上述顺序完成迁移。
 
 ### 阶段 4：迁移普通业务事件算法
 
@@ -1059,14 +1070,14 @@ src/6.Algorithm/Algorithm.Common/
 
 任务：
 
-- [ ] 仅 LLM 请求方加载 prompt。
-- [ ] 统一 `RequesterAlgorithmName` 过滤。
-- [ ] 使用 `MarkFrameForLlm()` 和 `MarkObjectForLlm()`。
-- [ ] 保留各算法现有候选状态机。
-- [ ] 保留各算法现有超时策略。
-- [ ] 保留 `ILLMResultHandler` 适配。
-- [ ] 增加重复结果和错误路由测试。
-- [ ] 增加非目标算法不得释放 snapshot 的测试。
+- [x] 仅 LLM 请求方加载 prompt。
+- [x] 统一 `RequesterAlgorithmName` 过滤。
+- [x] 使用 `MarkFrameForLlm()` 和 `MarkObjectForLlm()`。
+- [x] 保留各算法现有候选状态机。
+- [x] 保留各算法现有超时策略。
+- [x] 保留 `ILLMResultHandler` 适配。
+- [x] 增加重复结果和错误路由测试。
+- [x] 增加非目标算法不得释放 snapshot 的测试。
 
 ### 阶段 7：迁移 `Algorithm.General.LLM`
 
@@ -1074,24 +1085,24 @@ src/6.Algorithm/Algorithm.Common/
 
 任务：
 
-- [ ] 将 `Analyze()` 改为 `AnalyzeCore()`。
-- [ ] 将 worker、scheduler、semaphore 和 cancellation 的释放移到 `DisposeCore()`。
-- [ ] 验证关闭期间的请求取消和 worker join。
-- [ ] 确保它不订阅自己的 `LLMInferenceResultEvent`。
+- [x] 将 `Analyze()` 改为 `AnalyzeCore()`。
+- [x] 将 worker、scheduler、semaphore 和 cancellation 的释放移到 `DisposeCore()`。
+- [x] 验证关闭期间的请求取消和 worker join。
+- [x] 确保它不订阅自己的 `LLMInferenceResultEvent`。
 
 ### 阶段 8：删除兼容层并更新文档
 
 任务：
 
-- [ ] 删除旧 `SetSubscriber()`。
-- [ ] 删除 `AlgorithmBase.ProcessEvent(LLMInferenceResultEvent)`。
-- [ ] 删除基类中的重复 LLM 常量。
-- [ ] 删除派生类中重复的 `Task.Run` 事件保存代码。
-- [ ] 删除派生类中的 `frame.Retain/Dispose`。
-- [ ] 更新 `Algorithm-Implementation-Guide.md`。
-- [ ] 更新 `Algorithm.Common/README.md`。
-- [ ] 更新 `spec/6.Algorithm/AlgorithmModule-Spec.md`。
-- [ ] 增加同步算法和 LLM 算法的标准模板示例。
+- [x] 删除旧 `SetSubscriber()`。
+- [x] 删除 `AlgorithmBase.ProcessEvent(LLMInferenceResultEvent)`。
+- [x] 删除基类中的重复 LLM 常量。
+- [x] 删除派生类中重复的 `Task.Run` 事件保存代码。
+- [x] 删除派生类中的 `frame.Retain/Dispose`。
+- [x] 更新 `Algorithm-Implementation-Guide.md`。
+- [x] 更新 `Algorithm.Common/README.md`。
+- [x] 更新 `spec/6.Algorithm/AlgorithmModule-Spec.md`。
+- [x] 增加同步算法和 LLM 算法的标准模板示例。
 
 ---
 
@@ -1165,50 +1176,50 @@ src/6.Algorithm/Algorithm.Common/
 
 ### 16.1 `AlgorithmBase` 生命周期测试
 
-- [ ] 初始化按“默认配置、公共配置、模式配置、业务初始化”的顺序执行。
-- [ ] 初始化失败时 `IsInitialized=false`。
-- [ ] 重复初始化不会重复订阅。
-- [ ] `AnalyzeCore()` 成功时释放 frame 引用。
-- [ ] `AnalyzeCore()` 返回失败时释放 frame 引用。
-- [ ] `AnalyzeCore()` 提前返回时释放 frame 引用。
-- [ ] `AnalyzeCore()` 抛异常时释放 frame 引用。
-- [ ] `Dispose()` 可重复调用。
-- [ ] `DisposeCore()` 抛异常时公共订阅仍被释放。
+- [x] 初始化按“默认配置、公共配置、模式配置、业务初始化”的顺序执行。
+- [x] 初始化失败时 `IsInitialized=false`。
+- [x] 重复初始化不会重复订阅。
+- [x] `AnalyzeCore()` 成功时释放 frame 引用。
+- [x] `AnalyzeCore()` 返回失败时释放 frame 引用。
+- [x] `AnalyzeCore()` 提前返回时释放 frame 引用。
+- [x] `AnalyzeCore()` 抛异常时释放 frame 引用。
+- [x] `Dispose()` 可重复调用。
+- [x] `DisposeCore()` 抛异常时公共订阅仍被释放。
 
 ### 16.2 事件调度器测试
 
-- [ ] snapshot 在进入后台任务前完成克隆。
-- [ ] snapshot 在成功路径释放。
-- [ ] 图片保存失败时 snapshot 释放。
-- [ ] JSON 保存失败时 snapshot 释放。
-- [ ] 仓储失败时 snapshot 释放。
-- [ ] MessagePoster 失败时记录错误。
-- [ ] MessagePipe 发布阶段符合请求配置。
-- [ ] `WillSaveEventSnapshot=false` 时不克隆图像。
-- [ ] `WillSaveEventVideoClip=true` 时传递正确 frame ID。
-- [ ] 同一毫秒多个事件不会覆盖文件。
-- [ ] `Dispose()` 停止接收新任务。
-- [ ] `Dispose()` 在超时内等待已有任务。
+- [x] snapshot 在进入后台任务前完成克隆。
+- [x] snapshot 在成功路径释放。
+- [x] 图片保存失败时 snapshot 释放。
+- [x] JSON 保存失败时 snapshot 释放。
+- [x] 仓储失败时 snapshot 释放。
+- [x] MessagePoster 失败时记录错误。
+- [x] MessagePipe 发布阶段符合请求配置。
+- [x] `WillSaveEventSnapshot=false` 时不克隆图像。
+- [x] `WillSaveEventVideoClip=true` 时传递正确 frame ID。
+- [x] 同一毫秒多个事件不会覆盖文件。
+- [x] `Dispose()` 停止接收新任务。
+- [x] `Dispose()` 在超时内等待已有任务。
 
 ### 16.3 订阅测试
 
-- [ ] 每个订阅只注册一次。
-- [ ] 多种事件可以同时订阅。
-- [ ] Dispose 后不再收到事件。
-- [ ] 某个订阅释放失败不阻止其他订阅释放。
+- [x] 每个订阅只注册一次。
+- [x] 多种事件可以同时订阅。
+- [x] Dispose 后不再收到事件。
+- [x] 某个订阅释放失败不阻止其他订阅释放。
 
 ### 16.4 LLM 基类测试
 
-- [ ] 同步算法不请求 `ISubscriber<LLMInferenceResultEvent>`。
-- [ ] `PerformLLMAnalysis=false` 时不读取 prompt。
-- [ ] prompt 不存在时错误包含算法和路径。
-- [ ] 只处理 `RequesterAlgorithmName` 匹配的结果。
-- [ ] Frame 和 Object scope 可以增加额外过滤。
-- [ ] 非目标结果的 snapshot 不被释放。
-- [ ] 目标结果解析失败时 snapshot 按所有权规则释放。
-- [ ] 请求辅助方法写入完整属性。
-- [ ] UTC deadline 保持不变。
-- [ ] 未提供 RequestId 时自动生成唯一 ID。
+- [x] 同步算法不请求 `ISubscriber<LLMInferenceResultEvent>`。
+- [x] `PerformLLMAnalysis=false` 时不读取 prompt。
+- [x] prompt 不存在时错误包含算法和路径。
+- [x] 只处理 `RequesterAlgorithmName` 匹配的结果。
+- [x] Frame 和 Object scope 可以增加额外过滤。
+- [x] 非目标结果的 snapshot 不被释放。
+- [x] 目标结果解析失败时 snapshot 按所有权规则释放。
+- [x] 请求辅助方法写入完整属性。
+- [x] UTC deadline 保持不变。
+- [x] 未提供 RequestId 时自动生成唯一 ID。
 
 ### 16.5 回归测试
 
@@ -1363,19 +1374,16 @@ MessagePipe 和 `LLMResultReconciler` 同时启用时，同一结果可能被处
 
 ### 20.1 当前实施里程碑
 
-当前里程碑仅包含阶段 0 至阶段 3。满足以下条件后，可提交首批同步算法评审：
+当前里程碑已覆盖阶段 0 至阶段 8，整体重构已进入完成验收：
 
 1. 公共事件调度器和订阅注册器完成。
-2. `AlgorithmBase` 已提供生命周期模板，三个已迁移算法均通过 Core 钩子进入模板流程。
-3. `Algorithm.GenerateDebugAnnotations`、`Algorithm.General.MotionDetection` 和 `Algorithm.General.ObjectDensity` 已迁移。
-4. 三个算法不再手工调用模板对应的 `frame.Retain/Dispose`。
-5. Motion 和 Density 的事件保存使用 `AlgorithmEventDispatcher`。
-6. MessagePipe 在持久化和外部投递成功后发布。
-7. 事件文件名使用 24 小时制、毫秒和序列号格式。
-8. 后台任务关闭等待可配置，默认 10 秒。
-9. 当前里程碑新增测试全部通过。
-10. 全解决方案构建无错误。
-11. 未迁移算法仍可通过旧 override 兼容入口正常编译。
+2. 全部算法通过 `AlgorithmBase` 或 `LlmAlgorithmBase` 的 Core 钩子进入模板流程。
+3. 普通同步算法、事件算法、区域/船舶算法和 LLM 请求方均已迁移。
+4. `Algorithm.General.LLM` 已完成生命周期模板迁移和 worker 关闭治理。
+5. 旧 override 与 LLM 兼容入口已删除。
+6. 行为、生命周期、事件调度、LLM 路由和迁移契约测试均已补齐。
+7. 全解决方案构建及测试回归通过。
+8. 算法规范、重构计划、README 和实现指南已同步更新。
 
 ### 20.2 全部迁移完成标准
 
@@ -1439,9 +1447,9 @@ MessagePipe 和 `LLMResultReconciler` 同时启用时，同一结果可能被处
 
 已确认：
 
-- 当前只实施到阶段 3。
-- 当前迁移 `Algorithm.GenerateDebugAnnotations`、`Algorithm.General.MotionDetection` 和 `Algorithm.General.ObjectDensity`。
-- 首批同步算法完成并评审后，再决定是否启动阶段 4 及后续迁移。
+- 本轮实施覆盖阶段 0 至阶段 8。
+- 全部算法迁移、兼容层删除、全量回归和文档更新均纳入本轮范围。
+- 后续变更直接遵循新的 `AlgorithmBase` / `LlmAlgorithmBase` 模板，不再保留旧入口。
 
 ---
 
@@ -1462,4 +1470,4 @@ MessagePipe 和 `LLMResultReconciler` 同时启用时，同一结果可能被处
   -> 全量回归与文档更新
 ```
 
-当前实施在“首批评审检查点”结束。后续顺序保留为下一阶段路线，待首批同步算法评审通过后启动。
+上述实施顺序已全部完成，当前进入整体重构完成验收。

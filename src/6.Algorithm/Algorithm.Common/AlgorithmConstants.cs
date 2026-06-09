@@ -37,6 +37,7 @@ public class AlgorithmConstants
     public const int DefaultLocalEventIntervalSec = 1;
     public const string DefaultEventSnapshotDir = "Events";
     public const string DefaultEventName = "UnknownEvent";
+    public const int DefaultEventTaskShutdownTimeoutSeconds = 10;
 
     // llm analysis
     public const bool DefaultWillPerformLLMAnalysis = false;

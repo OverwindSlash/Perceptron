@@ -10,7 +10,7 @@ public class ShipLabelPredictor : IDisposable
     // ImageNet Normalization
     private static readonly float[] Mean = { 0.485f, 0.456f, 0.406f };
     private static readonly float[] Std = { 0.229f, 0.224f, 0.225f };
-    private const int ImageSize = 384;
+    private const int ImageSize = 640;
     private const float ColorThreshold = 0.5f;
 
     private readonly string _modelPath;

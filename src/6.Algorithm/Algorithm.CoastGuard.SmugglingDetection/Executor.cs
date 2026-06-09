@@ -3,14 +3,12 @@ using Algorithm.Common;
 using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
 using OpenCvSharp;
-using Perceptron.Domain.Abstraction.EventHandler;
 using Perceptron.Domain.Entity.Annotation;
 using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event;
 using Perceptron.Domain.Event.Pipeline;
-using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Serilog;
@@ -21,7 +19,7 @@ using CvPoint = OpenCvSharp.Point;
 
 namespace Algorithm.CoastGuard.SmugglingDetection;
 
-public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
+public class Executor : AlgorithmBase
 {
     private const string PeopleGatheringFlag = "people_gathering";
     private const string BoatExistenceFlag = "boat_existence";
@@ -59,8 +57,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
     private readonly ConcurrentDictionary<string, CvPoint> _boatPositions = new();
 
     private IPublisher<SmugglingEvent> _smugglingEventPublisher = null!;
-    private ISubscriber<ObjectExpiredEvent> _objectExpiredSubscriber = null!;
-    private IDisposable? _objectExpiredSubscription;
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
@@ -70,11 +66,13 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         AlgorithmDescription = "Detects suspected smuggling by combining people gathering, boat existence, and movement away from the boat.";
     }
 
-    public override bool Initialize()
+    protected override void InitializeCore()
     {
-        var provider = Pipeline.Provider;
-        _smugglingEventPublisher = provider.GetRequiredService<IPublisher<SmugglingEvent>>();
-        SetSubscriber(provider.GetRequiredService<ISubscriber<ObjectExpiredEvent>>());
+        _smugglingEventPublisher =
+            Services.GetRequiredService<IPublisher<SmugglingEvent>>();
+        Subscribe(
+            Services.GetRequiredService<ISubscriber<ObjectExpiredEvent>>(),
+            ProcessEvent);
 
         PersonLabel = PreferenceParser.ParseStringValue(Preferences, "PersonLabel", DefaultPersonLabel).ToLowerInvariant();
         BoatLabel = PreferenceParser.ParseStringValue(Preferences, "BoatLabel", DefaultBoatLabel).ToLowerInvariant();
@@ -88,64 +86,53 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         GatheringAnnotationColor = PreferenceParser.ParseStringValue(Preferences, "GatheringAnnotationColor", DefaultGatheringAnnotationColor);
         PersonCenterAnnotationColor = PreferenceParser.ParseStringValue(Preferences, "PersonCenterAnnotationColor", DefaultPersonCenterAnnotationColor);
         BoatAnnotationColor = PreferenceParser.ParseStringValue(Preferences, "BoatAnnotationColor", DefaultBoatAnnotationColor);
-
-        return base.Initialize();
     }
 
-    public override AnalysisResult Analyze(Frame frame)
+    protected override AnalysisResult AnalyzeCore(Frame frame)
     {
-        frame.Retain();
-
-        try
+        if (CheckPeopleGathering(frame))
         {
-            if (CheckPeopleGathering(frame))
-            {
-                _flagManager.SetValue(FlagKey(frame.SourceId, PeopleGatheringFlag), true, EventSustainSec);
-            }
-
-            var isPeopleGathering = IsFlagActive(frame.SourceId, PeopleGatheringFlag);
-            frame.SetProperty(PeopleGatheringFlag, isPeopleGathering);
-
-            if (CheckBoatExistence(frame))
-            {
-                _flagManager.SetValue(FlagKey(frame.SourceId, BoatExistenceFlag), true, 2 * EventSustainSec);
-            }
-
-            var isBoatExistence = IsFlagActive(frame.SourceId, BoatExistenceFlag);
-            frame.SetProperty(BoatExistenceFlag, isBoatExistence);
-
-            if (CheckPeopleAwayFromBoat(frame))
-            {
-                _flagManager.SetValue(FlagKey(frame.SourceId, PeopleAwayFromBoatFlag), true, EventSustainSec);
-            }
-
-            var isPeopleAwayFromBoat = IsFlagActive(frame.SourceId, PeopleAwayFromBoatFlag);
-            frame.SetProperty(PeopleAwayFromBoatFlag, isPeopleAwayFromBoat);
-
-            var gatherings = frame.GetProperty<List<SmugglingObjectGroup>>(GatheringsPropertyName) ?? new List<SmugglingObjectGroup>();
-            GenerateSmugglingAnnotation(frame, gatherings);
-
-            var isSmugglingDetected = isPeopleGathering && isBoatExistence && isPeopleAwayFromBoat;
-            frame.SetProperty("SmugglingDetected", isSmugglingDetected);
-
-            if (isSmugglingDetected)
-            {
-                var incidentId = CreateIncidentId(frame);
-                ProcessSmugglingEvent(
-                    frame,
-                    incidentId,
-                    gatherings,
-                    isPeopleGathering,
-                    isBoatExistence,
-                    isPeopleAwayFromBoat);
-            }
-
-            return new AnalysisResult(true);
+            _flagManager.SetValue(FlagKey(frame.SourceId, PeopleGatheringFlag), true, EventSustainSec);
         }
-        finally
+
+        var isPeopleGathering = IsFlagActive(frame.SourceId, PeopleGatheringFlag);
+        frame.SetProperty(PeopleGatheringFlag, isPeopleGathering);
+
+        if (CheckBoatExistence(frame))
         {
-            frame.Dispose();
+            _flagManager.SetValue(FlagKey(frame.SourceId, BoatExistenceFlag), true, 2 * EventSustainSec);
         }
+
+        var isBoatExistence = IsFlagActive(frame.SourceId, BoatExistenceFlag);
+        frame.SetProperty(BoatExistenceFlag, isBoatExistence);
+
+        if (CheckPeopleAwayFromBoat(frame))
+        {
+            _flagManager.SetValue(FlagKey(frame.SourceId, PeopleAwayFromBoatFlag), true, EventSustainSec);
+        }
+
+        var isPeopleAwayFromBoat = IsFlagActive(frame.SourceId, PeopleAwayFromBoatFlag);
+        frame.SetProperty(PeopleAwayFromBoatFlag, isPeopleAwayFromBoat);
+
+        var gatherings = frame.GetProperty<List<SmugglingObjectGroup>>(GatheringsPropertyName) ?? new List<SmugglingObjectGroup>();
+        GenerateSmugglingAnnotation(frame, gatherings);
+
+        var isSmugglingDetected = isPeopleGathering && isBoatExistence && isPeopleAwayFromBoat;
+        frame.SetProperty("SmugglingDetected", isSmugglingDetected);
+
+        if (isSmugglingDetected)
+        {
+            var incidentId = CreateIncidentId(frame);
+            ProcessSmugglingEvent(
+                frame,
+                incidentId,
+                gatherings,
+                isPeopleGathering,
+                isBoatExistence,
+                isPeopleAwayFromBoat);
+        }
+
+        return new AnalysisResult(true);
     }
 
     private bool CheckPeopleGathering(Frame frame)
@@ -403,9 +390,6 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         bool boatExistence,
         bool peopleAwayFromBoat)
     {
-        if (!WillPublishEventMessage) return;
-        if (CheckLocalEventInterval()) return;
-
         var personCountInGatherings = gatherings.Sum(g => g.GroupObjects.Count);
 
         Log.Warning(
@@ -430,60 +414,23 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         var annotationJson = JsonSerializer.Serialize(frame.Annotation, DomainEvent.JsonOptions);
         smugglingEvent.Annotations = annotationJson;
 
-        Mat? snapshot = null;
-        if (WillSaveEventSnapshot)
-        {
-            snapshot = frame.Scene.Clone();
-        }
-
-        var frameId = frame.FrameId;
-        var sourceId = frame.SourceId;
-        var publisher = _smugglingEventPublisher;
-
-        Task.Run(async () =>
-        {
-            try
+        TryQueueThrottledEvent(
+            new EventPublicationRequest<SmugglingEvent>
             {
-                using (snapshot)
-                {
-                    var savePath = Path.Combine(EventSnapshotDir, DateTime.UtcNow.ToString("yyyy-MM-dd"), SanitizeFileToken(sourceId));
-                    savePath.EnsureDirExistence();
-
-                    if (snapshot != null && !snapshot.IsDisposed)
-                    {
-                        var imagePath = Path.Combine(savePath, $"{incidentId}.jpg");
-                        snapshot.SaveImage(imagePath);
-
-                        var annotationPath = Path.Combine(savePath, $"{incidentId}.json");
-                        await File.WriteAllTextAsync(annotationPath, annotationJson);
-
-                        smugglingEvent.ImageLocalPath = imagePath;
-                        smugglingEvent.ImageJsonLocalPath = annotationPath;
-                    }
-
-                    if (WillSaveEventVideoClip)
-                    {
-                        var videoPath = Path.Combine(savePath, $"{incidentId}.mp4");
-                        await SnapshotManager.GenerateVideoClipAroundFrameAsync(videoPath, frameId);
-                        smugglingEvent.VideoLocalPath = videoPath;
-                    }
-
-                    await EventRepository.SaveDomainEventAsync(smugglingEvent);
-                    MessagePoster.PostDomainEventMessage(smugglingEvent);
-                    publisher.Publish(smugglingEvent);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error processing smuggling event {EventName}", EventName);
-            }
-        });
-    }
-
-    public void SetSubscriber(ISubscriber<ObjectExpiredEvent> subscriber)
-    {
-        _objectExpiredSubscriber = subscriber;
-        _objectExpiredSubscription = _objectExpiredSubscriber.Subscribe(ProcessEvent);
+                Event = smugglingEvent,
+                AnnotationJson = annotationJson,
+                CloneSnapshot = () => frame.Scene.Clone(),
+                FrameId = frame.FrameId,
+                FilePrefix = "smuggling",
+                RelativeDirectory = Path.Combine(
+                    DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                    SanitizeFileToken(frame.SourceId)),
+                StableArtifactId = incidentId,
+                PublishInProcess = @event =>
+                    _smugglingEventPublisher.Publish(@event),
+                SaveSnapshot = WillSaveEventSnapshot,
+                SaveVideoClip = WillSaveEventVideoClip
+            });
     }
 
     public void ProcessEvent(ObjectExpiredEvent @event)
@@ -491,10 +438,11 @@ public class Executor : AlgorithmBase, IEventSubscriber<ObjectExpiredEvent>
         _personHistory.TryRemove(PersonHistoryKey(@event.SourceId, @event.TrackingId), out _);
     }
 
-    public override void Dispose()
+    protected override void DisposeCore()
     {
-        _objectExpiredSubscription?.Dispose();
-        base.Dispose();
+        _flagManager.Clear();
+        _personHistory.Clear();
+        _boatPositions.Clear();
     }
 
     private bool IsFlagActive(string sourceId, string flagName)
