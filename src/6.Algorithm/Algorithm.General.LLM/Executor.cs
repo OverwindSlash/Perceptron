@@ -229,7 +229,7 @@ public class Executor : AlgorithmBase
                 RequestedAtUtc: request.CreatedAtUtc,
                 CompletedAtUtc: completedAtUtc);
 
-        Log.Information("LLM inference completed. RequestId: {RequestId}, Model: {ModelName}, Result: {Result}, Elapse: {InferTime}",
+        Log.Debug("LLM inference completed. RequestId: {RequestId}, Model: {ModelName}, Result: {Result}, Elapse: {InferTime}",
             request.RequestId, ModelName, inferenceResult, stopwatch.Elapsed);
         _metrics.Increment("llm_inference_completed_total", request.SourceId, request.QueuePolicy, request.RequesterAlgorithmName);
 
@@ -421,7 +421,7 @@ public class Executor : AlgorithmBase
             return false;
         }
 
-        Log.Information("Create LLM frame request. RequestId: {RequestId}, SourceId: {SourceId}, Policy: {Policy}, ImageBytes: {ImageBytes}",
+        Log.Debug("Create LLM frame request. RequestId: {RequestId}, SourceId: {SourceId}, Policy: {Policy}, ImageBytes: {ImageBytes}",
             request.RequestId, request.SourceId, request.QueuePolicy, imageBytes.Length);
         _metrics.Increment("llm_request_created_total", request.SourceId, request.QueuePolicy, request.RequesterAlgorithmName);
 

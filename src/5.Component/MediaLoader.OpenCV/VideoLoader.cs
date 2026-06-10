@@ -252,8 +252,13 @@ public class VideoLoader : ComponentBase, IVideoLoader
             {
                 if (!_capture.Grab())
                 {
+                    var frameCount = _capture.FrameCount;
+
                     // End of video file.
-                    if (_capture.FrameCount > 0 && _frameIndex > _capture.FrameCount)
+                    // Raw video streams may not expose a frame count, so a failed
+                    // grab is the only reliable EOF signal for a local file.
+                    if ((frameCount > 0 && _frameIndex > frameCount) ||
+                        (_isLocalVideoFile && frameCount <= 0))
                     {
                         if (Loop)
                         {

@@ -102,7 +102,7 @@ public class Executor : LlmAlgorithmBase
                 CreateLlmRequest(frame, sequenceFrames, sequenceImage, sequenceImageJpeg);
             }
 
-            Log.Information("Sequence image built. SourceId: {SourceId}, FrameIds: {FrameIds}, FrameStride: {FrameStride}, Layout: {Layout}, Size: {Width}x{Height}",
+            Log.Debug("Sequence image built. SourceId: {SourceId}, FrameIds: {FrameIds}, FrameStride: {FrameStride}, Layout: {Layout}, Size: {Width}x{Height}",
                 frame.SourceId,
                 string.Join(',', sequenceFrames.Select(item => item.FrameId)),
                 FrameStride,
@@ -366,7 +366,7 @@ public class Executor : LlmAlgorithmBase
                 ImageJpeg = sequenceImageJpeg
             });
 
-        Log.Information("Create sequence image LLM request. RequestId: {RequestId}, SequenceId: {SequenceId}, SourceId: {SourceId}, Policy: {Policy}, ExpireAtUtc: {ExpireAtUtc}",
+        Log.Debug("Create sequence image LLM request. RequestId: {RequestId}, SequenceId: {SequenceId}, SourceId: {SourceId}, Policy: {Policy}, ExpireAtUtc: {ExpireAtUtc}",
             requestId,
             sequenceId,
             frame.SourceId,
@@ -399,14 +399,26 @@ public class Executor : LlmAlgorithmBase
                 return;
             }
 
-            PublishSequenceImageEvent(
-                pending,
-                result.ModelName,
-                result.InferenceTime,
-                result.IsSuccess,
-                result.IsExpiredResult,
-                result.ErrorCode,
-                result.JsonResult);
+            var json = LLMJsonSanitizer.StripMarkdownCodeFence(result.JsonResult);
+            var actionAnalysisResult = JsonSerializer.Deserialize<ActionAnalysisResult>(json);
+
+            if (actionAnalysisResult.Conclusion == "异常")
+            {
+                Log.Warning("检出冲突行为：{result}", json);
+
+                PublishSequenceImageEvent(
+                    pending,
+                    result.ModelName,
+                    result.InferenceTime,
+                    result.IsSuccess,
+                    result.IsExpiredResult,
+                    result.ErrorCode,
+                    result.JsonResult);
+            }
+            else
+            {
+                Log.Information("未检出冲突行为：{result}", json);
+            }
         }
         finally
         {

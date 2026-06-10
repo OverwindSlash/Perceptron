@@ -202,11 +202,11 @@
       "Preferences": {
         "ServerUrl": "http://192.168.1.103:4321",
         "ApiKey": "lmstudio",
-        "ModelName": "qwen/qwen3-vl-8b",
+        "ModelName": "qwen3-vl-2b-instruct",
         //"ServerUrl": "http://192.168.1.111:1234",
         //"ApiKey": "lmstudio",
         //"ModelName": "unsloth/qwen3-vl-30b-a3b-instruct",
-        "SystemPrompt": ""        
+        "SystemPrompt": ""
       }
     }
   ]

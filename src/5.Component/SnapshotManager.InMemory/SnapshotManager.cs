@@ -14,10 +14,17 @@ namespace SnapshotManager.InMemory;
 
 public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
 {
+    private sealed class ObjectSnapshotBucket
+    {
+        public object SyncRoot { get; } = new();
+        public SortedList<float, Mat> Snapshots { get; } = new();
+        public bool IsRetired { get; set; }
+    }
+
     // frameId -> Scene
     private readonly ConcurrentDictionary<long, Mat> _scenesOfFrame;
     // object snapshot list by objId -> (factor, objectMat)
-    private readonly ConcurrentDictionary<string, SortedList<float, Mat>> _snapshotsByScore;
+    private readonly ConcurrentDictionary<string, ObjectSnapshotBucket> _snapshotsByScore;
 
     private readonly string _snapshotsDir = "Snapshots";
     private bool _saveBestSnapshot = false;
@@ -40,7 +47,7 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
     public SnapshotManager(Dictionary<string, string> preferences = null)
     {
         _scenesOfFrame = new ConcurrentDictionary<long, Mat>();
-        _snapshotsByScore = new ConcurrentDictionary<string, SortedList<float, Mat>>();
+        _snapshotsByScore = new ConcurrentDictionary<string, ObjectSnapshotBucket>();
 
         _snapshotsDir = SnapshotSettings.ParseSnapshotDir(preferences);
         _saveBestSnapshot = SnapshotSettings.ParseSaveBestSnapshot(preferences);
@@ -143,39 +150,45 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
 
     public void AddSnapshotOfObject(Frame frame, DetectedObject detectedObject, float score, Mat snapshot)
     {
-        if (!_snapshotsByScore.ContainsKey(detectedObject.Id))
+        while (true)
         {
-            _snapshotsByScore.TryAdd(detectedObject.Id, new SortedList<float, Mat>());
-        }
+            ObjectSnapshotBucket bucket = _snapshotsByScore.GetOrAdd(
+                detectedObject.Id,
+                _ => new ObjectSnapshotBucket());
 
-        SortedList<float, Mat> snapshotsOfId = _snapshotsByScore[detectedObject.Id];    // 获取对应对象ID的快照列表
-        if (!snapshotsOfId.ContainsKey(score))
-        {
-            snapshotsOfId.Add(score, snapshot);
-
-            var maxScore = snapshotsOfId.Keys.Max();
-            if (score == maxScore)
+            lock (bucket.SyncRoot)
             {
-                // // 在一行内使用易于人阅读的方式，调试打印出 snapshotsOfId.Keys 中所有值
-                // Log.Warning($"ObjId:{detectedObject.Id}, Keys: {string.Join(", ", snapshotsOfId.Keys)}");
+                if (bucket.IsRetired)
+                {
+                    continue;
+                }
 
-                ObjectBestSnapshotCreatedEvent bestSnapshotCreatedEvent = new ObjectBestSnapshotCreatedEvent(frame, detectedObject, snapshot, score);
-                PublishEvent(bestSnapshotCreatedEvent);
-            }
-        }
-        else
-        {
-            snapshotsOfId[score].Dispose();     // 重要：需要释放Mat资源
-            snapshotsOfId[score] = snapshot;
-        }
+                SortedList<float, Mat> snapshotsOfId = bucket.Snapshots;
+                if (!snapshotsOfId.ContainsKey(score))
+                {
+                    snapshotsOfId.Add(score, snapshot);
 
-        if (snapshotsOfId.Count > _maxObjectSnapshots)
-        {
-            for (int i = 0; i < snapshotsOfId.Count - _maxObjectSnapshots; i++)
-            {
-                // remove tail (lowest score)
-                snapshotsOfId.Values[i].Dispose();  // 重要：需要释放Mat资源
-                snapshotsOfId.RemoveAt(i);
+                    var maxScore = snapshotsOfId.Keys.Max();
+                    if (score == maxScore)
+                    {
+                        ObjectBestSnapshotCreatedEvent bestSnapshotCreatedEvent =
+                            new ObjectBestSnapshotCreatedEvent(frame, detectedObject, snapshot, score);
+                        PublishEvent(bestSnapshotCreatedEvent);
+                    }
+                }
+                else
+                {
+                    snapshotsOfId[score].Dispose();
+                    snapshotsOfId[score] = snapshot;
+                }
+
+                while (snapshotsOfId.Count > _maxObjectSnapshots)
+                {
+                    snapshotsOfId.Values[0].Dispose();
+                    snapshotsOfId.RemoveAt(0);
+                }
+
+                return;
             }
         }
     }
@@ -227,26 +240,32 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
 
     public SortedList<float, Mat> GetObjectSnapshotsByObjectId(string id)
     {
-        if (!_snapshotsByScore.ContainsKey(id))
+        if (!_snapshotsByScore.TryGetValue(id, out ObjectSnapshotBucket? bucket))
         {
             return new SortedList<float, Mat>();
         }
 
-        return _snapshotsByScore[id];
+        lock (bucket.SyncRoot)
+        {
+            return bucket.IsRetired
+                ? new SortedList<float, Mat>()
+                : new SortedList<float, Mat>(bucket.Snapshots);
+        }
     }
 
     public Mat GetBestSnapshotByObjectId(string id)
     {
-        var snapshots = GetObjectSnapshotsByObjectId(id);
-        if (snapshots.Count == 0)
+        if (!_snapshotsByScore.TryGetValue(id, out ObjectSnapshotBucket? bucket))
         {
             return new Mat();
         }
 
-        var highestScore = snapshots.Keys.Max();
-        Mat highestSnapshot = snapshots[highestScore];
-
-        return highestSnapshot;
+        lock (bucket.SyncRoot)
+        {
+            return !bucket.IsRetired && bucket.Snapshots.Count > 0
+                ? bucket.Snapshots.Values[^1]
+                : new Mat();
+        }
     }
 
     public int GetCachedSnapshotCount()
@@ -256,40 +275,70 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
 
     private void ReleaseSceneByFrameId(long frameId)
     {
-        if (_scenesOfFrame.ContainsKey(frameId))
+        if (_scenesOfFrame.TryRemove(frameId, out Mat? scene))
         {
-            _scenesOfFrame[frameId].Dispose();
-
-            _scenesOfFrame.TryRemove(frameId, out var mat);
+            scene.Dispose();
         }
     }
 
     private void ReleaseSnapshotsByObjectId(ObjectExpiredEvent @event, bool saveBeforeRelease = true)
     {
-        if (!_snapshotsByScore.ContainsKey(@event.Id))
+        if (!_snapshotsByScore.TryGetValue(@event.Id, out ObjectSnapshotBucket? bucket))
         {
             return;
         }
 
-        SortedList<float, Mat> snapshots = _snapshotsByScore[@event.Id];
+        RetireSnapshotBucket(@event.Id, bucket, @event, saveBeforeRelease);
+    }
 
-        if (saveBeforeRelease)
+    private void RetireSnapshotBucket(
+        string id,
+        ObjectSnapshotBucket bucket,
+        ObjectExpiredEvent? @event,
+        bool saveBeforeRelease)
+    {
+        bool ownsRetirement = false;
+
+        try
         {
-            var highestScore = snapshots.Keys.Max();
-            Mat highestSnapshot = snapshots[highestScore];
-
-            SaveBestSnapshot(@event, highestSnapshot);
-        }
-
-        foreach (Mat snapshot in snapshots.Values)
-        {
-            if (!snapshot.IsDisposed)
+            lock (bucket.SyncRoot)
             {
-                snapshot.Dispose();
+                if (bucket.IsRetired)
+                {
+                    return;
+                }
+
+                bucket.IsRetired = true;
+                ownsRetirement = true;
+
+                try
+                {
+                    if (saveBeforeRelease && @event != null && bucket.Snapshots.Count > 0)
+                    {
+                        SaveBestSnapshot(@event, bucket.Snapshots.Values[^1]);
+                    }
+                }
+                finally
+                {
+                    foreach (Mat snapshot in bucket.Snapshots.Values)
+                    {
+                        if (!snapshot.IsDisposed)
+                        {
+                            snapshot.Dispose();
+                        }
+                    }
+
+                    bucket.Snapshots.Clear();
+                }
             }
         }
-
-        _snapshotsByScore.TryRemove(@event.Id, out var removedSnapshots);
+        finally
+        {
+            if (ownsRetirement)
+            {
+                _snapshotsByScore.TryRemove(id, out _);
+            }
+        }
     }
 
     private void SaveBestSnapshot(ObjectExpiredEvent @event, Mat highestSnapshot)
@@ -504,19 +553,12 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
 
     public override void ProcessEvent(ObjectExpiredEvent @event)
     {
-        Task.Run(() =>
-        {
-            ReleaseSnapshotsByObjectId(@event, _saveBestSnapshot);
-            //ReleaseSnapshotsByObjectId($"cb_{@event.Id}", _saveBestSnapshot);
-        }).Wait();
+        ReleaseSnapshotsByObjectId(@event, _saveBestSnapshot);
     }
 
     public override void ProcessEvent(FrameExpiredEvent @event)
     {
-        Task.Run(() =>
-        {
-            ReleaseSceneByFrameId(@event.FrameId);
-        }).Wait();
+        ReleaseSceneByFrameId(@event.FrameId);
     }
 
     public void SetPublisher(IPublisher<ObjectBestSnapshotCreatedEvent> publisher)
@@ -577,6 +619,11 @@ public class SnapshotManager : FrameAndObjectExpiredSubscriber, ISnapshotManager
         foreach (Mat scene in _scenesOfFrame.Values)
         {
             scene.Dispose();
+        }
+
+        foreach (KeyValuePair<string, ObjectSnapshotBucket> pair in _snapshotsByScore.ToArray())
+        {
+            RetireSnapshotBucket(pair.Key, pair.Value, null, false);
         }
 
         base.Dispose();

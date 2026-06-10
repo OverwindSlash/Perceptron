@@ -17,7 +17,7 @@
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
         "SourceId": "Fight-Cam-001",
-        "VideoUri": "F:\\DataSet\\fight_fall\\fight\\negative\\14.264.mp4",
+        "VideoUri": "F:\\DataSet\\fight_fall\\fight\\negative\\33.264.mp4",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -225,8 +225,8 @@
       "AssemblyFile": "Algorithm.General.SequenceToImage.dll",
       "FullQualifiedClassName": "Algorithm.General.SequenceToImage.Executor",
       "Preferences": {
-        "SequenceLength": 7,
-        "FrameStride": 20,
+        "SequenceLength": 5,
+        "FrameStride": 10,
         "Layout": "Horizontal",
         "TileWidth": 640,
         "DrawFrameLabels": true,
@@ -234,7 +234,8 @@
         "LLMPromptFile": "fight-detection-prompt.md",
         "QueuePolicy": "EventAnchored",
         "RequestTtlSeconds": 120,
-        "EventName": "Sequence Image Analysis"
+        "EventName": "冲突侦测",
+        "EventSnapshotDir": "Events/Fight"
       }
     },
     {
@@ -243,7 +244,7 @@
       "Preferences": {
         //"ServerUrl": "http://192.168.1.103:4321",
         //"ApiKey": "lmstudio",
-        //"ModelName": "qwen/qwen3-vl-8b",
+        //"ModelName": "qwen3-vl-2b-instruct",
         "ServerUrl": "http://192.168.1.111:8000",
         "ApiKey": "cs202304",
         "ModelName": "Qwen3-VL-30B-A3B-Instruct-NVFP4",

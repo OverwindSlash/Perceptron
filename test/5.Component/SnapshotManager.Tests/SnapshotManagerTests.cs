@@ -6,6 +6,7 @@ using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event.Pipeline;
 using Perceptron.Domain.Event.SnapshotManager;
 using Serilog;
+using System.Collections.Concurrent;
 
 namespace SnapshotManager.Tests;
 
@@ -196,6 +197,90 @@ public class SnapshotManagerTests
         Assert.That(_snapshotManager.GetCachedSceneCount(), Is.EqualTo(0));
             
         frame.Dispose();
+    }
+
+    [Test]
+    public void AddSnapshotAndExpireSameObject_Concurrently_ShouldNotThrow()
+    {
+        using var frame = new Frame(
+            "src1",
+            6,
+            0,
+            new Mat(100, 100, MatType.CV_8UC3, Scalar.Blue));
+        var detectedObject = new DetectedObject(
+            "src1",
+            6,
+            DateTime.UtcNow,
+            1,
+            "person",
+            0.9f,
+            BoundingBox.CreateFromRect(10, 10, 50, 50),
+            106)
+        {
+            IsUnderAnalysis = true
+        };
+        var expiredEvent = new ObjectExpiredEvent(
+            frame.SourceId,
+            detectedObject.Id,
+            detectedObject.LocalId,
+            detectedObject.LabelId,
+            detectedObject.Label,
+            detectedObject.TrackingId);
+        var exceptions = new ConcurrentQueue<Exception>();
+
+        for (var round = 0; round < 20; round++)
+        {
+            for (var index = 0; index < 200; index++)
+            {
+                _snapshotManager.AddSnapshotOfObject(
+                    frame,
+                    detectedObject,
+                    round * 1000 + index,
+                    new Mat(4, 4, MatType.CV_8UC3, Scalar.White));
+            }
+
+            using var start = new ManualResetEventSlim();
+            var addTask = Task.Run(() =>
+            {
+                start.Wait();
+                try
+                {
+                    for (var index = 200; index < 600; index++)
+                    {
+                        _snapshotManager.AddSnapshotOfObject(
+                            frame,
+                            detectedObject,
+                            round * 1000 + index,
+                            new Mat(4, 4, MatType.CV_8UC3, Scalar.White));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    exceptions.Enqueue(ex);
+                }
+            });
+            var expireTask = Task.Run(() =>
+            {
+                start.Wait();
+                try
+                {
+                    _snapshotManager.ProcessEvent(expiredEvent);
+                }
+                catch (Exception ex)
+                {
+                    exceptions.Enqueue(ex);
+                }
+            });
+
+            start.Set();
+            Task.WaitAll(addTask, expireTask);
+            _snapshotManager.ProcessEvent(expiredEvent);
+        }
+
+        Assert.That(exceptions, Is.Empty);
+        Assert.That(
+            _snapshotManager.GetObjectSnapshotsByObjectId(detectedObject.Id),
+            Is.Empty);
     }
 
     [Test]
