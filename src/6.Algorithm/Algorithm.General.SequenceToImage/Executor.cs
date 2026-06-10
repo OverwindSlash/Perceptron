@@ -400,7 +400,8 @@ public class Executor : LlmAlgorithmBase
             }
 
             var json = LLMJsonSanitizer.StripMarkdownCodeFence(result.JsonResult);
-            var actionAnalysisResult = JsonSerializer.Deserialize<ActionAnalysisResult>(json);
+            var actionAnalysisResult = JsonSerializer.Deserialize<ActionAnalysisResult>(json)
+                ?? throw new JsonException("LLM action analysis result was null.");
 
             if (actionAnalysisResult.Conclusion == "异常")
             {

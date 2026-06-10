@@ -17,7 +17,7 @@
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
         "SourceId": "Fight-Cam-001",
-        "VideoUri": "F:\\DataSet\\fight_fall\\fight\\negative\\33.264.mp4",
+        "VideoUri": "F:\\DataSet\\fight_fall\\fight\\positive\\f003.mp4",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -242,12 +242,12 @@
       "AssemblyFile": "Algorithm.General.LLM.dll",
       "FullQualifiedClassName": "Algorithm.General.LLM.Executor",
       "Preferences": {
-        //"ServerUrl": "http://192.168.1.103:4321",
-        //"ApiKey": "lmstudio",
-        //"ModelName": "qwen3-vl-2b-instruct",
-        "ServerUrl": "http://192.168.1.111:8000",
-        "ApiKey": "cs202304",
-        "ModelName": "Qwen3-VL-30B-A3B-Instruct-NVFP4",
+        "ServerUrl": "http://192.168.1.103:4321",
+        "ApiKey": "lmstudio",
+        "ModelName": "qwen3.5-2b",
+        //"ServerUrl": "http://192.168.1.111:8000",
+        //"ApiKey": "cs202304",
+        //"ModelName": "Qwen3-VL-30B-A3B-Instruct-NVFP4",
         "SystemPrompt": ""
       }
     }
