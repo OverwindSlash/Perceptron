@@ -17,7 +17,7 @@
       "FullQualifiedClassName": "MediaLoader.OpenCV.VideoLoader",
       "Preferences": {
         "SourceId": "Fight-Cam-001",
-        "VideoUri": "F:\\DataSet\\fight_fall\\fight\\positive\\f003.mp4",
+        "VideoUri": "F:\\DataSet\\fight_fall\\fight\\positive\\f004.mkv",
         "VideoCaptureAPI": "FFMPEG",
         "VideoAccelerationType": "None",
         "VideoAccelerationDeviceId": 0,
@@ -227,6 +227,7 @@
       "Preferences": {
         "SequenceLength": 5,
         "FrameStride": 10,
+        "TargetObjectNames": "person",
         "Layout": "Horizontal",
         "TileWidth": 640,
         "DrawFrameLabels": true,

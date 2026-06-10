@@ -30,6 +30,7 @@ public class Executor : LlmAlgorithmBase
     public const int DefaultRequestTtlSeconds = 120;
     public const string DefaultQueuePolicy = "EventAnchored";
     public const string DefaultTimeoutPolicy = "Drop";
+    public const string DefaultTargetObjectNames = "";
 
     public int SequenceLength { get; private set; }
     public int FrameStride { get; private set; }
@@ -41,6 +42,7 @@ public class Executor : LlmAlgorithmBase
     public int RequestTtlSeconds { get; private set; }
     public LLMQueuePolicy QueuePolicy { get; private set; }
     public LLMTimeoutPolicy OnTimeout { get; private set; }
+    public HashSet<string> TargetObjectNames { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _bufferSync = new();
     private readonly Dictionary<string, Queue<BufferedFrame>> _sourceBuffers = new();
     private readonly Dictionary<string, long> _sourceFrameCounters = new();
@@ -48,6 +50,16 @@ public class Executor : LlmAlgorithmBase
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences)
         : base(pipeline, preferences)
+    {
+        AlgorithmName = "Sequence To Image";
+        AlgorithmVersion = "1.0.0";
+        AlgorithmDescription = "Stitch consecutive video frames into one image and optionally submit it for frame-level LLM analysis.";
+    }
+
+    public Executor(
+        AlgorithmRuntimeDependencies dependencies,
+        Dictionary<string, string> preferences)
+        : base(dependencies, preferences)
     {
         AlgorithmName = "Sequence To Image";
         AlgorithmVersion = "1.0.0";
@@ -75,6 +87,9 @@ public class Executor : LlmAlgorithmBase
         RequestTtlSeconds = Math.Max(1, PreferenceParser.ParseIntValue(Preferences, "RequestTtlSeconds", DefaultRequestTtlSeconds));
         QueuePolicy = ParseQueuePolicy(PreferenceParser.ParseStringValue(Preferences, "QueuePolicy", DefaultQueuePolicy));
         OnTimeout = ParseTimeoutPolicy(PreferenceParser.ParseStringValue(Preferences, "OnTimeout", DefaultTimeoutPolicy));
+        TargetObjectNames = new HashSet<string>(
+            PreferenceParser.ParseStringListValue(Preferences, "TargetObjectNames", []),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     protected override AnalysisResult AnalyzeCore(Frame frame)
@@ -85,6 +100,11 @@ public class Executor : LlmAlgorithmBase
             ProcessTimedOutSequences();
 
             if (frame.IsBlankFrame || frame.Scene.Empty())
+            {
+                return new AnalysisResult(true);
+            }
+
+            if (!ContainsTargetObject(frame))
             {
                 return new AnalysisResult(true);
             }
@@ -122,6 +142,13 @@ public class Executor : LlmAlgorithmBase
         {
             DisposeBufferedFrames(sequenceFrames);
         }
+    }
+
+    private bool ContainsTargetObject(Frame frame)
+    {
+        return TargetObjectNames.Count == 0 ||
+               frame.DetectedObjects.Any(detectedObject =>
+                   TargetObjectNames.Contains(detectedObject.Label));
     }
 
     private bool TryTakeReadySequence(Frame frame, out List<BufferedFrame>? sequenceFrames)
