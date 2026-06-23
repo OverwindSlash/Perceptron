@@ -6,6 +6,7 @@ using Perceptron.Domain.Entity.ObjectDetection;
 using Perceptron.Domain.Entity.Pipeline;
 using Perceptron.Domain.Entity.VideoStream;
 using Perceptron.Domain.Event.Pipeline;
+using Perceptron.Domain.Extensions;
 using Perceptron.Domain.Setting;
 using Perceptron.Service.Pipeline;
 using Sdcb.PaddleInference;
@@ -13,19 +14,91 @@ using Sdcb.PaddleOCR;
 using Sdcb.PaddleOCR.Models.Local;
 using Serilog;
 using System.Collections.Concurrent;
+using System.Globalization;
 
 namespace Algorithm.General.OCR;
 
 public class Executor : AlgorithmBase
 {
+    private sealed class OcrSnapshotRecord : IDisposable
+    {
+        public string OcrObjectId { get; }
+        public float Confidence { get; private set; }
+        public Mat Snapshot { get; private set; }
+
+        public OcrSnapshotRecord(string ocrObjectId, float confidence, Mat snapshot)
+        {
+            OcrObjectId = ocrObjectId;
+            Confidence = confidence;
+            Snapshot = snapshot;
+        }
+
+        public void Update(float confidence, Mat snapshot)
+        {
+            Snapshot.Dispose();
+            Snapshot = snapshot;
+            Confidence = confidence;
+        }
+
+        public void Dispose()
+        {
+            if (!Snapshot.IsDisposed)
+            {
+                Snapshot.Dispose();
+            }
+        }
+    }
+
+    private sealed class BearerSnapshotDirectoryState : IDisposable
+    {
+        public object SyncRoot { get; } = new();
+        public float MaxBearerConfidence { get; private set; } = float.MinValue;
+        public Mat? BearerSnapshot { get; private set; }
+        public Dictionary<string, OcrSnapshotRecord> OcrSnapshotsByObjectId { get; } = new(StringComparer.Ordinal);
+
+        public void UpdateBearerSnapshot(float confidence, Mat snapshot)
+        {
+            BearerSnapshot?.Dispose();
+            BearerSnapshot = snapshot;
+            MaxBearerConfidence = confidence;
+        }
+
+        public void Dispose()
+        {
+            BearerSnapshot?.Dispose();
+            BearerSnapshot = null;
+
+            foreach (var snapshotRecord in OcrSnapshotsByObjectId.Values)
+            {
+                snapshotRecord.Dispose();
+            }
+
+            OcrSnapshotsByObjectId.Clear();
+        }
+    }
+
+    private const string OcrBearerObjectIdPropertyName = "OcrBearerObjectId";
+    private const string OcrBearerObjectLocalIdPropertyName = "OcrBearerObjectLocalId";
+    private const string OcrBearerObjectTrackingIdPropertyName = "OcrBearerObjectTrackingId";
+    private const string DefaultOcrSnapshotsDir = "OcrSnapshots";
+
     public string OcrType { get; private set; } = string.Empty;
     public string OcrBearerType { get; private set; } = string.Empty;
     public string OcrDevice { get; private set; } = "cuda";
     public int OcrDeviceId { get; private set; }
     public float ScoreThresh { get; private set; } = 0.5f;
+    public string OcrSnapshotsDir { get; private set; } = DefaultOcrSnapshotsDir;
 
     private PaddleOcrAll? _all;
     private readonly ConcurrentDictionary<string, float> _maxBearerConfidenceById = new();
+    private readonly ConcurrentDictionary<string, BearerSnapshotDirectoryState> _snapshotDirectoryStateByBearerId = new();
+
+    private readonly Mat _kernelSharp = Mat.FromPixelData(3, 3, MatType.CV_32F, new float[,]
+    {
+        { 0, -1, 0 },
+        { -1, 5, -1 },
+        { 0, -1, 0 }
+    });
 
     public Executor(AnalysisPipeline pipeline, Dictionary<string, string> preferences) 
         : base(pipeline, preferences)
@@ -66,31 +139,41 @@ public class Executor : AlgorithmBase
             "ScoreThresh",
             0.5f);
 
+        OcrSnapshotsDir = PreferenceParser.ParseStringValue(
+            Preferences,
+            "OcrSnapshotsDir",
+            DefaultOcrSnapshotsDir);
+        OcrSnapshotsDir.EnsureDirExistence();
+
         _all = CreateOcrEngine();
     }
 
     protected override AnalysisResult AnalyzeCore(Frame frame)
     {
-        foreach (var ocrObject in frame.DetectedObjects)
+        var candidateOcrObjects = frame.DetectedObjects
+            .Where(ocrObject => ocrObject.IsUnderAnalysis && ocrObject.Label == OcrType)
+            .ToList();
+
+        foreach (var bearerObject in frame.DetectedObjects)
         {
-            if (!ocrObject.IsUnderAnalysis) continue;
+            if (!bearerObject.IsUnderAnalysis) continue;
+            if (bearerObject.Label != OcrBearerType) continue;
 
-            if (ocrObject.Label != OcrType) continue;
-            var shouldPerformOcr = false;
+            var relatedOcrObjects = candidateOcrObjects
+                .Where(ocrObject => bearerObject != ocrObject && bearerObject.Bbox.Contains(ocrObject.Bbox))
+                .OrderByDescending(ocrObject => ocrObject.Confidence)
+                .ToList();
 
-            foreach (var bearerObject in frame.DetectedObjects)
+            if (relatedOcrObjects.Count == 0) continue;
+
+            UpdateSnapshotDirectory(bearerObject, relatedOcrObjects);
+
+            if (!IsBetterConfidence(bearerObject)) continue;
+
+            foreach (var ocrObject in relatedOcrObjects)
             {
-                if (!bearerObject.IsUnderAnalysis) continue;
-
-                if (bearerObject == ocrObject) continue;
-
-                if (bearerObject.Label != OcrBearerType) continue;
-
-                if (!bearerObject.Bbox.Contains(ocrObject.Bbox)) continue;
-
-                if (!IsBetterConfidence(bearerObject)) continue;
-
-                PerformOcr(ocrObject);
+                RecordOcrBearerRelation(ocrObject, bearerObject);
+                PerformOcr(ocrObject, bearerObject);
             }
         }
 
@@ -126,7 +209,122 @@ public class Executor : AlgorithmBase
         }
     }
 
-    private void PerformOcr(DetectedObject ocrObject)
+    private static void RecordOcrBearerRelation(DetectedObject ocrObject, DetectedObject bearerObject)
+    {
+        ocrObject.SetProperty(OcrBearerObjectIdPropertyName, bearerObject.Id);
+        ocrObject.SetProperty(OcrBearerObjectLocalIdPropertyName, bearerObject.LocalId);
+        ocrObject.SetProperty(OcrBearerObjectTrackingIdPropertyName, bearerObject.TrackingId);
+    }
+
+    private void UpdateSnapshotDirectory(DetectedObject bearerObject, IReadOnlyList<DetectedObject> relatedOcrObjects)
+    {
+        var bearerObjectId = bearerObject.Id;
+        var state = _snapshotDirectoryStateByBearerId.GetOrAdd(
+            bearerObjectId,
+            _ => new BearerSnapshotDirectoryState());
+
+        lock (state.SyncRoot)
+        {
+            var hasChanges = TryUpdateBearerSnapshot(state, bearerObject);
+
+            foreach (var ocrObject in relatedOcrObjects)
+            {
+                hasChanges |= TryUpdateOcrSnapshot(state, ocrObject);
+            }
+
+            if (hasChanges)
+            {
+                RewriteSnapshotDirectory(bearerObjectId, state);
+            }
+        }
+    }
+
+    private static bool TryUpdateBearerSnapshot(BearerSnapshotDirectoryState state, DetectedObject bearerObject)
+    {
+        if (bearerObject.Snapshot is null || bearerObject.Snapshot.Empty()) return false;
+        if (bearerObject.Confidence <= state.MaxBearerConfidence) return false;
+
+        state.UpdateBearerSnapshot(bearerObject.Confidence, bearerObject.Snapshot.Clone());
+        return true;
+    }
+
+    private static bool TryUpdateOcrSnapshot(BearerSnapshotDirectoryState state, DetectedObject ocrObject)
+    {
+        if (ocrObject.Snapshot is null || ocrObject.Snapshot.Empty()) return false;
+
+        var ocrObjectId = ocrObject.Id;
+        var clonedSnapshot = ocrObject.Snapshot.Clone();
+
+        if (!state.OcrSnapshotsByObjectId.TryGetValue(ocrObjectId, out var snapshotRecord))
+        {
+            state.OcrSnapshotsByObjectId[ocrObjectId] = new OcrSnapshotRecord(
+                ocrObjectId,
+                ocrObject.Confidence,
+                clonedSnapshot);
+            return true;
+        }
+
+        if (ocrObject.Confidence <= snapshotRecord.Confidence)
+        {
+            clonedSnapshot.Dispose();
+            return false;
+        }
+
+        snapshotRecord.Update(ocrObject.Confidence, clonedSnapshot);
+        return true;
+    }
+
+    private void RewriteSnapshotDirectory(string bearerObjectId, BearerSnapshotDirectoryState state)
+    {
+        var bearerDirectoryPath = Path.Combine(OcrSnapshotsDir, SanitizePathSegment(bearerObjectId));
+        bearerDirectoryPath.EnsureDirExistence();
+
+        foreach (var filePath in Directory.GetFiles(bearerDirectoryPath, "*.jpg", SearchOption.TopDirectoryOnly))
+        {
+            File.Delete(filePath);
+        }
+
+        if (state.BearerSnapshot is { IsDisposed: false } bearerSnapshot && !bearerSnapshot.Empty())
+        {
+            var bearerImagePath = Path.Combine(
+                bearerDirectoryPath,
+                $"000_bearer_{SanitizePathSegment(bearerObjectId)}_{FormatConfidence(state.MaxBearerConfidence)}.jpg");
+            bearerSnapshot.SaveImage(bearerImagePath);
+        }
+
+        var orderedOcrSnapshots = state.OcrSnapshotsByObjectId.Values
+            .OrderByDescending(snapshotRecord => snapshotRecord.Confidence)
+            .ThenBy(snapshotRecord => snapshotRecord.OcrObjectId, StringComparer.Ordinal)
+            .ToList();
+
+        for (var index = 0; index < orderedOcrSnapshots.Count; index++)
+        {
+            var snapshotRecord = orderedOcrSnapshots[index];
+            if (snapshotRecord.Snapshot.IsDisposed || snapshotRecord.Snapshot.Empty()) continue;
+
+            var ocrImagePath = Path.Combine(
+                bearerDirectoryPath,
+                $"{index + 1:000}_{SanitizePathSegment(snapshotRecord.OcrObjectId)}_{FormatConfidence(snapshotRecord.Confidence)}.jpg");
+            snapshotRecord.Snapshot.SaveImage(ocrImagePath);
+        }
+    }
+
+    private static string SanitizePathSegment(string value)
+    {
+        var invalidFileNameChars = Path.GetInvalidFileNameChars();
+        var sanitizedChars = value
+            .Select(character => invalidFileNameChars.Contains(character) ? '_' : character)
+            .ToArray();
+
+        return new string(sanitizedChars);
+    }
+
+    private static string FormatConfidence(float confidence)
+    {
+        return confidence.ToString("F4", CultureInfo.InvariantCulture);
+    }
+
+    private void PerformOcr(DetectedObject ocrObject, DetectedObject bearerObject)
     {
         if (ocrObject.Snapshot is null || ocrObject.Snapshot.Empty()) return;
 
@@ -138,19 +336,23 @@ public class Executor : AlgorithmBase
 
             var text = resultRegion.Text;
 
-            Log.Information("License recognized:{license}", text);
+            Log.Information(
+                "'{bearerObjectId}' contains '{ocrObjectId}', content:{text}",
+                bearerObject.Id,
+                ocrObject.Id,
+                text);
 
-            //ocrObject.Snapshot.SaveImage($"{text}.jpg");
         }
     }
 
     private PaddleOcrResult RunOcr(Mat snapshot)
     {
         using var ocrInput = PrepareSnapshotForOcr(snapshot);
+        using var ocrEnhancedInput = SharpenImageText(ocrInput);
 
         try
         {
-            var result = EnsureOcrEngine().Run(ocrInput);
+            var result = EnsureOcrEngine().Run(ocrEnhancedInput);
 
             return result;
         }
@@ -240,12 +442,90 @@ public class Executor : AlgorithmBase
     private void ProcessEvent(ObjectExpiredEvent @event)
     {
         _maxBearerConfidenceById.TryRemove(@event.Id, out _);
+
+        if (_snapshotDirectoryStateByBearerId.TryRemove(@event.Id, out var state))
+        {
+            if (string.Equals(@event.Label, OcrBearerType, StringComparison.OrdinalIgnoreCase))
+            {
+                ExportExpiredBearerEventArtifacts(@event, state);
+            }
+
+            state.Dispose();
+        }
     }
 
     protected override void DisposeCore()
     {
         _maxBearerConfidenceById.Clear();
+
+        foreach (var state in _snapshotDirectoryStateByBearerId.Values)
+        {
+            state.Dispose();
+        }
+
+        _snapshotDirectoryStateByBearerId.Clear();
         _all?.Dispose();
         _all = null;
+    }
+
+    private Mat SharpenImageText(Mat ocrSnapshot)
+    {
+        // 1. 转换为灰度图
+        using Mat gray = new Mat();
+        Cv2.CvtColor(ocrSnapshot, gray, ColorConversionCodes.BGR2GRAY);
+
+        // 2. 去除噪声
+        using Mat denoised = new Mat();
+        Cv2.GaussianBlur(gray, denoised, new Size(3, 3), 0);
+
+        // 3. 图像锐化
+        Mat denoisedSharpened = new Mat();
+        Cv2.Filter2D(denoised, denoisedSharpened, -1, _kernelSharp);
+
+        return denoisedSharpened;
+    }
+
+    private void ExportExpiredBearerEventArtifacts(ObjectExpiredEvent @event, BearerSnapshotDirectoryState state)
+    {
+        if (string.IsNullOrWhiteSpace(EventSnapshotDir))
+        {
+            return;
+        }
+
+        var eventDirectoryPath = Path.Combine(EventSnapshotDir, SanitizePathSegment(@event.Id));
+        eventDirectoryPath.EnsureDirExistence();
+
+        lock (state.SyncRoot)
+        {
+            foreach (var filePath in Directory.GetFiles(eventDirectoryPath, "*.jpg", SearchOption.TopDirectoryOnly))
+            {
+                File.Delete(filePath);
+            }
+
+            if (state.BearerSnapshot is { IsDisposed: false } bearerSnapshot && !bearerSnapshot.Empty())
+            {
+                var bearerImagePath = Path.Combine(
+                    eventDirectoryPath,
+                    $"000_{SanitizePathSegment(@event.Id)}_{FormatConfidence(state.MaxBearerConfidence)}.jpg");
+                bearerSnapshot.SaveImage(bearerImagePath);
+            }
+
+            var topOcrSnapshots = state.OcrSnapshotsByObjectId.Values
+                .OrderByDescending(snapshotRecord => snapshotRecord.Confidence)
+                .ThenBy(snapshotRecord => snapshotRecord.OcrObjectId, StringComparer.Ordinal)
+                .Take(3)
+                .ToList();
+
+            for (var index = 0; index < topOcrSnapshots.Count; index++)
+            {
+                var snapshotRecord = topOcrSnapshots[index];
+                if (snapshotRecord.Snapshot.IsDisposed || snapshotRecord.Snapshot.Empty()) continue;
+
+                var ocrImagePath = Path.Combine(
+                    eventDirectoryPath,
+                    $"{index + 1:000}_{SanitizePathSegment(snapshotRecord.OcrObjectId)}_{FormatConfidence(snapshotRecord.Confidence)}.jpg");
+                snapshotRecord.Snapshot.SaveImage(ocrImagePath);
+            }
+        }
     }
 }

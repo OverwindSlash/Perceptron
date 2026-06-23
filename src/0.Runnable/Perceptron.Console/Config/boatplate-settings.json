@@ -114,7 +114,7 @@
     "FullQualifiedClassName": "Tracker.Sort.SortTracker",
     "Preferences": {
       "IouThreshold": 0.1,
-      "MaxMisses": 50
+      "MaxMisses": 200
     }
   },
   //"Tracker": {
@@ -229,7 +229,7 @@
         "OcrDeviceId": 0,
         "OcrType": "sign",
         "OcrBearerType": "boat",
-        "ScoreThresh": 0.4
+        "ScoreThresh": 0.5
       }
     }
   ]
