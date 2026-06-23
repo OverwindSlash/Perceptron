@@ -52,6 +52,7 @@ public class Executor : AlgorithmBase
         Subscribe(
             Services.GetRequiredService<ISubscriber<ObjectExpiredEvent>>(),
             ProcessEvent);
+
         _shipLabelEventPublisher =
             Services.GetRequiredService<IPublisher<ShipLabelEvent>>();
 

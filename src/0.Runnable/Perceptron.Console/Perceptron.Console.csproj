@@ -39,6 +39,7 @@
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectDensity\Algorithm.General.ObjectDensity.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrenceByLLM\Algorithm.General.ObjectOccurrenceByLLM.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.ObjectOccurrence\Algorithm.General.ObjectOccurrence.csproj" />
+    <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.OCR\Algorithm.General.OCR.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.RegionAccess\Algorithm.General.RegionAccess.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.General.SequenceToImage\Algorithm.General.SequenceToImage.csproj" />
     <ProjectReference Include="..\..\6.Algorithm\Algorithm.GenerateDebugAnnotations\Algorithm.GenerateDebugAnnotations.csproj" />
@@ -77,6 +78,9 @@
     <None Update="Config\smuggling-settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Config\boatplate-settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Config\suzhou-shiplabels-settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -93,6 +97,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="RegionDefinitions\human-density-region.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="RegionDefinitions\osd-exclusive-region.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="RegionDefinitions\poc-analysis-region.json">

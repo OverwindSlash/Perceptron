@@ -1,0 +1,93 @@
+{
+  "Name": "default",
+  "IsObjectAnalyzableRetain": false,
+  "IsDoubleLineCounting": false,
+  "AnalysisAreas": [
+    {
+      "Name": "analysis region",
+      "Points": [
+        {
+          "NormalizedX": 0,
+          "NormalizedY": 0
+        },
+        {
+          "NormalizedX": 0,
+          "NormalizedY": 1
+        },
+        {
+          "NormalizedX": 1,
+          "NormalizedY": 1
+        },
+        {
+          "NormalizedX": 1,
+          "NormalizedY": 0
+        }
+      ]
+    }
+  ],
+  "ExcludedAreas": [
+    {
+      "Name": "time region",
+      "Points": [
+        {
+          "NormalizedX": 0,
+          "NormalizedY": 0.024074
+        },
+        {
+          "NormalizedX": 0.432292,
+          "NormalizedY": 0.024074
+        },
+        {
+          "NormalizedX": 0.432292,
+          "NormalizedY": 0.085185
+        },
+        {
+          "NormalizedX": 0,
+          "NormalizedY": 0.085185
+        }
+      ]
+    },
+    {
+      "Name": "zoom region",
+      "Points": [
+        {
+          "NormalizedX": 0.1046875,
+          "NormalizedY": 0.8935185
+        },
+        {
+          "NormalizedX": 0.1046875,
+          "NormalizedY": 0.9333333
+        },
+        {
+          "NormalizedX": 0.3703125,
+          "NormalizedY": 0.9333333
+        },
+        {
+          "NormalizedX": 0.3703125,
+          "NormalizedY": 0.8935185
+        }
+      ]
+    },
+    {
+      "Name": "name region",
+      "Points": [
+        {
+          "NormalizedX": 0.7255208,
+          "NormalizedY": 0.8518519
+        },
+        {
+          "NormalizedX": 0.7255208,
+          "NormalizedY": 0.9157407
+        },
+        {
+          "NormalizedX": 0.9776042,
+          "NormalizedY": 0.9157407
+        },
+        {
+          "NormalizedX": 0.9776042,
+          "NormalizedY": 0.8518519
+        }
+      ]
+    }
+  ]
+}
