@@ -543,7 +543,7 @@ public class Executor : LlmAlgorithmBase
             return;
         }
 
-        if (CheckLocalEventInterval())
+        if (CheckLocalEventInterval(pending.SourceId))
         {
             Log.Information("Suppress sequence image LLM event by local interval. RequestId: {RequestId}, SequenceId: {SequenceId}",
                 pending.RequestId, pending.SequenceId);

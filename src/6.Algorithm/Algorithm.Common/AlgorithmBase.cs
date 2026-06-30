@@ -73,7 +73,8 @@ public abstract class AlgorithmBase : IAlgorithmModule
     protected IEventRepository EventRepository = null!;
     protected Perceptron.Domain.Abstraction.MessagePoster.IMessagePoster MessagePoster = null!;
 
-    private DateTime _lastProcessTime = DateTime.MinValue;
+    private readonly object _localEventIntervalSync = new();
+    private readonly Dictionary<string, DateTime> _lastProcessTimes = [];
 
     protected AlgorithmBase(
         AnalysisPipeline pipeline,
@@ -438,17 +439,23 @@ public abstract class AlgorithmBase : IAlgorithmModule
             frame.Scene.Height);
     }
 
-    protected bool CheckLocalEventInterval() => ShouldSuppressLocalEvent();
+    protected bool CheckLocalEventInterval(string sourceId) => ShouldSuppressLocalEvent(sourceId);
 
-    protected bool ShouldSuppressLocalEvent()
+    protected bool ShouldSuppressLocalEvent(string sourceId)
     {
-        if ((DateTime.Now - _lastProcessTime).TotalSeconds < LocalEventIntervalSec)
-        {
-            return true;
-        }
+        sourceId ??= string.Empty;
 
-        _lastProcessTime = DateTime.Now;
-        return false;
+        lock (_localEventIntervalSync)
+        {
+            if (_lastProcessTimes.TryGetValue(sourceId, out var lastProcessTime) &&
+                (DateTime.Now - lastProcessTime).TotalSeconds < LocalEventIntervalSec)
+            {
+                return true;
+            }
+
+            _lastProcessTimes[sourceId] = DateTime.Now;
+            return false;
+        }
     }
 
     protected bool TryQueueEvent<TEvent>(EventPublicationRequest<TEvent> request)
@@ -465,7 +472,7 @@ public abstract class AlgorithmBase : IAlgorithmModule
     protected bool TryQueueThrottledEvent<TEvent>(EventPublicationRequest<TEvent> request)
         where TEvent : Perceptron.Domain.Event.DomainEvent
     {
-        if (!WillPublishEventMessage || ShouldSuppressLocalEvent())
+        if (!WillPublishEventMessage || ShouldSuppressLocalEvent(request.Event.SourceId))
         {
             return false;
         }

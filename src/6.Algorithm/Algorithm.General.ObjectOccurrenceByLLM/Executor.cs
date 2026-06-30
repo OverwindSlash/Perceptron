@@ -321,7 +321,7 @@ public class Executor : LlmAlgorithmBase
             return;
         }
 
-        if (CheckLocalEventInterval())
+        if (CheckLocalEventInterval(@event.SourceId))
         {
             Log.Information("Suppress confirmed object occurrence by local interval. CandidateEventId: {CandidateEventId}",
                 @event.CandidateEventId);
