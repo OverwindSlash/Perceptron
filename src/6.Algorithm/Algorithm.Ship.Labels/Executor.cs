@@ -132,14 +132,29 @@ public class Executor : AlgorithmBase
                 detectedObject.Id,
                 out var current))
             {
-                if (!isDetectionFrame ||
-                    detectedObject.Confidence <= current.Confidence)
+                if (!isDetectionFrame)
+                {
+                    candidate?.Dispose();
+                    return current;
+                }
+
+                var shouldEvaluateCandidate =
+                    detectedObject.Confidence > current.Confidence ||
+                    ShouldRetryUnknownDetail(current);
+                if (!shouldEvaluateCandidate)
                 {
                     candidate?.Dispose();
                     return current;
                 }
 
                 candidate ??= CreateEvidence(frame, detectedObject);
+                if (!ShouldReplaceEvidence(current, candidate))
+                {
+                    candidate.Dispose();
+                    candidate = null;
+                    return current;
+                }
+
                 if (_cachedShipLabels.TryUpdate(
                     detectedObject.Id,
                     candidate,
@@ -158,6 +173,34 @@ public class Executor : AlgorithmBase
                 return candidate;
             }
         }
+    }
+
+    private static bool ShouldRetryUnknownDetail(ShipLabelEvidence evidence)
+    {
+        return string.Equals(
+            evidence.Labels.ShipTypeDetail,
+            "Unknown",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldReplaceEvidence(
+        ShipLabelEvidence current,
+        ShipLabelEvidence candidate)
+    {
+        var currentHasKnownDetail = !ShouldRetryUnknownDetail(current);
+        var candidateHasKnownDetail = !ShouldRetryUnknownDetail(candidate);
+        if (currentHasKnownDetail != candidateHasKnownDetail)
+        {
+            return candidateHasKnownDetail;
+        }
+
+        if (candidate.Confidence > current.Confidence)
+        {
+            return true;
+        }
+
+        return candidate.Confidence >= current.Confidence &&
+               candidate.SnapshotArea > current.SnapshotArea;
     }
 
     private ShipLabelEvidence CreateEvidence(
@@ -218,23 +261,17 @@ public class Executor : AlgorithmBase
             $"text_label_type_{detectedObject.Id}",
             $"T:{shipLabels.ShipTypeGroup}",
             bbox.X,
-            bbox.Y - 4 * ObjTextFontSize);
-        AddLabelText(
-            annotation,
-            $"text_label_color_{detectedObject.Id}",
-            $"C:{string.Join(',', shipLabels.ShipColor)}",
-            bbox.X,
             bbox.Y - 3 * ObjTextFontSize);
         AddLabelText(
             annotation,
-            $"text_label_draught_{detectedObject.Id}",
-            $"D:{shipLabels.ShipDraught}",
+            $"text_label_detail_{detectedObject.Id}",
+            $"TD:{shipLabels.ShipTypeDetail}",
             bbox.X,
             bbox.Y - 2 * ObjTextFontSize);
         AddLabelText(
             annotation,
-            $"text_label_view_angle_{detectedObject.Id}",
-            $"V:{shipLabels.ShipViewAngle}",
+            $"text_label_color_{detectedObject.Id}",
+            $"C:{string.Join(',', shipLabels.ShipColor)}",
             bbox.X,
             bbox.Y - ObjTextFontSize);
 
@@ -294,12 +331,11 @@ public class Executor : AlgorithmBase
 
         var shipLabels = evidence.Labels;
         Log.Information(
-            "{ShipId} labels -> TypeGroup:{ShipTypeGroup}, Colors:{ShipColors}, Draught:{ShipDraught}, ViewAngle:{ShipViewAngle}",
+            "{ShipId} labels -> TypeGroup:{ShipTypeGroup}, TypeDetail:{ShipTypeDetail}, Colors:{ShipColors}",
             @event.Id,
             shipLabels.ShipTypeGroup,
-            string.Join(',', shipLabels.ShipColor),
-            shipLabels.ShipDraught,
-            shipLabels.ShipViewAngle);
+            shipLabels.ShipTypeDetail,
+            string.Join(',', shipLabels.ShipColor));
 
         var shipLabelEvent = new ShipLabelEvent(
             @event.SourceId,
@@ -322,9 +358,8 @@ public class Executor : AlgorithmBase
             Type = "text",
             Content =
                 $"Id:{@event.LocalId}, T:{shipLabels.ShipTypeGroup}\n" +
-                $"C:{string.Join(',', shipLabels.ShipColor)}\n" +
-                $"D:{shipLabels.ShipDraught}\n" +
-                $"V:{shipLabels.ShipViewAngle}",
+                $"TD:{shipLabels.ShipTypeDetail}\n" +
+                $"C:{string.Join(',', shipLabels.ShipColor)}",
             Position = new Position
             {
                 X = 10,

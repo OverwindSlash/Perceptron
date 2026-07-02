@@ -7,7 +7,7 @@ namespace Algorithm.Ship.Labels.Event;
 
 public class ShipLabelEvent : DomainEvent, IAnnotatedAlgorithmEvent
 {
-    public const string EventType = "Ship Label Event";
+    public new const string EventType = "Ship Label Event";
 
     public string ObjectId { get; }
     public string ObjectLocalId { get; }
@@ -25,7 +25,7 @@ public class ShipLabelEvent : DomainEvent, IAnnotatedAlgorithmEvent
         ObjectLocalId = objectLocalId;
         Confidence = confidence;
         Labels = labels;
-        Message = $"{ObjectId} labels -> TypeGroup:{Labels.ShipTypeGroup}, Colors:{string.Join(',', Labels.ShipColor)}, Draught:{Labels.ShipDraught}, ViewAngle:{Labels.ShipViewAngle}";
+        Message = $"{ObjectId} labels -> TypeGroup:{Labels.ShipTypeGroup}, TypeDetail:{Labels.ShipTypeDetail}, Colors:{string.Join(',', Labels.ShipColor)}";
     }
 
     public override string GenerateJsonContent()

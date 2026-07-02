@@ -10,7 +10,7 @@ public class ShipLabelPredictor : IDisposable
     // ImageNet Normalization
     private static readonly float[] Mean = { 0.485f, 0.456f, 0.406f };
     private static readonly float[] Std = { 0.229f, 0.224f, 0.225f };
-    private const int ImageSize = 640;
+    private const int DefaultImageSize = 384;
     private const float ColorThreshold = 0.5f;
 
     private readonly string _modelPath;
@@ -18,6 +18,7 @@ public class ShipLabelPredictor : IDisposable
     private readonly int _deviceId;
 
     private InferenceSession _session;
+    private readonly ModelInputInfo _inputInfo;
 
     public ShipLabelPredictor(string modelPath, string execProvider, int deviceId)
     {
@@ -44,23 +45,26 @@ public class ShipLabelPredictor : IDisposable
         }
 
         _session = new InferenceSession(_modelPath, option);
+        _inputInfo = GetInputInfo(_session);
     }
 
     public string Run(Mat image)
     {
-        var inputTensor = PreprocessImage(image);
+        var inputTensor = PreprocessImage(
+            image,
+            _inputInfo.Width,
+            _inputInfo.Height);
 
         var inputs = new List<NamedOnnxValue>
         {
-            NamedOnnxValue.CreateFromTensor("input", inputTensor)
+            NamedOnnxValue.CreateFromTensor(_inputInfo.Name, inputTensor)
         };
 
         using var results = _session.Run(inputs);
 
         var typeLogits = results.First(x => x.Name == "ship_type").AsTensor<float>();
+        var detailLogits = results.First(x => x.Name == "ship_type_detail").AsTensor<float>();
         var colorLogits = results.First(x => x.Name == "ship_color").AsTensor<float>();
-        var draughtLogits = results.First(x => x.Name == "ship_draught").AsTensor<float>();
-        var viewAngleLogits = results.First(x => x.Name == "ship_view_angle").AsTensor<float>();
 
         var shipLabel = new ShipLabel();
 
@@ -68,28 +72,49 @@ public class ShipLabelPredictor : IDisposable
         int typeIdx = GetArgMax(typeLogits);
         shipLabel.ShipTypeGroup = ShipLabelConfigs.ShipTypes[typeIdx];
 
-        // 2. Ship Color (Sigmoid + Threshold)
+        // 2. Ship Type Detail (Softmax + compatibility constraint)
+        int detailIdx = GetCompatibleDetailArgMax(
+            detailLogits,
+            shipLabel.ShipTypeGroup);
+        shipLabel.ShipTypeDetail = ShipLabelConfigs.ShipTypeDetails[detailIdx];
+
+        // 3. Ship Color (Sigmoid + Threshold)
         shipLabel.ShipColor = GetMultiLabel(colorLogits);
-
-        // 3. Ship Draught (Argmax)
-        int draughtIdx = GetArgMax(draughtLogits);
-        shipLabel.ShipDraught = ShipLabelConfigs.ShipDraughts[draughtIdx];
-
-        // 4. Ship View Angle (Argmax)
-        int viewAngleIdx = GetArgMax(viewAngleLogits);
-        shipLabel.ShipViewAngle = ShipLabelConfigs.ShipViewAngles[viewAngleIdx];
 
         var json = JsonSerializer.Serialize<ShipLabel>(shipLabel);
 
         return json;
     }
 
-    static DenseTensor<float> PreprocessImage(Mat image)
+    private static ModelInputInfo GetInputInfo(InferenceSession session)
+    {
+        var input = session.InputMetadata.First();
+        var shape = input.Value.Dimensions.ToArray();
+
+        if (shape.Length != 4)
+        {
+            throw new InvalidOperationException(
+                $"Expected model input to have 4 dimensions (NCHW), but got {shape.Length}.");
+        }
+
+        if (shape[1] > 0 && shape[1] != 3)
+        {
+            throw new InvalidOperationException(
+                $"Expected model input to have 3 channels, but got {shape[1]}.");
+        }
+
+        int height = shape[2] > 0 ? shape[2] : DefaultImageSize;
+        int width = shape[3] > 0 ? shape[3] : DefaultImageSize;
+
+        return new ModelInputInfo(input.Key, shape, width, height);
+    }
+
+    private static DenseTensor<float> PreprocessImage(Mat image, int width, int height)
     {
         using var resized = new Mat();
-        Cv2.Resize(image, resized, new Size(ImageSize, ImageSize), 0, 0, InterpolationFlags.Area);
+        Cv2.Resize(image, resized, new Size(width, height), 0, 0, InterpolationFlags.Area);
 
-        var denseTensor = new DenseTensor<float>(new[] { 1, 3, ImageSize, ImageSize });
+        var denseTensor = new DenseTensor<float>(new[] { 1, 3, height, width });
 
         for (int y = 0; y < resized.Rows; y++)
         {
@@ -109,7 +134,9 @@ public class ShipLabelPredictor : IDisposable
         return denseTensor;
     }
 
-    static int GetArgMax(Tensor<float> logits)
+    private sealed record ModelInputInfo(string Name, int[] Shape, int Width, int Height);
+
+    private static int GetArgMax(Tensor<float> logits)
     {
         int maxIdx = 0;
         float maxVal = logits[0, 0];
@@ -126,7 +153,7 @@ public class ShipLabelPredictor : IDisposable
         return maxIdx;
     }
 
-    static List<string> GetMultiLabel(Tensor<float> logits)
+    private static List<string> GetMultiLabel(Tensor<float> logits)
     {
         var colors = new List<string>();
         float maxScore = float.MinValue;
@@ -156,6 +183,60 @@ public class ShipLabelPredictor : IDisposable
         }
 
         return colors;
+    }
+
+    private static int GetCompatibleDetailArgMax(
+        Tensor<float> logits,
+        string shipType)
+    {
+        if (!ShipLabelConfigs.ShipTypeDetailCompatibility.TryGetValue(
+                shipType,
+                out var allowedDetails) ||
+            allowedDetails.Length == 0)
+        {
+            return GetArgMax(logits);
+        }
+
+        float maxScore = float.MinValue;
+        int maxIdx = 0;
+
+        foreach (var detail in allowedDetails)
+        {
+            int idx = Array.IndexOf(ShipLabelConfigs.ShipTypeDetails, detail);
+            if (idx < 0)
+            {
+                continue;
+            }
+
+            float score = SoftmaxScore(logits, idx);
+            if (score > maxScore)
+            {
+                maxScore = score;
+                maxIdx = idx;
+            }
+        }
+
+        return maxIdx;
+    }
+
+    private static float SoftmaxScore(Tensor<float> logits, int targetIdx)
+    {
+        float maxLogit = float.MinValue;
+        for (int i = 0; i < logits.Dimensions[1]; i++)
+        {
+            if (logits[0, i] > maxLogit)
+            {
+                maxLogit = logits[0, i];
+            }
+        }
+
+        float denominator = 0.0f;
+        for (int i = 0; i < logits.Dimensions[1]; i++)
+        {
+            denominator += MathF.Exp(logits[0, i] - maxLogit);
+        }
+
+        return MathF.Exp(logits[0, targetIdx] - maxLogit) / denominator;
     }
 
     public void Dispose()

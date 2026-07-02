@@ -427,6 +427,12 @@ public class Executor : LlmAlgorithmBase
             }
 
             var json = LLMJsonSanitizer.StripMarkdownCodeFence(result.JsonResult);
+
+            // if (string.IsNullOrEmpty(json))
+            // {
+            //     return;
+            // }
+
             var actionAnalysisResult = JsonSerializer.Deserialize<ActionAnalysisResult>(json)
                 ?? throw new JsonException("LLM action analysis result was null.");
 
